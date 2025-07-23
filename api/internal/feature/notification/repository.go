@@ -2,6 +2,7 @@ package notification
 
 import (
 	"context"
+	"fmt"
 
 	"github.com/jackc/pgx/v5/pgxpool"
 )
@@ -41,7 +42,7 @@ func (r *notificationRepository) Create(ctx context.Context, notification *Notif
 	)
 
 	if err != nil {
-		return err
+		return fmt.Errorf("insert notification: %w", err)
 	}
 
 	return nil

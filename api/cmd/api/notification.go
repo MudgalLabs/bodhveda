@@ -25,3 +25,24 @@ func directHandler(app *appType) http.HandlerFunc {
 		successResponse(w, r, http.StatusOK, "direct notification sent", notification)
 	}
 }
+
+func broadcastHandler(app *appType) http.HandlerFunc {
+	return func(w http.ResponseWriter, r *http.Request) {
+		ctx := r.Context()
+		projectID := getProjectIDFromContext(ctx)
+
+		var payload notification.BroadcastPayload
+		if err := decodeJSONRequest(&payload, r); err != nil {
+			malformedJSONResponse(w, r, err)
+			return
+		}
+
+		broadcast, errKind, err := app.service.NotificationService.Broadcast(ctx, projectID, &payload)
+		if err != nil {
+			serviceErrResponse(w, r, errKind, err)
+			return
+		}
+
+		successResponse(w, r, http.StatusOK, "broadcast notification sent", broadcast)
+	}
+}

@@ -32,7 +32,8 @@ CREATE TABLE broadcast (
     id              UUID PRIMARY KEY,
     project_id      UUID NOT NULL,
     payload         JSONB NOT NULL,
-    created_at      TIMESTAMPTZ NOT NULL
+    created_at      TIMESTAMPTZ NOT NULL,
+    expires_at      TIMESTAMPTZ NOT NULL
 );
 
 CREATE TABLE notification (

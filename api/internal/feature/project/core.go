@@ -54,5 +54,5 @@ func GetPlan(plan planName) *Plan {
 
 func (p *Plan) NotificationExpiresAt() time.Time {
 	// Notifications expire after the retention period.
-	return time.Now().AddDate(0, 0, p.RetentionDays)
+	return time.Now().UTC().AddDate(0, 0, p.RetentionDays)
 }

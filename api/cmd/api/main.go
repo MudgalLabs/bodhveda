@@ -3,6 +3,7 @@ package main
 import (
 	"bodhveda/internal/dbx"
 	"bodhveda/internal/env"
+	"bodhveda/internal/feature/broadcast"
 	"bodhveda/internal/feature/notification"
 	"bodhveda/internal/feature/project"
 	"bodhveda/internal/feature/user_identity"
@@ -61,11 +62,12 @@ func main() {
 
 	oauth.InitGoogle()
 
+	broadcastRepo := broadcast.NewRepository(db)
 	notificationRepo := notification.NewRepository(db)
 	userProfileRepository := user_profile.NewRepository(db)
 	userIdentityRepository := user_identity.NewRepository(db)
 
-	notificationService := notification.NewService(notificationRepo)
+	notificationService := notification.NewService(notificationRepo, broadcastRepo)
 	projectService := project.NewService()
 	userIdentityService := user_identity.NewService(userIdentityRepository, userProfileRepository)
 	userProfileService := user_profile.NewService(userProfileRepository)

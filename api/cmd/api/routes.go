@@ -57,6 +57,7 @@ func initRouter() http.Handler {
 			r.Use(apiKeyMiddleware)
 
 			r.Post("/direct", directHandler(app))
+			r.Post("/broadcast", broadcastHandler(app))
 		}
 
 		// Platform routes that power the web app.
