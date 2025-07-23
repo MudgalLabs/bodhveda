@@ -1,6 +1,6 @@
 # Documentation
 
-### Rest API
+### REST API Reference (`rest.md`)
 
 All SDKs use this core HTTP REST API underneath.
 
@@ -10,11 +10,8 @@ Base URL:
 https://api.bodhveda.com/v1
 ```
 
-> All requests must include your API Key in the header:
-
-```
-Authorization: Bearer YOUR_API_KEY
-```
+Authentication:
+Use `Authorization: Bearer <API_KEY>` header with all requests.
 
 ---
 
@@ -25,7 +22,7 @@ Send a direct notification to a recipient.
 ```json
 {
   "recipient": "user_123",
-  "payload": { ... }  // max 1MB JSON
+  "payload": { ... }  // max 16KB JSON
 }
 ```
 
@@ -39,15 +36,19 @@ Send a broadcast notification (lazy, only materialized on fetch).
 }
 ```
 
-#### `GET /v1/inbox/{recipient}`
+#### `POST /v1/inbox`
 
 Fetch inbox for a recipient.
-Query params:
 
--   `limit` (optional, default 20)
--   `cursor` (optional, for pagination)
+```json
+{
+    "recipient": "user_123",
+    "limit": 20,
+    "cursor": "abc123"
+}
+```
 
-Returns:
+Response:
 
 ```json
 {
@@ -56,7 +57,7 @@ Returns:
 }
 ```
 
-#### `POST /v1/read`
+#### `PATCH /v1/read`
 
 Mark specific notifications as read.
 
@@ -67,7 +68,7 @@ Mark specific notifications as read.
 }
 ```
 
-#### `POST /v1/read-all`
+#### `PATCH /v1/read/all`
 
 Mark all notifications for a recipient as read.
 
@@ -77,27 +78,18 @@ Mark all notifications for a recipient as read.
 }
 ```
 
-#### `GET /v1/unread-count/{recipient}`
-
-Returns unread count for a recipient.
-
-```json
-{
-    "count": 3
-}
-```
-
 #### `DELETE /v1/delete`
 
-Delete one or more notifications.
+Delete specific notifications for a recipient.
 
 ```json
 {
+    "recipient": "user_123",
     "notificationIds": ["n1", "n2"]
 }
 ```
 
-#### `DELETE /v1/delete-all`
+#### `DELETE /v1/delete/all`
 
 Delete all notifications for a recipient.
 
@@ -107,9 +99,27 @@ Delete all notifications for a recipient.
 }
 ```
 
+#### `POST /v1/unread-count`
+
+Returns unread count for a recipient.
+
+```json
+{
+    "recipient": "user_123"
+}
+```
+
+Response:
+
+```json
+{
+    "count": 3
+}
+```
+
 ---
 
-### Node SDK
+### Node SDK (`node.md`)
 
 Install:
 
@@ -120,9 +130,9 @@ npm install @bodhveda/sdk
 Usage:
 
 ```ts
-import bodhveda from "@bodhveda/sdk";
+import bodhveda from "@bodhveda";
 
-bodhveda.setup("YOUR_API_KEY");
+bodhveda.init("YOUR_API_KEY");
 
 await bodhveda.direct("user_123", { title: "Hi!", type: "info" });
 await bodhveda.broadcast({ system: true, message: "Server restart" });
@@ -131,26 +141,26 @@ const inbox = await bodhveda.inbox("user_123");
 await bodhveda.read("user_123", ["notif_1"]);
 await bodhveda.readAll("user_123");
 
-await bodhveda.delete(["notif_1"]);
+await bodhveda.delete("user_123", ["notif_1"]);
 await bodhveda.deleteAll("user_123");
 
-const unread = await bodhveda.getUnreadCount("user_123");
+const unread = await bodhveda.unreadCount("user_123");
 ```
 
 ---
 
-### Go SDK
+### Go SDK (`go.md`)
 
 Install:
 
 ```bash
-go get github.com/bodhveda/sdk
+go get github.com/mudgallabs/bodhveda
 ```
 
 Usage:
 
 ```go
-import "github.com/bodhveda/sdk"
+import "github.com/mudgallabs/bodhveda"
 
 client := sdk.NewClient("YOUR_API_KEY")
 
@@ -161,14 +171,14 @@ client.Direct("user_123", map[string]any{
 
 client.Broadcast(map[string]any{
     "system": true,
-    "message": "Scheduled downtime"
+    "message": "Scheduled downtime",
 })
 
 inbox, _ := client.Inbox("user_123", nil)
 client.Read("user_123", []string{"notif_1"})
 client.ReadAll("user_123")
 
-client.Delete([]string{"notif_1"})
+client.Delete("user_123", []string{"notif_1"})
 client.DeleteAll("user_123")
 
 count, _ := client.UnreadCount("user_123")
