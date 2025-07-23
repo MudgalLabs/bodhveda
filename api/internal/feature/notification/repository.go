@@ -5,6 +5,7 @@ import (
 	"bodhveda/internal/dbx"
 	"context"
 	"fmt"
+	"strings"
 
 	"github.com/google/uuid"
 	"github.com/jackc/pgx/v5/pgxpool"
@@ -16,6 +17,7 @@ type Reader interface {
 
 type Writer interface {
 	Create(ctx context.Context, notification *Notification) error
+	batchCreate(ctx context.Context, notifications []*Notification) error
 }
 
 type ReadWriter interface {
@@ -78,7 +80,7 @@ func (r *notificationRepository) Inbox(ctx context.Context, projectID uuid.UUID,
 	}
 	defer rows.Close()
 
-	var notifications []*Notification
+	notifications := []*Notification{}
 	for rows.Next() {
 		n := &Notification{}
 		err := rows.Scan(
@@ -110,4 +112,43 @@ func (r *notificationRepository) Inbox(ctx context.Context, projectID uuid.UUID,
 	}
 
 	return notifications, total, nil
+}
+
+func (r *notificationRepository) batchCreate(ctx context.Context, notifications []*Notification) error {
+	if len(notifications) == 0 {
+		return nil
+	}
+
+	// Build placeholders and values
+	valueStrings := make([]string, 0, len(notifications))
+	valueArgs := make([]any, 0, len(notifications)*8)
+
+	for i, n := range notifications {
+		pos := i * 8
+		valueStrings = append(valueStrings, fmt.Sprintf(
+			"($%d,$%d,$%d,$%d,$%d,$%d,$%d,$%d)",
+			pos+1, pos+2, pos+3, pos+4, pos+5, pos+6, pos+7, pos+8,
+		))
+
+		valueArgs = append(valueArgs,
+			n.ID,
+			n.ProjectID,
+			n.Recipient,
+			n.BroadcastID,
+			n.Payload,
+			n.ReadAt,
+			n.CreatedAt,
+			n.ExpiresAt,
+		)
+	}
+
+	query := `INSERT INTO notification (id, project_id, recipient, broadcast_id, payload, read_at, created_at, expires_at) VALUES ` +
+		strings.Join(valueStrings, ",")
+
+	_, err := r.db.Exec(ctx, query, valueArgs...)
+	if err != nil {
+		return fmt.Errorf("batch insert notification: %w", err)
+	}
+
+	return nil
 }

@@ -2,7 +2,6 @@ package main
 
 import (
 	"encoding/json"
-	"fmt"
 	"net/http"
 	"strconv"
 
@@ -66,7 +65,6 @@ func inboxHandler(app *appType) http.HandlerFunc {
 		projectID := getProjectIDFromContext(ctx)
 		recipient := chi.URLParam(r, "recipient")
 
-		// Parse limit and offset to integers and apply defaults if necessary.
 		limitStr := r.URL.Query().Get("limit")
 		offsetStr := r.URL.Query().Get("offset")
 
@@ -78,8 +76,6 @@ func inboxHandler(app *appType) http.HandlerFunc {
 		if err != nil || offset < 0 {
 			offset = 0
 		}
-
-		fmt.Println("Fetching inbox for recipient:", recipient, "with limit:", limit, "and offset:", offset)
 
 		inbox, errKind, err := app.service.NotificationService.Inbox(ctx, projectID, recipient, limit, offset)
 		if err != nil {
