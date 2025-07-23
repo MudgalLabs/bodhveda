@@ -5,10 +5,10 @@ import { toast } from "@/components/toast";
 
 export const API_ROUTES = {
     auth: {
-        signout: "/v1/auth/sign-out",
+        signout: "/v1/platform/auth/sign-out",
     },
     user: {
-        me: "/v1/users/me",
+        me: "/v1/platform/users/me",
     },
 };
 

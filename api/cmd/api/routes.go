@@ -12,7 +12,7 @@ import (
 	"github.com/go-chi/httprate"
 )
 
-func initRouter(a *app) http.Handler {
+func initRouter() http.Handler {
 	r := chi.NewRouter()
 
 	r.Use(middleware.RequestID)
@@ -44,7 +44,7 @@ func initRouter(a *app) http.Handler {
 	r.Use(httprate.LimitByIP(100, time.Minute))
 
 	r.Get("/", func(w http.ResponseWriter, r *http.Request) {
-		successResponse(w, r, http.StatusOK, "Hi, welcome to bodhveda API. Don't be naughty!", nil)
+		successResponse(w, r, http.StatusOK, "Hi, welcome to Bodhveda API. Don't be naughty!", nil)
 	})
 
 	r.Get("/ping", func(w http.ResponseWriter, r *http.Request) {
@@ -52,17 +52,27 @@ func initRouter(a *app) http.Handler {
 	})
 
 	r.Route("/v1", func(r chi.Router) {
-		r.Route("/auth", func(r chi.Router) {
-			r.Get("/oauth/google", googleSignInHandler(a.service.UserIdentityService))
-			r.Get("/oauth/google/callback", googleCallbackHandler(a.service.UserIdentityService))
+		// Core routes that power the Notification service.
+		{
+			r.Use(apiKeyMiddleware)
 
-			r.Post("/sign-out", signOutHandler(a.service.UserIdentityService))
-		})
+			r.Post("/direct", directHandler(app))
+		}
 
-		r.Route("/users", func(r chi.Router) {
-			r.Use(authMiddleware)
+		// Platform routes that power the web app.
+		r.Route("/platform", func(r chi.Router) {
+			r.Route("/auth", func(r chi.Router) {
+				r.Get("/oauth/google", googleSignInHandler(app.service.UserIdentityService))
+				r.Get("/oauth/google/callback", googleCallbackHandler(app.service.UserIdentityService))
 
-			r.Get("/me", getMeHandler(a.service.UserProfileService))
+				r.Post("/sign-out", signOutHandler(app.service.UserIdentityService))
+			})
+
+			r.Route("/users", func(r chi.Router) {
+				r.Use(authMiddleware)
+
+				r.Get("/me", getMeHandler(app.service.UserProfileService))
+			})
 		})
 	})
 

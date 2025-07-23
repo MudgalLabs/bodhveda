@@ -3,6 +3,8 @@ package main
 import (
 	"bodhveda/internal/dbx"
 	"bodhveda/internal/env"
+	"bodhveda/internal/feature/notification"
+	"bodhveda/internal/feature/project"
 	"bodhveda/internal/feature/user_identity"
 	"bodhveda/internal/feature/user_profile"
 	"bodhveda/internal/logger"
@@ -19,13 +21,15 @@ import (
 
 // This contains all the global state that we need to run the API.
 // Like all the services and repositories of Arthveda.
-type app struct {
+type appType struct {
 	service    services
 	repository repositories
 }
 
 // All the services.
 type services struct {
+	NotificationService *notification.Service
+	ProjectService      *project.Service
 	UserIdentityService *user_identity.Service
 	UserProfileService  *user_profile.Service
 }
@@ -36,6 +40,8 @@ type repositories struct {
 	UserIdentity user_identity.Reader
 	UserProfile  user_profile.Reader
 }
+
+var app *appType
 
 func main() {
 	env.Init("../.env")
@@ -55,13 +61,18 @@ func main() {
 
 	oauth.InitGoogle()
 
+	notificationRepo := notification.NewRepository(db)
 	userProfileRepository := user_profile.NewRepository(db)
 	userIdentityRepository := user_identity.NewRepository(db)
 
+	notificationService := notification.NewService(notificationRepo)
+	projectService := project.NewService()
 	userIdentityService := user_identity.NewService(userIdentityRepository, userProfileRepository)
 	userProfileService := user_profile.NewService(userProfileRepository)
 
 	services := services{
+		NotificationService: notificationService,
+		ProjectService:      projectService,
 		UserIdentityService: userIdentityService,
 		UserProfileService:  userProfileService,
 	}
@@ -71,12 +82,12 @@ func main() {
 		UserProfile:  userProfileRepository,
 	}
 
-	a := &app{
+	app = &appType{
 		service:    services,
 		repository: repositories,
 	}
 
-	r := initRouter(a)
+	r := initRouter()
 
 	err = run(r)
 	if err != nil {

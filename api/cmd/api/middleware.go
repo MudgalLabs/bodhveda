@@ -19,6 +19,7 @@ type contextKey string
 
 const ctxUserIDKey contextKey = "user_id"
 const ctxUserTimezoneKey contextKey = "user_timezone"
+const ctxProjectIDKey contextKey = "project_id"
 
 func authMiddleware(next http.Handler) http.Handler {
 	return http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
@@ -159,4 +160,45 @@ func getUserTimezoneFromCtx(ctx context.Context) *time.Location {
 		return time.UTC
 	}
 	return loc
+}
+
+// getProjectIDFromContext allows downstream access
+func getProjectIDFromContext(ctx context.Context) uuid.UUID {
+	id, ok := ctx.Value(ctxProjectIDKey).(uuid.UUID)
+	if !ok {
+		panic("project ID not valid in context")
+	}
+	return id
+}
+
+func apiKeyMiddleware(next http.Handler) http.Handler {
+	return http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		ctx := r.Context()
+		l := logger.FromCtx(ctx)
+
+		authHeader := r.Header.Get("Authorization")
+		if authHeader == "" {
+			http.Error(w, "missing Authorization header", http.StatusUnauthorized)
+			unauthorizedErrorResponse(w, r, "missing Authorization header", errors.New("missing Authorization header"))
+			return
+		}
+
+		parts := strings.Fields(authHeader)
+		if len(parts) != 2 || parts[0] != "Bearer" {
+			unauthorizedErrorResponse(w, r, "invalid Authorization header format", errors.New("invalid Authorization header format"))
+			return
+		}
+
+		apiKey := parts[1]
+		projectID, err := app.service.ProjectService.GetProjectFromAPIKey(apiKey)
+		if err != nil {
+			l.Warn("invalid API key", "err", err)
+			unauthorizedErrorResponse(w, r, "invalid API key", errors.New("invalid API key"))
+			return
+		}
+
+		// Add projectID to context
+		ctx = context.WithValue(ctx, ctxProjectIDKey, projectID)
+		next.ServeHTTP(w, r.WithContext(ctx))
+	})
 }
