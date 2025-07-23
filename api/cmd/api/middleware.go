@@ -115,6 +115,7 @@ func logRequestMiddleware(next http.Handler) http.Handler {
 			reqLogger := l.With(
 				zap.String("method", r.Method),
 				zap.String("path", r.URL.Path),
+				zap.String("query", r.URL.RawQuery),
 				zap.Int("status", status),
 				zap.Duration("elapsed", time.Since(t1)),
 				zap.String("ip", r.RemoteAddr),

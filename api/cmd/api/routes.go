@@ -53,27 +53,28 @@ func initRouter() http.Handler {
 
 	r.Route("/v1", func(r chi.Router) {
 		// Core routes that power the Notification service.
-		{
-			r.Use(apiKeyMiddleware)
+		r.Use(apiKeyMiddleware)
 
+		r.Post("/broadcasts", broadcastHandler(app))
+
+		r.Route("/recipients/{recipient}", func(r chi.Router) {
 			r.Post("/direct", directHandler(app))
-			r.Post("/broadcast", broadcastHandler(app))
-		}
+			r.Get("/inbox", inboxHandler(app))
+		})
+	})
 
-		// Platform routes that power the web app.
-		r.Route("/platform", func(r chi.Router) {
-			r.Route("/auth", func(r chi.Router) {
-				r.Get("/oauth/google", googleSignInHandler(app.service.UserIdentityService))
-				r.Get("/oauth/google/callback", googleCallbackHandler(app.service.UserIdentityService))
+	// Platform routes that power the web app.
+	r.Route("/v1/platform", func(r chi.Router) {
+		r.Route("/auth", func(r chi.Router) {
+			r.Get("/oauth/google", googleSignInHandler(app.service.UserIdentityService))
+			r.Get("/oauth/google/callback", googleCallbackHandler(app.service.UserIdentityService))
+			r.Post("/sign-out", signOutHandler(app.service.UserIdentityService))
+		})
 
-				r.Post("/sign-out", signOutHandler(app.service.UserIdentityService))
-			})
+		r.Route("/users", func(r chi.Router) {
+			r.Use(authMiddleware)
 
-			r.Route("/users", func(r chi.Router) {
-				r.Use(authMiddleware)
-
-				r.Get("/me", getMeHandler(app.service.UserProfileService))
-			})
+			r.Get("/me", getMeHandler(app.service.UserProfileService))
 		})
 	})
 

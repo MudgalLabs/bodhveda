@@ -24,19 +24,14 @@ func NewService(notificationRepository ReadWriter, broadcastRepository broadcast
 	}
 }
 
-type DirectPayload struct {
-	Recipient string          `json:"recipient"`
-	Payload   json.RawMessage `json:"payload"`
-}
-
-func (s *Service) Direct(ctx context.Context, projectID uuid.UUID, payload *DirectPayload) (*Notification, service.Error, error) {
+func (s *Service) Direct(ctx context.Context, projectID uuid.UUID, recipient string, payload json.RawMessage) (*Notification, service.Error, error) {
 	plan := project.GetPlan(project.PlanFree)
 
-	if len(payload.Payload) > domain.MaxPayloadSize {
-		return nil, service.ErrBadRequest, fmt.Errorf("payload size exceeds maximum limit of 12KB")
+	if len(payload) > domain.MaxPayloadSize {
+		return nil, service.ErrBadRequest, fmt.Errorf("payload size exceeds maximum limit of 16KB")
 	}
 
-	newNotification, err := new(projectID, payload.Recipient, payload.Payload, plan.NotificationExpiresAt())
+	newNotification, err := new(projectID, recipient, payload, plan.NotificationExpiresAt())
 	if err != nil {
 		return nil, service.ErrInternalServerError, fmt.Errorf("new notification: %w", err)
 	}
@@ -48,18 +43,14 @@ func (s *Service) Direct(ctx context.Context, projectID uuid.UUID, payload *Dire
 	return newNotification, service.ErrNone, nil
 }
 
-type BroadcastPayload struct {
-	Payload json.RawMessage `json:"payload"`
-}
-
-func (s *Service) Broadcast(ctx context.Context, projectID uuid.UUID, payload *BroadcastPayload) (*broadcast.Broadcast, service.Error, error) {
+func (s *Service) Broadcast(ctx context.Context, projectID uuid.UUID, payload json.RawMessage) (*broadcast.Broadcast, service.Error, error) {
 	plan := project.GetPlan(project.PlanFree)
 
-	if len(payload.Payload) > domain.MaxPayloadSize {
-		return nil, service.ErrBadRequest, fmt.Errorf("payload size exceeds maximum limit of 12KB")
+	if len(payload) > domain.MaxPayloadSize {
+		return nil, service.ErrBadRequest, fmt.Errorf("payload size exceeds maximum limit of 16KB")
 	}
 
-	newBroadcast, err := broadcast.New(projectID, payload.Payload, plan.NotificationExpiresAt())
+	newBroadcast, err := broadcast.New(projectID, payload, plan.NotificationExpiresAt())
 	if err != nil {
 		return nil, service.ErrInternalServerError, fmt.Errorf("new broadcast: %w", err)
 	}
@@ -69,4 +60,17 @@ func (s *Service) Broadcast(ctx context.Context, projectID uuid.UUID, payload *B
 	}
 
 	return newBroadcast, service.ErrNone, nil
+}
+
+// Inbox retrieves the notifications for a recipient in a paginated manner.
+func (s *Service) Inbox(ctx context.Context, projectID uuid.UUID, recipient string, limit, offset int) (*Inbox, service.Error, error) {
+	// First of all, we must materialize broadcasts into notifications that aren't already present.
+
+	notifications, total, err := s.notificationRepository.Inbox(ctx, projectID, recipient, limit, offset)
+	if err != nil {
+		return nil, service.ErrInternalServerError, fmt.Errorf("fetch inbox: %w", err)
+	}
+
+	inbox := NewInbox(notifications, total)
+	return inbox, service.ErrNone, nil
 }

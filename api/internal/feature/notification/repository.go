@@ -1,13 +1,17 @@
 package notification
 
 import (
+	"bodhveda/internal/common"
+	"bodhveda/internal/dbx"
 	"context"
 	"fmt"
 
+	"github.com/google/uuid"
 	"github.com/jackc/pgx/v5/pgxpool"
 )
 
 type Reader interface {
+	Inbox(ctx context.Context, projectID uuid.UUID, recipient string, limit, offset int) ([]*Notification, int, error)
 }
 
 type Writer interface {
@@ -46,4 +50,64 @@ func (r *notificationRepository) Create(ctx context.Context, notification *Notif
 	}
 
 	return nil
+}
+
+func (r *notificationRepository) Inbox(ctx context.Context, projectID uuid.UUID, recipient string, limit, offset int) ([]*Notification, int, error) {
+	baseSQL := `SELECT id, project_id, recipient, broadcast_id, payload, read_at, created_at, expires_at
+				FROM notification`
+
+	b := dbx.NewSQLBuilder(baseSQL)
+
+	if projectID != uuid.Nil {
+		b.AddCompareFilter("project_id", "=", projectID)
+	}
+
+	if recipient != "" {
+		b.AddCompareFilter("recipient", "=", recipient)
+	}
+
+	b.AddSorting("created_at", common.SortOrderDESC)
+
+	b.AddPagination(limit, offset)
+
+	query, args := b.Build()
+
+	rows, err := r.db.Query(ctx, query, args...)
+	if err != nil {
+		return nil, 0, fmt.Errorf("query notifications: %w", err)
+	}
+	defer rows.Close()
+
+	var notifications []*Notification
+	for rows.Next() {
+		n := &Notification{}
+		err := rows.Scan(
+			&n.ID,
+			&n.ProjectID,
+			&n.Recipient,
+			&n.BroadcastID,
+			&n.Payload,
+			&n.ReadAt,
+			&n.CreatedAt,
+			&n.ExpiresAt,
+		)
+		if err != nil {
+			return nil, 0, fmt.Errorf("scan notification: %w", err)
+		}
+		notifications = append(notifications, n)
+	}
+
+	if err := rows.Err(); err != nil {
+		return nil, 0, fmt.Errorf("rows error: %w", err)
+	}
+
+	countQuery, countArgs := b.Count()
+	var total int
+
+	err = r.db.QueryRow(ctx, countQuery, countArgs...).Scan(&total)
+	if err != nil {
+		return nil, 0, fmt.Errorf("count notifications: %w", err)
+	}
+
+	return notifications, total, nil
 }

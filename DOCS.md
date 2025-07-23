@@ -10,112 +10,117 @@ Base URL:
 https://api.bodhveda.com/v1
 ```
 
-Authentication:
-Use `Authorization: Bearer <API_KEY>` header with all requests.
+All requests require authentication using the API key:
+
+```
+Authorization: Bearer YOUR_API_KEY
+```
 
 ---
 
-#### `POST /v1/direct`
+### Direct Notification
 
-Send a direct notification to a recipient.
-
-```json
-{
-  "recipient": "user_123",
-  "payload": { ... }  // max 16KB JSON
-}
-```
-
-#### `POST /v1/broadcast`
-
-Send a broadcast notification (lazy, only materialized on fetch).
+**POST** `/v1/recipients/{recipient}/direct`
+Send a direct notification to a specific recipient.
 
 ```json
 {
-  "payload": { ... }
+  "payload": { ... } // max 16KB JSON
 }
 ```
 
-#### `POST /v1/inbox`
+---
 
-Fetch inbox for a recipient.
+### Broadcast Notification
+
+**POST** `/v1/broadcasts`
+Send a broadcast notification. Materialized only when recipients fetch inbox.
 
 ```json
 {
-    "recipient": "user_123",
-    "limit": 20,
-    "cursor": "abc123"
+  "payload": { ... } // max 16KB JSON
 }
 ```
 
-Response:
+---
+
+### Fetch Inbox
+
+**GET** `/v1/recipients/{recipient}/inbox`
+Query Params:
+
+-   `limit` (optional, default 20)
+-   `offset` (optional, default 0)
+
+Returns:
 
 ```json
 {
   "notifications": [...],
-  "nextCursor": "abc123"
+  "total": 42
 }
 ```
 
-#### `PATCH /v1/read`
+---
 
-Mark specific notifications as read.
+### Mark Notifications as Read
+
+**POST** `/v1/recipients/{recipient}/notifications/read`
 
 ```json
 {
-    "recipient": "user_123",
-    "notificationIds": ["n1", "n2"]
+    "ids": ["notif_1", "notif_2"]
 }
 ```
 
-#### `PATCH /v1/read/all`
+---
 
-Mark all notifications for a recipient as read.
+### Mark All Notifications as Read
+
+**POST** `/v1/recipients/{recipient}/notifications/read/all`
+No payload required.
+
+---
+
+### Delete Notifications
+
+**DELETE** `/v1/recipients/{recipient}/notifications`
 
 ```json
 {
-    "recipient": "user_123"
+    "ids": ["notif_1", "notif_2"]
 }
 ```
 
-#### `DELETE /v1/delete`
+---
 
-Delete specific notifications for a recipient.
+### Delete All Notifications
 
-```json
-{
-    "recipient": "user_123",
-    "notificationIds": ["n1", "n2"]
-}
-```
+**DELETE** `/v1/recipients/{recipient}/notifications/all`
+No payload required.
 
-#### `DELETE /v1/delete/all`
+---
 
-Delete all notifications for a recipient.
+### Get Unread Count
 
-```json
-{
-    "recipient": "user_123"
-}
-```
-
-#### `POST /v1/unread-count`
-
-Returns unread count for a recipient.
-
-```json
-{
-    "recipient": "user_123"
-}
-```
-
-Response:
+**GET** `/v1/recipients/{recipient}/notifications/unread-count`
+Returns:
 
 ```json
 {
     "count": 3
 }
 ```
+
+---
+
+These endpoints will be documented at:
+
+```txt
+https://bodhveda.com/docs
+```
+
+And include examples, SDKs, and usage patterns.
 
 ---
 

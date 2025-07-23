@@ -34,3 +34,15 @@ func new(projectID uuid.UUID, recipient string, payload json.RawMessage, expires
 		CreatedAt: time.Now().UTC(),
 	}, nil
 }
+
+type Inbox struct {
+	Notifications []*Notification `json:"notifications"`
+	Total         int             `json:"total"`
+}
+
+func NewInbox(notifications []*Notification, total int) *Inbox {
+	return &Inbox{
+		Notifications: notifications,
+		Total:         total,
+	}
+}
