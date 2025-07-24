@@ -21,7 +21,7 @@ import (
 )
 
 // This contains all the global state that we need to run the API.
-// Like all the services and repositories of Arthveda.
+// Like all the services and repositories of Bodhveda.
 type appType struct {
 	service    services
 	repository repositories

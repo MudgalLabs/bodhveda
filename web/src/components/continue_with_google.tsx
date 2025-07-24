@@ -7,7 +7,7 @@ import { cn, isProd } from "@/lib/utils";
 export const ContinueWithGoogle: FC<ButtonProps> = (props) => {
     const { className, ...rest } = props;
 
-    let googleOAuthURL = import.meta.env.ARTHVEDA_GOOGLE_OAUTH_URL;
+    let googleOAuthURL = import.meta.env.BODHVEA_GOOGLE_OAUTH_URL;
 
     if (!googleOAuthURL) {
         if (isProd()) {
