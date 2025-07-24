@@ -29,6 +29,7 @@ type appType struct {
 
 // All the services.
 type services struct {
+	BroadcastService    *broadcast.Service
 	NotificationService *notification.Service
 	ProjectService      *project.Service
 	UserIdentityService *user_identity.Service
@@ -38,6 +39,8 @@ type services struct {
 // Access to all repositories for reading.
 // Write access only available to services.
 type repositories struct {
+	Broadcast    broadcast.ReadWriter
+	Notification notification.ReadWriter
 	UserIdentity user_identity.Reader
 	UserProfile  user_profile.Reader
 }
@@ -67,12 +70,14 @@ func main() {
 	userProfileRepository := user_profile.NewRepository(db)
 	userIdentityRepository := user_identity.NewRepository(db)
 
+	broadcastService := broadcast.NewService(broadcastRepo)
 	notificationService := notification.NewService(notificationRepo, broadcastRepo)
 	projectService := project.NewService()
 	userIdentityService := user_identity.NewService(userIdentityRepository, userProfileRepository)
 	userProfileService := user_profile.NewService(userProfileRepository)
 
 	services := services{
+		BroadcastService:    broadcastService,
 		NotificationService: notificationService,
 		ProjectService:      projectService,
 		UserIdentityService: userIdentityService,
@@ -80,6 +85,8 @@ func main() {
 	}
 
 	repositories := repositories{
+		Broadcast:    broadcastRepo,
+		Notification: notificationRepo,
 		UserIdentity: userIdentityRepository,
 		UserProfile:  userProfileRepository,
 	}

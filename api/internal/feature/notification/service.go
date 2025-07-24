@@ -26,7 +26,7 @@ func NewService(notificationRepository ReadWriter, broadcastRepository broadcast
 	}
 }
 
-func (s *Service) Direct(ctx context.Context, projectID uuid.UUID, recipient string, payload json.RawMessage) (*Notification, service.Error, error) {
+func (s *Service) Send(ctx context.Context, projectID uuid.UUID, recipient string, payload json.RawMessage) (*Notification, service.Error, error) {
 	plan := project.GetPlan(project.PlanFree)
 
 	if len(payload) > domain.MaxPayloadSize {
@@ -45,40 +45,21 @@ func (s *Service) Direct(ctx context.Context, projectID uuid.UUID, recipient str
 	return newNotification, service.ErrNone, nil
 }
 
-func (s *Service) Broadcast(ctx context.Context, projectID uuid.UUID, payload json.RawMessage) (*broadcast.Broadcast, service.Error, error) {
-	plan := project.GetPlan(project.PlanFree)
-
-	if len(payload) > domain.MaxPayloadSize {
-		return nil, service.ErrBadRequest, fmt.Errorf("payload size exceeds maximum limit of 16KB")
-	}
-
-	newBroadcast, err := broadcast.New(projectID, payload, plan.NotificationExpiresAt())
-	if err != nil {
-		return nil, service.ErrInternalServerError, fmt.Errorf("new broadcast: %w", err)
-	}
-
-	if err := s.broadcastRepository.Create(ctx, newBroadcast); err != nil {
-		return nil, service.ErrInternalServerError, fmt.Errorf("create broadcast: %w", err)
-	}
-
-	return newBroadcast, service.ErrNone, nil
-}
-
 // List retrieves the notifications for a recipient in a paginated manner.
-func (s *Service) List(ctx context.Context, projectID uuid.UUID, recipient string, limit, offset int) (*Inbox, service.Error, error) {
+func (s *Service) List(ctx context.Context, projectID uuid.UUID, recipient string, limit, offset int) ([]*Notification, int, service.Error, error) {
 	l := logger.FromCtx(ctx)
 
 	// First of all, we must materialize broadcasts into notifications that aren't already present.
 	unmaterializedBroadcasts, unmaterializedTotal, err := s.broadcastRepository.Unmaterialized(ctx, projectID, recipient)
 	if err != nil {
-		return nil, service.ErrInternalServerError, fmt.Errorf("fetch unmaterialized broadcasts: %w", err)
+		return nil, 0, service.ErrInternalServerError, fmt.Errorf("fetch unmaterialized broadcasts: %w", err)
 	}
 
 	batchNotifications := make([]*Notification, 0, len(unmaterializedBroadcasts))
 	for _, broadcast := range unmaterializedBroadcasts {
 		newNotification, err := new(projectID, recipient, broadcast.Payload, broadcast.ExpiresAt)
 		if err != nil {
-			return nil, service.ErrInternalServerError, fmt.Errorf("new notification from broadcast: %w", err)
+			return nil, 0, service.ErrInternalServerError, fmt.Errorf("new notification from broadcast: %w", err)
 		}
 		// Associate the broadcast ID with the notification.
 		newNotification.BroadcastID = &broadcast.ID
@@ -89,19 +70,18 @@ func (s *Service) List(ctx context.Context, projectID uuid.UUID, recipient strin
 		l.Infow("Found unmaterialized broadcasts", "count", unmaterializedTotal, "projectID", projectID, "recipient", recipient)
 
 		if err := s.notificationRepository.Materialize(ctx, batchNotifications); err != nil {
-			return nil, service.ErrInternalServerError, fmt.Errorf("batch create notifications: %w", err)
+			return nil, 0, service.ErrInternalServerError, fmt.Errorf("batch create notifications: %w", err)
 		}
 
 		l.Infow("Materialized broadcasts into notifications", "count", len(batchNotifications), "projectID", projectID, "recipient", recipient)
 	}
 
-	notifications, inboxTotal, err := s.notificationRepository.List(ctx, projectID, recipient, limit, offset)
+	notifications, total, err := s.notificationRepository.List(ctx, projectID, recipient, limit, offset)
 	if err != nil {
-		return nil, service.ErrInternalServerError, fmt.Errorf("fetch list: %w", err)
+		return nil, 0, service.ErrInternalServerError, fmt.Errorf("fetch list: %w", err)
 	}
 
-	inbox := NewInbox(notifications, inboxTotal)
-	return inbox, service.ErrNone, nil
+	return notifications, total, service.ErrNone, nil
 }
 
 func (s *Service) UnreadCount(ctx context.Context, projectID uuid.UUID, recipient string) (int, service.Error, error) {

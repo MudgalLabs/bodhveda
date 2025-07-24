@@ -18,7 +18,7 @@ Authorization: Bearer YOUR_API_KEY
 
 ---
 
-### Direct Notification
+### Send Notification
 
 **POST** `/v1/recipients/{recipient}/notifications`
 Send a notification to a specific recipient.
@@ -29,22 +29,7 @@ Send a notification to a specific recipient.
 }
 ```
 
----
-
-### Broadcast Notification
-
-**POST** `/v1/broadcasts`
-Send a broadcast notification. Materialized only when recipients fetch inbox.
-
-```json
-{
-  "payload": { ... } // max 16KB JSON
-}
-```
-
----
-
-### Fetch Inbox
+### Fetch Notifications
 
 **GET** `/v1/recipients/{recipient}/notifications`
 Query Params:
@@ -94,7 +79,6 @@ Returns:
 ### Mark All Notifications as Read
 
 **POST** `/v1/recipients/{recipient}/notifications/read/all`
-No payload required.
 
 ---
 
@@ -116,7 +100,62 @@ No payload required.
 ### Delete All Notifications
 
 **DELETE** `/v1/recipients/{recipient}/notifications/all`
-No payload required.
+
+---
+
+### Send Broadcast Notification
+
+**POST** `/v1/broadcasts`
+Send a broadcast notification. Materialized only when recipients fetch inbox.
+
+```json
+{
+  "payload": { ... } // max 16KB JSON
+}
+```
+
+---
+
+### Fetch All Broadcasts
+
+**GET** `/v1/broadcasts`  
+Fetch all broadcasts for a given project.
+
+Query Params:
+
+-   `limit` (optional, default 20)
+-   `offset` (optional, default 0)
+
+Returns:
+
+```json
+{
+  "broadcasts": [...],
+  "total": 42
+}
+```
+
+---
+
+### Delete Broadcasts
+
+**DELETE** `/v1/broadcasts/`
+
+```json
+{
+    "ids": [
+        "01983971-90e6-7cdc-b07c-75628ce50a06",
+        "01983971-679e-73a5-982f-7616234b28c1"
+    ]
+}
+```
+
+---
+
+### Delete All Broadcasts
+
+**DELETE** `/v1/broadcasts/all`  
+Delete all broadcasts.
 
 ---
 
@@ -145,17 +184,35 @@ import { Bodhveda } from "bodhveda";
 
 const bodhveda = new Bodhveda("YOUR_API_KEY");
 
-await bodhveda.direct("user_123", { title: "Hi!", type: "info" });
-await bodhveda.broadcast({ system: true, message: "Server restart" });
+// Notifications SDK
+await bodhveda.notifications.send("user_123", { title: "Hi!", type: "info" });
 
-const inbox = await bodhveda.inbox("user_123");
-const unreadCount = await bodhveda.unread("user_123");
+const notifications = await bodhveda.notifications.fetch("user_123");
 
-await bodhveda.read("user_123", ["notif_1"]);
-await bodhveda.readAll("user_123");
+const unreadCount = await bodhveda.notifications.unreadCount("user_123");
 
-await bodhveda.delete("user_123", ["notif_1"]);
-await bodhveda.deleteAll("user_123");
+await bodhveda.notifications.markAsRead("user_123", [
+    "01983c2c-889a-7bff-b79e-100935a97db7",
+]);
+
+await bodhveda.notifications.markAllAsRead("user_123");
+
+await bodhveda.notifications.delete("user_123", [
+    "01983c2c-889a-7bff-b79e-100935a97db7",
+]);
+
+await bodhveda.notifications.deleteAll("user_123");
+
+// Broadcasts SDK
+await bodhveda.broadcasts.send({ system: true, message: "Server restart" });
+
+const broadcasts = await bodhveda.broadcasts.fetch();
+
+await bodhveda.broadcasts.delete("user_123", [
+    "01983bf1-52e4-73ea-9964-d995fe0f51b5",
+]);
+
+await bodhveda.broadcasts.deleteAll();
 ```
 
 ---

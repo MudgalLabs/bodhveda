@@ -26,38 +26,13 @@ func sendNotificationHandler(app *appType) http.HandlerFunc {
 			return
 		}
 
-		notification, errKind, err := app.service.NotificationService.Direct(ctx, projectID, recipient, req.Payload)
+		notification, errKind, err := app.service.NotificationService.Send(ctx, projectID, recipient, req.Payload)
 		if err != nil {
 			serviceErrResponse(w, r, errKind, err)
 			return
 		}
 
 		successResponse(w, r, http.StatusOK, "direct notification sent", notification)
-	}
-}
-
-func sendBroadcastHandler(app *appType) http.HandlerFunc {
-	return func(w http.ResponseWriter, r *http.Request) {
-		ctx := r.Context()
-		projectID := getProjectIDFromContext(ctx)
-
-		type request struct {
-			Payload json.RawMessage `json:"payload"`
-		}
-
-		var req request
-		if err := decodeJSONRequest(&req, r); err != nil {
-			malformedJSONResponse(w, r, err)
-			return
-		}
-
-		broadcast, errKind, err := app.service.NotificationService.Broadcast(ctx, projectID, req.Payload)
-		if err != nil {
-			serviceErrResponse(w, r, errKind, err)
-			return
-		}
-
-		successResponse(w, r, http.StatusOK, "broadcast notification sent", broadcast)
 	}
 }
 
@@ -79,13 +54,18 @@ func fetchNotificationsHandler(app *appType) http.HandlerFunc {
 			offset = 0
 		}
 
-		inbox, errKind, err := app.service.NotificationService.List(ctx, projectID, recipient, limit, offset)
+		notifications, total, errKind, err := app.service.NotificationService.List(ctx, projectID, recipient, limit, offset)
 		if err != nil {
 			serviceErrResponse(w, r, errKind, err)
 			return
 		}
 
-		successResponse(w, r, http.StatusOK, "", inbox)
+		resp := map[string]any{
+			"notifications": notifications,
+			"total":         total,
+		}
+
+		successResponse(w, r, http.StatusOK, "", resp)
 	}
 }
 

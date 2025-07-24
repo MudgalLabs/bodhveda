@@ -57,6 +57,9 @@ func initRouter() http.Handler {
 
 		r.Route("/broadcasts", func(r chi.Router) {
 			r.Post("/", sendBroadcastHandler(app))
+			r.Get("/", fetchBroadcastsHandler(app))
+			r.Delete("/", deleteBroadcastsHandler(app))
+			r.Delete("/all", deleteAllBroadcastsHandler(app))
 		})
 
 		r.Route("/recipients/{recipient}", func(r chi.Router) {
