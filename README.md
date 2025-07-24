@@ -4,17 +4,15 @@
 
 # Bodhveda
 
-[Bodhveda](https://bodhveda.com) is an open-source notification platform for your app – like email, but for in-app experiences.
+[Bodhveda](https://bodhveda.com) is an open-source platform for your in-app notifications. Fully managed or self-hosted. **You send. We deliver.**
+
+Most apps need notifications sooner or later — but building and maintaining your own system is a distraction. Bodhveda saves you from polluting your core database or reinventing notification infrastructure.
 
 Built for indie hackers, startups, and modern SaaS, Bodhveda helps you:
 
 -   📬 Send direct or broadcast notifications
 -   📦 Fetch and manage in-app notifications
 -   🔒 Stay in control with self-hosted or fully managed deployment
-
-No need to pollute your core database. No need to build notification infrastructure from scratch.
-
-**You send. We deliver.**
 
 ## 🚀 Quick Features
 
