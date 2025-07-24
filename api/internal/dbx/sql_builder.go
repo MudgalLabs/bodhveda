@@ -70,6 +70,7 @@ func parseOperator(o Operator) string {
 
 type SQLBuilder struct {
 	base    strings.Builder
+	set     []string
 	where   []string
 	order   string
 	limit   string
@@ -86,11 +87,22 @@ func NewSQLBuilder(baseSQL string) *SQLBuilder {
 
 	return &SQLBuilder{
 		base:    sb,
+		set:     []string{},
 		where:   []string{},
 		groupBy: []string{},
 		args:    []any{},
 		argNum:  1,
 	}
+}
+
+// SetColumn adds a SET clause for UPDATE queries: "SET column = $N"
+func (b *SQLBuilder) SetColumn(column string, value any) {
+	if column == "" {
+		return
+	}
+	assignment := fmt.Sprintf("%s = $%d", column, b.nextArg())
+	b.set = append(b.set, assignment)
+	b.args = append(b.args, value)
 }
 
 // AddCompareFilter adds a single condition like "column = $N", "column >= $N"
@@ -196,6 +208,12 @@ func (b *SQLBuilder) AddPagination(limit, offset int) {
 func (b *SQLBuilder) Build() (string, []any) {
 	var final strings.Builder
 	final.WriteString(b.base.String())
+
+	// If this is an UPDATE, add SET clause
+	if len(b.set) > 0 {
+		final.WriteString(" SET ")
+		final.WriteString(strings.Join(b.set, ", "))
+	}
 
 	if len(b.where) > 0 {
 		final.WriteString(" WHERE ")

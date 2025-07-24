@@ -2,13 +2,15 @@ package main
 
 import (
 	"encoding/json"
+	"errors"
 	"net/http"
 	"strconv"
 
 	"github.com/go-chi/chi"
+	"github.com/google/uuid"
 )
 
-func directHandler(app *appType) http.HandlerFunc {
+func sendNotificationHandler(app *appType) http.HandlerFunc {
 	return func(w http.ResponseWriter, r *http.Request) {
 		ctx := r.Context()
 		projectID := getProjectIDFromContext(ctx)
@@ -34,7 +36,7 @@ func directHandler(app *appType) http.HandlerFunc {
 	}
 }
 
-func broadcastHandler(app *appType) http.HandlerFunc {
+func sendBroadcastHandler(app *appType) http.HandlerFunc {
 	return func(w http.ResponseWriter, r *http.Request) {
 		ctx := r.Context()
 		projectID := getProjectIDFromContext(ctx)
@@ -59,7 +61,7 @@ func broadcastHandler(app *appType) http.HandlerFunc {
 	}
 }
 
-func inboxHandler(app *appType) http.HandlerFunc {
+func fetchNotificationsHandler(app *appType) http.HandlerFunc {
 	return func(w http.ResponseWriter, r *http.Request) {
 		ctx := r.Context()
 		projectID := getProjectIDFromContext(ctx)
@@ -77,12 +79,133 @@ func inboxHandler(app *appType) http.HandlerFunc {
 			offset = 0
 		}
 
-		inbox, errKind, err := app.service.NotificationService.Inbox(ctx, projectID, recipient, limit, offset)
+		inbox, errKind, err := app.service.NotificationService.List(ctx, projectID, recipient, limit, offset)
 		if err != nil {
 			serviceErrResponse(w, r, errKind, err)
 			return
 		}
 
 		successResponse(w, r, http.StatusOK, "", inbox)
+	}
+}
+
+func fetchUnreadCountHandler(app *appType) http.HandlerFunc {
+	return func(w http.ResponseWriter, r *http.Request) {
+		ctx := r.Context()
+		projectID := getProjectIDFromContext(ctx)
+		recipient := chi.URLParam(r, "recipient")
+
+		count, errKind, err := app.service.NotificationService.UnreadCount(ctx, projectID, recipient)
+		if err != nil {
+			serviceErrResponse(w, r, errKind, err)
+			return
+		}
+
+		resp := map[string]int{"unread_count": count}
+		successResponse(w, r, http.StatusOK, "", resp)
+	}
+}
+
+func markNotificationsReadHandler(app *appType) http.HandlerFunc {
+	return func(w http.ResponseWriter, r *http.Request) {
+		ctx := r.Context()
+		projectID := getProjectIDFromContext(ctx)
+		recipient := chi.URLParam(r, "recipient")
+
+		type request struct {
+			IDs []string `json:"ids"`
+		}
+
+		var req request
+		if err := decodeJSONRequest(&req, r); err != nil {
+			malformedJSONResponse(w, r, err)
+			return
+		}
+
+		uuids := make([]uuid.UUID, 0, len(req.IDs))
+		for _, idStr := range req.IDs {
+			id, err := uuid.Parse(idStr)
+			if err != nil {
+				badRequestResponse(w, r, errors.New("invalid notification id: "+idStr))
+				return
+			}
+			uuids = append(uuids, id)
+		}
+
+		errKind, err := app.service.NotificationService.MarkAsRead(ctx, projectID, recipient, uuids)
+		if err != nil {
+			serviceErrResponse(w, r, errKind, err)
+			return
+		}
+
+		successResponse(w, r, http.StatusOK, "notifications marked as read", nil)
+	}
+}
+
+func markAllNotificationsReadHandler(app *appType) http.HandlerFunc {
+	return func(w http.ResponseWriter, r *http.Request) {
+		ctx := r.Context()
+		projectID := getProjectIDFromContext(ctx)
+		recipient := chi.URLParam(r, "recipient")
+
+		errKind, err := app.service.NotificationService.MarkAllAsRead(ctx, projectID, recipient)
+		if err != nil {
+			serviceErrResponse(w, r, errKind, err)
+			return
+		}
+
+		successResponse(w, r, http.StatusOK, "all notifications marked as read", nil)
+	}
+}
+
+func deleteNotificationsHandler(app *appType) http.HandlerFunc {
+	return func(w http.ResponseWriter, r *http.Request) {
+		ctx := r.Context()
+		projectID := getProjectIDFromContext(ctx)
+		recipient := chi.URLParam(r, "recipient")
+
+		type request struct {
+			IDs []string `json:"ids"`
+		}
+
+		var req request
+		if err := decodeJSONRequest(&req, r); err != nil {
+			malformedJSONResponse(w, r, err)
+			return
+		}
+
+		uuids := make([]uuid.UUID, 0, len(req.IDs))
+		for _, idStr := range req.IDs {
+			id, err := uuid.Parse(idStr)
+			if err != nil {
+				badRequestResponse(w, r, errors.New("invalid notification id: "+idStr))
+				return
+			}
+			uuids = append(uuids, id)
+		}
+
+		errKind, err := app.service.NotificationService.Delete(ctx, projectID, recipient, uuids)
+		if err != nil {
+			serviceErrResponse(w, r, errKind, err)
+			return
+		}
+
+		successResponse(w, r, http.StatusOK, "notifications deleted", nil)
+	}
+}
+
+func deleteAllNotificationsHandler(app *appType) http.HandlerFunc {
+	return func(w http.ResponseWriter, r *http.Request) {
+		ctx := r.Context()
+		projectID := getProjectIDFromContext(ctx)
+		recipient := chi.URLParam(r, "recipient")
+
+		errKind, err := app.service.NotificationService.DeleteAll(ctx, projectID, recipient)
+		if err != nil {
+			serviceErrResponse(w, r, errKind, err)
+			return
+		}
+
+		successResponse(w, r, http.StatusOK, "all notifications deleted", nil)
 	}
 }

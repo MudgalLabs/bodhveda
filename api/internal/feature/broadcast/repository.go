@@ -49,13 +49,14 @@ func (r *broadcastRepository) Create(ctx context.Context, broadcast *Broadcast) 
 
 func (r *broadcastRepository) Unmaterialized(ctx context.Context, projectID uuid.UUID, recipient string) ([]*Broadcast, int, error) {
 	query := `
-		SELECT b.id, b.project_id, b.payload, b.created_at, b.expires_at FROM broadcast b
-		LEFT JOIN notification n ON b.id = n.broadcast_id
-		AND n.recipient = $1
-		AND n.project_id = $2
+		SELECT b.id, b.project_id, b.payload, b.created_at, b.expires_at
+		FROM broadcast b
+		LEFT JOIN broadcast_materialization bm
+			ON bm.broadcast_id = b.id AND bm.recipient = $1
 		WHERE b.project_id = $2
-		AND b.expires_at > NOW()
-		AND n.id IS NULL;`
+		  AND b.expires_at > NOW()
+		  AND bm.broadcast_id IS NULL;
+	`
 
 	rows, err := r.db.Query(ctx, query, recipient, projectID)
 	if err != nil {

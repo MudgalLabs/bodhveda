@@ -47,6 +47,13 @@ CREATE TABLE notification (
     expires_at      TIMESTAMPTZ NOT NULL
 );
 
+CREATE TABLE broadcast_materialization (
+    broadcast_id UUID NOT NULL REFERENCES broadcast(id) ON DELETE CASCADE,
+    recipient TEXT NOT NULL,
+    created_at TIMESTAMPTZ NOT NULL,
+
+    PRIMARY KEY (broadcast_id, recipient)
+);
 -- Indexes for efficient querying.
 
 -- All project & recipient scoped reads, writes, deletes.
@@ -64,9 +71,13 @@ CREATE INDEX broadcast_project_id_idx
 
 -- +goose Down
 -- +goose StatementBegin
-DROP TABLE user_identity CASCADE;
-DROP TABLE user_profile CASCADE;
-DROP TABLE sessions CASCADE;
+DROP TABLE IF EXISTS broadcast_materialization;
 DROP TABLE IF EXISTS notification;
 DROP TABLE IF EXISTS broadcast;
+DROP INDEX IF EXISTS broadcast_project_id_idx;
+DROP INDEX IF EXISTS notification_project_created_at_idx;
+DROP INDEX IF EXISTS notification_project_recipient_idx;
+DROP TABLE IF EXISTS sessions;
+DROP TABLE IF EXISTS user_profile;
+DROP TABLE IF EXISTS user_identity;
 -- +goose StatementEnd

@@ -20,8 +20,8 @@ Authorization: Bearer YOUR_API_KEY
 
 ### Direct Notification
 
-**POST** `/v1/recipients/{recipient}/direct`
-Send a direct notification to a specific recipient.
+**POST** `/v1/recipients/{recipient}/notifications`
+Send a notification to a specific recipient.
 
 ```json
 {
@@ -46,7 +46,7 @@ Send a broadcast notification. Materialized only when recipients fetch inbox.
 
 ### Fetch Inbox
 
-**GET** `/v1/recipients/{recipient}/inbox`
+**GET** `/v1/recipients/{recipient}/notifications`
 Query Params:
 
 -   `limit` (optional, default 20)
@@ -63,13 +63,29 @@ Returns:
 
 ---
 
+### Get Unread Count
+
+**GET** `/v1/recipients/{recipient}/notifications/unread-count`
+Returns:
+
+```json
+{
+    "unread_count": 3
+}
+```
+
+---
+
 ### Mark Notifications as Read
 
 **POST** `/v1/recipients/{recipient}/notifications/read`
 
 ```json
 {
-    "ids": ["notif_1", "notif_2"]
+    "ids": [
+        "01983971-90e6-7cdc-b07c-75628ce50a06",
+        "01983971-679e-73a5-982f-7616234b28c1"
+    ]
 }
 ```
 
@@ -88,7 +104,10 @@ No payload required.
 
 ```json
 {
-    "ids": ["notif_1", "notif_2"]
+    "ids": [
+        "01983971-90e6-7cdc-b07c-75628ce50a06",
+        "01983971-679e-73a5-982f-7616234b28c1"
+    ]
 }
 ```
 
@@ -98,19 +117,6 @@ No payload required.
 
 **DELETE** `/v1/recipients/{recipient}/notifications/all`
 No payload required.
-
----
-
-### Get Unread Count
-
-**GET** `/v1/recipients/{recipient}/notifications/unread-count`
-Returns:
-
-```json
-{
-    "count": 3
-}
-```
 
 ---
 
@@ -135,21 +141,21 @@ npm install @bodhveda/sdk
 Usage:
 
 ```ts
-import bodhveda from "@bodhveda";
+import { Bodhveda } from "bodhveda";
 
-bodhveda.init("YOUR_API_KEY");
+const bodhveda = new Bodhveda("YOUR_API_KEY");
 
 await bodhveda.direct("user_123", { title: "Hi!", type: "info" });
 await bodhveda.broadcast({ system: true, message: "Server restart" });
 
 const inbox = await bodhveda.inbox("user_123");
+const unreadCount = await bodhveda.unread("user_123");
+
 await bodhveda.read("user_123", ["notif_1"]);
 await bodhveda.readAll("user_123");
 
 await bodhveda.delete("user_123", ["notif_1"]);
 await bodhveda.deleteAll("user_123");
-
-const unread = await bodhveda.unreadCount("user_123");
 ```
 
 ---

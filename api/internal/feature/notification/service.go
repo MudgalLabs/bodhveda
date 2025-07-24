@@ -8,6 +8,7 @@ import (
 	"bodhveda/internal/service"
 	"context"
 	"encoding/json"
+	"errors"
 	"fmt"
 
 	"github.com/google/uuid"
@@ -63,8 +64,8 @@ func (s *Service) Broadcast(ctx context.Context, projectID uuid.UUID, payload js
 	return newBroadcast, service.ErrNone, nil
 }
 
-// Inbox retrieves the notifications for a recipient in a paginated manner.
-func (s *Service) Inbox(ctx context.Context, projectID uuid.UUID, recipient string, limit, offset int) (*Inbox, service.Error, error) {
+// List retrieves the notifications for a recipient in a paginated manner.
+func (s *Service) List(ctx context.Context, projectID uuid.UUID, recipient string, limit, offset int) (*Inbox, service.Error, error) {
 	l := logger.FromCtx(ctx)
 
 	// First of all, we must materialize broadcasts into notifications that aren't already present.
@@ -87,18 +88,66 @@ func (s *Service) Inbox(ctx context.Context, projectID uuid.UUID, recipient stri
 	if len(batchNotifications) > 0 {
 		l.Infow("Found unmaterialized broadcasts", "count", unmaterializedTotal, "projectID", projectID, "recipient", recipient)
 
-		if err := s.notificationRepository.batchCreate(ctx, batchNotifications); err != nil {
+		if err := s.notificationRepository.Materialize(ctx, batchNotifications); err != nil {
 			return nil, service.ErrInternalServerError, fmt.Errorf("batch create notifications: %w", err)
 		}
 
 		l.Infow("Materialized broadcasts into notifications", "count", len(batchNotifications), "projectID", projectID, "recipient", recipient)
 	}
 
-	notifications, inboxTotal, err := s.notificationRepository.Inbox(ctx, projectID, recipient, limit, offset)
+	notifications, inboxTotal, err := s.notificationRepository.List(ctx, projectID, recipient, limit, offset)
 	if err != nil {
-		return nil, service.ErrInternalServerError, fmt.Errorf("fetch inbox: %w", err)
+		return nil, service.ErrInternalServerError, fmt.Errorf("fetch list: %w", err)
 	}
 
 	inbox := NewInbox(notifications, inboxTotal)
 	return inbox, service.ErrNone, nil
+}
+
+func (s *Service) UnreadCount(ctx context.Context, projectID uuid.UUID, recipient string) (int, service.Error, error) {
+	count, err := s.notificationRepository.UnreadCount(ctx, projectID, recipient)
+	if err != nil {
+		return 0, service.ErrInternalServerError, err
+	}
+	return count, service.ErrNone, nil
+}
+
+func (s *Service) MarkAsRead(ctx context.Context, projectID uuid.UUID, recipient string, ids []uuid.UUID) (service.Error, error) {
+	if len(ids) == 0 {
+		return service.ErrBadRequest, errors.New("no ids provided")
+	}
+
+	err := s.notificationRepository.MarkAsRead(ctx, projectID, recipient, ids)
+	if err != nil {
+		return service.ErrInternalServerError, err
+	}
+
+	return service.ErrNone, nil
+}
+
+func (s *Service) MarkAllAsRead(ctx context.Context, projectID uuid.UUID, recipient string) (service.Error, error) {
+	err := s.notificationRepository.MarkAllAsRead(ctx, projectID, recipient)
+	if err != nil {
+		return service.ErrInternalServerError, err
+	}
+	return service.ErrNone, nil
+}
+
+func (s *Service) Delete(ctx context.Context, projectID uuid.UUID, recipient string, ids []uuid.UUID) (service.Error, error) {
+	if len(ids) == 0 {
+		return service.ErrBadRequest, errors.New("no ids provided")
+	}
+	err := s.notificationRepository.Delete(ctx, projectID, recipient, ids)
+	if err != nil {
+		return service.ErrInternalServerError, err
+	}
+	return service.ErrNone, nil
+}
+
+func (s *Service) DeleteAll(ctx context.Context, projectID uuid.UUID, recipient string) (service.Error, error) {
+	err := s.notificationRepository.DeleteAll(ctx, projectID, recipient)
+	if err != nil {
+		return service.ErrInternalServerError, err
+	}
+	return service.ErrNone, nil
 }

@@ -55,11 +55,20 @@ func initRouter() http.Handler {
 		// Core routes that power the Notification service.
 		r.Use(apiKeyMiddleware)
 
-		r.Post("/broadcasts", broadcastHandler(app))
+		r.Route("/broadcasts", func(r chi.Router) {
+			r.Post("/", sendBroadcastHandler(app))
+		})
 
 		r.Route("/recipients/{recipient}", func(r chi.Router) {
-			r.Post("/direct", directHandler(app))
-			r.Get("/inbox", inboxHandler(app))
+			r.Route("/notifications", func(r chi.Router) {
+				r.Post("/", sendNotificationHandler(app))
+				r.Get("/", fetchNotificationsHandler(app))
+				r.Get("/unread-count", fetchUnreadCountHandler(app))
+				r.Post("/read", markNotificationsReadHandler(app))
+				r.Post("/read/all", markAllNotificationsReadHandler(app))
+				r.Delete("/", deleteNotificationsHandler(app))
+				r.Delete("/all", deleteAllNotificationsHandler(app))
+			})
 		})
 	})
 
