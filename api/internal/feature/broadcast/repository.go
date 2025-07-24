@@ -18,7 +18,7 @@ type Reader interface {
 type Writer interface {
 	Create(ctx context.Context, broadcast *Broadcast) error
 	Delete(ctx context.Context, projectID uuid.UUID, ids []uuid.UUID) error
-	DeleteAll(ctx context.Context, projectID uuid.UUID) error
+	DeleteAll(ctx context.Context, projectID uuid.UUID) (int, error)
 }
 
 type ReadWriter interface {
@@ -71,15 +71,15 @@ func (r *broadcastRepository) Delete(ctx context.Context, projectID uuid.UUID, i
 	return nil
 }
 
-func (r *broadcastRepository) DeleteAll(ctx context.Context, projectID uuid.UUID) error {
+func (r *broadcastRepository) DeleteAll(ctx context.Context, projectID uuid.UUID) (int, error) {
 	b := dbx.NewSQLBuilder("DELETE FROM broadcast")
 	b.AddCompareFilter("project_id", "=", projectID)
 	query, args := b.Build()
-	_, err := r.db.Exec(ctx, query, args...)
+	tag, err := r.db.Exec(ctx, query, args...)
 	if err != nil {
-		return fmt.Errorf("delete all broadcasts: %w", err)
+		return 0, fmt.Errorf("delete all broadcasts: %w", err)
 	}
-	return nil
+	return int(tag.RowsAffected()), nil
 }
 
 func (r *broadcastRepository) Unmaterialized(ctx context.Context, projectID uuid.UUID, recipient string) ([]*Broadcast, int, error) {

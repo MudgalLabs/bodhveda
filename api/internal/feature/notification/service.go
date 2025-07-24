@@ -86,12 +86,12 @@ func (s *Service) MarkAsRead(ctx context.Context, projectID uuid.UUID, recipient
 	return service.ErrNone, nil
 }
 
-func (s *Service) MarkAllAsRead(ctx context.Context, projectID uuid.UUID, recipient string) (service.Error, error) {
-	err := s.notificationRepository.MarkAllAsRead(ctx, projectID, recipient)
+func (s *Service) MarkAllAsRead(ctx context.Context, projectID uuid.UUID, recipient string) (int, service.Error, error) {
+	count, err := s.notificationRepository.MarkAllAsRead(ctx, projectID, recipient)
 	if err != nil {
-		return service.ErrInternalServerError, err
+		return 0, service.ErrInternalServerError, err
 	}
-	return service.ErrNone, nil
+	return count, service.ErrNone, nil
 }
 
 func (s *Service) Delete(ctx context.Context, projectID uuid.UUID, recipient string, ids []uuid.UUID) (service.Error, error) {
@@ -105,12 +105,12 @@ func (s *Service) Delete(ctx context.Context, projectID uuid.UUID, recipient str
 	return service.ErrNone, nil
 }
 
-func (s *Service) DeleteAll(ctx context.Context, projectID uuid.UUID, recipient string) (service.Error, error) {
-	err := s.notificationRepository.DeleteAll(ctx, projectID, recipient)
+func (s *Service) DeleteAll(ctx context.Context, projectID uuid.UUID, recipient string) (int, service.Error, error) {
+	count, err := s.notificationRepository.DeleteAll(ctx, projectID, recipient)
 	if err != nil {
-		return service.ErrInternalServerError, err
+		return 0, service.ErrInternalServerError, err
 	}
-	return service.ErrNone, nil
+	return count, service.ErrNone, nil
 }
 
 func (s *Service) materializeBroadcastsToNotificationsIfNeeded(ctx context.Context, projectID uuid.UUID, recipient string) (service.Error, error) {

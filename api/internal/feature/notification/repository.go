@@ -21,9 +21,9 @@ type Writer interface {
 	Create(ctx context.Context, notification *Notification) error
 	Materialize(ctx context.Context, notifications []*Notification) error
 	MarkAsRead(ctx context.Context, projectID uuid.UUID, recipient string, ids []uuid.UUID) error
-	MarkAllAsRead(ctx context.Context, projectID uuid.UUID, recipient string) error
+	MarkAllAsRead(ctx context.Context, projectID uuid.UUID, recipient string) (int, error)
 	Delete(ctx context.Context, projectID uuid.UUID, recipient string, ids []uuid.UUID) error
-	DeleteAll(ctx context.Context, projectID uuid.UUID, recipient string) error
+	DeleteAll(ctx context.Context, projectID uuid.UUID, recipient string) (int, error)
 }
 
 type ReadWriter interface {
@@ -234,7 +234,7 @@ func (r *notificationRepository) MarkAsRead(ctx context.Context, projectID uuid.
 	return nil
 }
 
-func (r *notificationRepository) MarkAllAsRead(ctx context.Context, projectID uuid.UUID, recipient string) error {
+func (r *notificationRepository) MarkAllAsRead(ctx context.Context, projectID uuid.UUID, recipient string) (int, error) {
 	now := time.Now().UTC()
 	b := dbx.NewSQLBuilder("UPDATE notification")
 	b.SetColumn("read_at", now)
@@ -243,11 +243,11 @@ func (r *notificationRepository) MarkAllAsRead(ctx context.Context, projectID uu
 	b.AppendWhere("read_at IS NULL")
 
 	query, args := b.Build()
-	_, err := r.db.Exec(ctx, query, args...)
+	tag, err := r.db.Exec(ctx, query, args...)
 	if err != nil {
-		return fmt.Errorf("mark all notifications as read: %w", err)
+		return 0, fmt.Errorf("mark all notifications as read: %w", err)
 	}
-	return nil
+	return int(tag.RowsAffected()), nil
 }
 
 func (r *notificationRepository) Delete(ctx context.Context, projectID uuid.UUID, recipient string, ids []uuid.UUID) error {
@@ -270,14 +270,14 @@ func (r *notificationRepository) Delete(ctx context.Context, projectID uuid.UUID
 	return nil
 }
 
-func (r *notificationRepository) DeleteAll(ctx context.Context, projectID uuid.UUID, recipient string) error {
+func (r *notificationRepository) DeleteAll(ctx context.Context, projectID uuid.UUID, recipient string) (int, error) {
 	b := dbx.NewSQLBuilder("DELETE FROM notification")
 	b.AddCompareFilter("project_id", "=", projectID)
 	b.AddCompareFilter("recipient", "=", recipient)
 	query, args := b.Build()
-	_, err := r.db.Exec(ctx, query, args...)
+	tag, err := r.db.Exec(ctx, query, args...)
 	if err != nil {
-		return fmt.Errorf("delete all notifications: %w", err)
+		return 0, fmt.Errorf("delete all notifications: %w", err)
 	}
-	return nil
+	return int(tag.RowsAffected()), nil
 }

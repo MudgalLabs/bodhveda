@@ -81,7 +81,7 @@ func fetchUnreadCountHandler(app *appType) http.HandlerFunc {
 			return
 		}
 
-		resp := map[string]int{"unread_count": count}
+		resp := map[string]int{"count": count}
 		successResponse(w, r, http.StatusOK, "", resp)
 	}
 }
@@ -128,13 +128,13 @@ func markAllNotificationsReadHandler(app *appType) http.HandlerFunc {
 		projectID := getProjectIDFromContext(ctx)
 		recipient := chi.URLParam(r, "recipient")
 
-		errKind, err := app.service.NotificationService.MarkAllAsRead(ctx, projectID, recipient)
+		count, errKind, err := app.service.NotificationService.MarkAllAsRead(ctx, projectID, recipient)
 		if err != nil {
 			serviceErrResponse(w, r, errKind, err)
 			return
 		}
 
-		successResponse(w, r, http.StatusOK, "all notifications marked as read", nil)
+		successResponse(w, r, http.StatusOK, "all notifications marked as read", map[string]int{"count": count})
 	}
 }
 
@@ -180,12 +180,12 @@ func deleteAllNotificationsHandler(app *appType) http.HandlerFunc {
 		projectID := getProjectIDFromContext(ctx)
 		recipient := chi.URLParam(r, "recipient")
 
-		errKind, err := app.service.NotificationService.DeleteAll(ctx, projectID, recipient)
+		count, errKind, err := app.service.NotificationService.DeleteAll(ctx, projectID, recipient)
 		if err != nil {
 			serviceErrResponse(w, r, errKind, err)
 			return
 		}
 
-		successResponse(w, r, http.StatusOK, "all notifications deleted", nil)
+		successResponse(w, r, http.StatusOK, "all notifications deleted", map[string]int{"count": count})
 	}
 }

@@ -106,12 +106,14 @@ func deleteAllBroadcastsHandler(app *appType) http.HandlerFunc {
 		ctx := r.Context()
 		projectID := getProjectIDFromContext(ctx)
 
-		errKind, err := app.service.BroadcastService.DeleteAll(ctx, projectID)
+		count, errKind, err := app.service.BroadcastService.DeleteAll(ctx, projectID)
 		if err != nil {
 			serviceErrResponse(w, r, errKind, err)
 			return
 		}
 
-		successResponse(w, r, http.StatusOK, "all broadcasts deleted", nil)
+		successResponse(w, r, http.StatusOK, "all broadcasts deleted", map[string]any{
+			"count": count,
+		})
 	}
 }

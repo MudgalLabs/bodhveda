@@ -62,10 +62,10 @@ func (s *Service) Delete(ctx context.Context, projectID uuid.UUID, ids []uuid.UU
 	return service.ErrNone, nil
 }
 
-func (s *Service) DeleteAll(ctx context.Context, projectID uuid.UUID) (service.Error, error) {
-	err := s.broadcastRepository.DeleteAll(ctx, projectID)
+func (s *Service) DeleteAll(ctx context.Context, projectID uuid.UUID) (int, service.Error, error) {
+	count, err := s.broadcastRepository.DeleteAll(ctx, projectID)
 	if err != nil {
-		return service.ErrInternalServerError, err
+		return 0, service.ErrInternalServerError, err
 	}
-	return service.ErrNone, nil
+	return count, service.ErrNone, nil
 }
