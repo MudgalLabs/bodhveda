@@ -47,33 +47,9 @@ func (s *Service) Send(ctx context.Context, projectID uuid.UUID, recipient strin
 
 // List retrieves the notifications for a recipient in a paginated manner.
 func (s *Service) List(ctx context.Context, projectID uuid.UUID, recipient string, limit, offset int) ([]*Notification, int, service.Error, error) {
-	l := logger.FromCtx(ctx)
-
-	// First of all, we must materialize broadcasts into notifications that aren't already present.
-	unmaterializedBroadcasts, unmaterializedTotal, err := s.broadcastRepository.Unmaterialized(ctx, projectID, recipient)
+	svcErr, err := s.materializeBroadcastsToNotificationsIfNeeded(ctx, projectID, recipient)
 	if err != nil {
-		return nil, 0, service.ErrInternalServerError, fmt.Errorf("fetch unmaterialized broadcasts: %w", err)
-	}
-
-	batchNotifications := make([]*Notification, 0, len(unmaterializedBroadcasts))
-	for _, broadcast := range unmaterializedBroadcasts {
-		newNotification, err := new(projectID, recipient, broadcast.Payload, broadcast.ExpiresAt)
-		if err != nil {
-			return nil, 0, service.ErrInternalServerError, fmt.Errorf("new notification from broadcast: %w", err)
-		}
-		// Associate the broadcast ID with the notification.
-		newNotification.BroadcastID = &broadcast.ID
-		batchNotifications = append(batchNotifications, newNotification)
-	}
-
-	if len(batchNotifications) > 0 {
-		l.Infow("Found unmaterialized broadcasts", "count", unmaterializedTotal, "projectID", projectID, "recipient", recipient)
-
-		if err := s.notificationRepository.Materialize(ctx, batchNotifications); err != nil {
-			return nil, 0, service.ErrInternalServerError, fmt.Errorf("batch create notifications: %w", err)
-		}
-
-		l.Infow("Materialized broadcasts into notifications", "count", len(batchNotifications), "projectID", projectID, "recipient", recipient)
+		return nil, 0, svcErr, err
 	}
 
 	notifications, total, err := s.notificationRepository.List(ctx, projectID, recipient, limit, offset)
@@ -85,6 +61,11 @@ func (s *Service) List(ctx context.Context, projectID uuid.UUID, recipient strin
 }
 
 func (s *Service) UnreadCount(ctx context.Context, projectID uuid.UUID, recipient string) (int, service.Error, error) {
+	svcErr, err := s.materializeBroadcastsToNotificationsIfNeeded(ctx, projectID, recipient)
+	if err != nil {
+		return 0, svcErr, err
+	}
+
 	count, err := s.notificationRepository.UnreadCount(ctx, projectID, recipient)
 	if err != nil {
 		return 0, service.ErrInternalServerError, err
@@ -129,5 +110,38 @@ func (s *Service) DeleteAll(ctx context.Context, projectID uuid.UUID, recipient 
 	if err != nil {
 		return service.ErrInternalServerError, err
 	}
+	return service.ErrNone, nil
+}
+
+func (s *Service) materializeBroadcastsToNotificationsIfNeeded(ctx context.Context, projectID uuid.UUID, recipient string) (service.Error, error) {
+	l := logger.FromCtx(ctx)
+
+	// First of all, we must materialize broadcasts into notifications that aren't already present.
+	unmaterializedBroadcasts, unmaterializedTotal, err := s.broadcastRepository.Unmaterialized(ctx, projectID, recipient)
+	if err != nil {
+		return service.ErrInternalServerError, fmt.Errorf("fetch unmaterialized broadcasts: %w", err)
+	}
+
+	batchNotifications := make([]*Notification, 0, len(unmaterializedBroadcasts))
+	for _, broadcast := range unmaterializedBroadcasts {
+		newNotification, err := new(projectID, recipient, broadcast.Payload, broadcast.ExpiresAt)
+		if err != nil {
+			return service.ErrInternalServerError, fmt.Errorf("new notification from broadcast: %w", err)
+		}
+		// Associate the broadcast ID with the notification.
+		newNotification.BroadcastID = &broadcast.ID
+		batchNotifications = append(batchNotifications, newNotification)
+	}
+
+	if len(batchNotifications) > 0 {
+		l.Infow("Found unmaterialized broadcasts", "count", unmaterializedTotal, "projectID", projectID, "recipient", recipient)
+
+		if err := s.notificationRepository.Materialize(ctx, batchNotifications); err != nil {
+			return service.ErrInternalServerError, fmt.Errorf("batch create notifications: %w", err)
+		}
+
+		l.Infow("Materialized broadcasts into notifications", "count", len(batchNotifications), "projectID", projectID, "recipient", recipient)
+	}
+
 	return service.ErrNone, nil
 }
