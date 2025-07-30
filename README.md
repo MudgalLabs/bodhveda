@@ -3,21 +3,18 @@
 
 </p>
 
-<p align="center"><strong>The Backend for Your In-App Notifications. You send. We deliver.</strong></p>
+<p align="center"><strong>Backend for your in-app notifications. You send. We deliver.</strong></p>
 
 # Bodhveda
 
-[Bodhveda](https://bodhveda.com/) is an open-source notification delivery engine that helps you build rich, scalable in-app notification systems — from indie side projects to GitHub- or YouTube-scale platforms.
-
-With just a simple API call, you can notify users instantly or broadcast product updates at scale — all while respecting user preferences and getting deep insights on who received, read, or opened what. Bodhveda gives you visibility and control out of the box.
+[Bodhveda](https://bodhveda.com/) is an open-source Notification-as-a-Service backend for in-app notifications that helps you build rich, scalable in-app notification systems — from indie side projects to GitHub or YouTube like platforms.
 
 
 ## 🧠 Who is Bodhveda for?
 
-* **Solo founders, indie hackers, and product teams** who want to add structured, powerful notifications to their app without building complex infra from scratch.
-* **Developers** who care about scale, preferences, subscriptions, and delivery logic — but don’t want to reinvent the wheel.
+Solo founders, indie hackers, and dev teams who want to deliver scalable, preference-aware notifications — without reinventing the wheel, so they can focus on what matters.
 
-Whether you're building:
+### Whether you're building:
 
 * A **dev.to-style blog** with mentions and comments,
 * A **SaaS dashboard** that sends usage alerts,
@@ -25,7 +22,7 @@ Whether you're building:
 
 **Bodhveda has your backend covered.**
 
-## 🚀 How it works? Just a REST API.
+## 🚀 How it works? It's just a REST API.
 
 ### 🎯 Send a Direct Notification
 
@@ -93,7 +90,7 @@ Bodhveda uses the provided `channel`, `topic`, and `event` to:
 * Respect each recipient’s preferences
 * Materialize notifications lazily in the background
 
-This allows you to reach thousands of users without writing fan-out logic — and still know exactly who received, who read, and how many opened the message.
+This allows you to reach thousands of users and know exactly who received, who read, and who opened the notification.
 
 **NOTE:** If you omit all `channel`, `topic` and `event`, then this broadcast will materialize as a notification for ALL recipients in your app.
 
