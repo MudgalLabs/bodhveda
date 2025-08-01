@@ -12,17 +12,17 @@ services:
             BODHVEDA_API_LOG_LEVEL: ${BODHVEDA_API_LOG_LEVEL}
             BODHVEDA_API_LOG_FILE: ./logs/${BODHVEDA_API_LOG_FILE}
             BODHVEDA_DB_URL: ${BODHVEDA_DB_URL}
-            # BODHVEDA_WEB_URL: ${BODHVEDA_WEB_URL}
+            BODHVEDA_WEB_URL: ${BODHVEDA_WEB_URL}
             # BODHVEDA_ENABLE_SIGN_UP: ${BODHVEDA_ENABLE_SIGN_UP}
             # BODHVEDA_ENABLE_SIGN_IN: ${BODHVEDA_ENABLE_SIGN_IN}
             # BODHVEDA_ENABLE_GOOGLE_OAUTH: ${BODHVEDA_ENABLE_GOOGLE_OAUTH}
-            # BODHVEDA_GOOGLE_REDIRECT_URL: ${BODHVEDA_GOOGLE_REDIRECT_URL}
-            # BODHVEDA_GOOGLE_CLIENT_ID: ${BODHVEDA_GOOGLE_CLIENT_ID}
-            # BODHVEDA_GOOGLE_CLIENT_SECRET: ${BODHVEDA_GOOGLE_CLIENT_SECRET}
-            # BODHVEDA_API_CIPHER_KEY: ${BODHVEDA_API_CIPHER_KEY}
-            # TZ: ${TZ}
+            BODHVEDA_GOOGLE_REDIRECT_URL: ${BODHVEDA_GOOGLE_REDIRECT_URL}
+            BODHVEDA_GOOGLE_CLIENT_ID: ${BODHVEDA_GOOGLE_CLIENT_ID}
+            BODHVEDA_GOOGLE_CLIENT_SECRET: ${BODHVEDA_GOOGLE_CLIENT_SECRET}
+            BODHVEDA_API_CIPHER_KEY: ${BODHVEDA_API_CIPHER_KEY}
+            TZ: ${TZ}
         ports:
-            - 1337:1337
+            - 1338:1338
         networks:
             - bodhveda_network
             - caddy_net
@@ -38,12 +38,12 @@ services:
         container_name: bodhveda_db
         image: postgres:17.4-alpine
         environment:
-            PGPORT: 42069
+            PGPORT: 42070
             POSTGRES_DB: ${BODHVEDA_DB_NAME}
             POSTGRES_USER: ${BODHVEDA_DB_USER}
             POSTGRES_PASSWORD: ${BODHVEDA_DB_PASSWORD}
         ports:
-            - 42069:42069
+            - 42070:42070
         networks:
             - bodhveda_network
             - caddy_net

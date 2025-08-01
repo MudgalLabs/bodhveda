@@ -1,26 +1,30 @@
 package main
 
 import (
-	"bodhveda/internal/env"
-	"bodhveda/internal/session"
 	"net/http"
 	"time"
 
 	"github.com/go-chi/chi"
-	"github.com/go-chi/chi/middleware"
+	chimiddleware "github.com/go-chi/chi/middleware"
 	"github.com/go-chi/cors"
 	"github.com/go-chi/httprate"
+	"github.com/mudgallabs/bodhveda/internal/app"
+	"github.com/mudgallabs/bodhveda/internal/env"
+	"github.com/mudgallabs/bodhveda/internal/handler"
+	"github.com/mudgallabs/bodhveda/internal/middleware"
+	"github.com/mudgallabs/tantra/auth/session"
+	"github.com/mudgallabs/tantra/httpx"
 )
 
 func initRouter() http.Handler {
 	r := chi.NewRouter()
 
-	r.Use(middleware.RequestID)
-	r.Use(middleware.RealIP)
-	r.Use(attachLoggerMiddleware)
-	r.Use(timezoneMiddleware)
-	r.Use(logRequestMiddleware)
-	r.Use(middleware.Recoverer)
+	r.Use(chimiddleware.RequestID)
+	r.Use(chimiddleware.RealIP)
+	r.Use(middleware.AttachLoggerMiddleware)
+	r.Use(middleware.TimezoneMiddleware)
+	r.Use(middleware.LogRequestMiddleware)
+	r.Use(chimiddleware.Recoverer)
 	r.Use(cors.Handler(cors.Options{
 		AllowedOrigins:   []string{env.WebURL},
 		AllowedMethods:   []string{"GET", "DELETE", "OPTIONS", "PATCH", "POST", "PUT"},
@@ -33,7 +37,7 @@ func initRouter() http.Handler {
 	// Set a timeout value on the request context (ctx), that will signal
 	// through ctx.Done() that the request has timed out and further
 	// processing should be stopped.
-	r.Use(middleware.Timeout(60 * time.Second))
+	r.Use(chimiddleware.Timeout(60 * time.Second))
 
 	r.Use(session.Manager.LoadAndSave)
 
@@ -44,33 +48,22 @@ func initRouter() http.Handler {
 	r.Use(httprate.LimitByIP(100, time.Minute))
 
 	r.Get("/", func(w http.ResponseWriter, r *http.Request) {
-		successResponse(w, r, http.StatusOK, "Hi, welcome to Bodhveda API. Don't be naughty!", nil)
+		httpx.SuccessResponse(w, r, http.StatusOK, "Hi, welcome to Bodhveda API. Don't be naughty!", nil)
 	})
 
 	r.Get("/ping", func(w http.ResponseWriter, r *http.Request) {
-		successResponse(w, r, http.StatusOK, "Pong", nil)
+		httpx.SuccessResponse(w, r, http.StatusOK, "Pong", nil)
 	})
 
 	r.Route("/v1", func(r chi.Router) {
 		// Core routes that power the Notification service.
-		r.Use(apiKeyMiddleware)
+		r.Use(middleware.APIKeyMiddleware)
 
 		r.Route("/broadcasts", func(r chi.Router) {
-			r.Post("/", sendBroadcastHandler(app))
-			r.Get("/", fetchBroadcastsHandler(app))
-			r.Delete("/", deleteBroadcastsHandler(app))
-			r.Delete("/all", deleteAllBroadcastsHandler(app))
 		})
 
 		r.Route("/recipients/{recipient}", func(r chi.Router) {
 			r.Route("/notifications", func(r chi.Router) {
-				r.Post("/", sendNotificationHandler(app))
-				r.Get("/", fetchNotificationsHandler(app))
-				r.Get("/unread-count", fetchUnreadCountHandler(app))
-				r.Post("/read", markNotificationsReadHandler(app))
-				r.Post("/read/all", markAllNotificationsReadHandler(app))
-				r.Delete("/", deleteNotificationsHandler(app))
-				r.Delete("/all", deleteAllNotificationsHandler(app))
 			})
 		})
 	})
@@ -78,15 +71,21 @@ func initRouter() http.Handler {
 	// Platform routes that power the web app.
 	r.Route("/v1/platform", func(r chi.Router) {
 		r.Route("/auth", func(r chi.Router) {
-			r.Get("/oauth/google", googleSignInHandler(app.service.UserIdentityService))
-			r.Get("/oauth/google/callback", googleCallbackHandler(app.service.UserIdentityService))
-			r.Post("/sign-out", signOutHandler(app.service.UserIdentityService))
+			r.Get("/oauth/google", googleSignInHandler(app.APP.Service.UserIdentityService))
+			r.Get("/oauth/google/callback", googleCallbackHandler(app.APP.Service.UserIdentityService))
+			r.Post("/sign-out", signOutHandler(app.APP.Service.UserIdentityService))
+		})
+
+		r.Route("/projects", func(r chi.Router) {
+			r.Use(middleware.AuthMiddleware)
+
+			r.Post("/", handler.CreateProject(app.APP.Service.ProjectService))
 		})
 
 		r.Route("/users", func(r chi.Router) {
-			r.Use(authMiddleware)
+			r.Use(middleware.AuthMiddleware)
 
-			r.Get("/me", getMeHandler(app.service.UserProfileService))
+			r.Get("/me", getMeHandler(app.APP.Service.UserProfileService))
 		})
 	})
 

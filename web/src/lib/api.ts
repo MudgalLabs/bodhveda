@@ -18,7 +18,7 @@ if (!API_URL) {
     if (isProd()) {
         throw new Error("API's URL is not set");
     } else {
-        API_URL = "http://localhost:1337";
+        API_URL = "http://localhost:1338";
     }
 }
 

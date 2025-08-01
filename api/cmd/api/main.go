@@ -1,16 +1,6 @@
 package main
 
 import (
-	"bodhveda/internal/dbx"
-	"bodhveda/internal/env"
-	"bodhveda/internal/feature/broadcast"
-	"bodhveda/internal/feature/notification"
-	"bodhveda/internal/feature/project"
-	"bodhveda/internal/feature/user_identity"
-	"bodhveda/internal/feature/user_profile"
-	"bodhveda/internal/logger"
-	"bodhveda/internal/oauth"
-	"bodhveda/internal/session"
 	"context"
 	"errors"
 	"net/http"
@@ -18,87 +8,20 @@ import (
 	"os/signal"
 	"syscall"
 	"time"
+
+	"github.com/mudgallabs/bodhveda/internal/app"
+	"github.com/mudgallabs/bodhveda/internal/env"
+	"github.com/mudgallabs/tantra/logger"
 )
 
-// This contains all the global state that we need to run the API.
-// Like all the services and repositories of Bodhveda.
-type appType struct {
-	service    services
-	repository repositories
-}
-
-// All the services.
-type services struct {
-	BroadcastService    *broadcast.Service
-	NotificationService *notification.Service
-	ProjectService      *project.Service
-	UserIdentityService *user_identity.Service
-	UserProfileService  *user_profile.Service
-}
-
-// Access to all repositories for reading.
-// Write access only available to services.
-type repositories struct {
-	Broadcast    broadcast.ReadWriter
-	Notification notification.ReadWriter
-	UserIdentity user_identity.Reader
-	UserProfile  user_profile.Reader
-}
-
-var app *appType
-
 func main() {
-	env.Init("../.env")
+	app.Init()
 
-	// IDK what this does but it was on the blogpost so I'm using it.
-	// I think it has something to do with Go sync for multi threading?
-	defer logger.Get().Sync()
-
-	session.Init()
-
-	db, err := dbx.Init()
-	if err != nil {
-		panic(err)
-	}
-
-	defer db.Close()
-
-	oauth.InitGoogle()
-
-	broadcastRepo := broadcast.NewRepository(db)
-	notificationRepo := notification.NewRepository(db)
-	userProfileRepository := user_profile.NewRepository(db)
-	userIdentityRepository := user_identity.NewRepository(db)
-
-	broadcastService := broadcast.NewService(broadcastRepo)
-	notificationService := notification.NewService(notificationRepo, broadcastRepo)
-	projectService := project.NewService()
-	userIdentityService := user_identity.NewService(userIdentityRepository, userProfileRepository)
-	userProfileService := user_profile.NewService(userProfileRepository)
-
-	services := services{
-		BroadcastService:    broadcastService,
-		NotificationService: notificationService,
-		ProjectService:      projectService,
-		UserIdentityService: userIdentityService,
-		UserProfileService:  userProfileService,
-	}
-
-	repositories := repositories{
-		Broadcast:    broadcastRepo,
-		Notification: notificationRepo,
-		UserIdentity: userIdentityRepository,
-		UserProfile:  userProfileRepository,
-	}
-
-	app = &appType{
-		service:    services,
-		repository: repositories,
-	}
+	defer app.DB.Close()
 
 	r := initRouter()
 
-	err = run(r)
+	err := run(r)
 	if err != nil {
 		panic(err)
 	}
@@ -107,7 +30,7 @@ func main() {
 func run(router http.Handler) error {
 	l := logger.Get()
 	srv := &http.Server{
-		Addr:         ":1337",
+		Addr:         ":1338",
 		Handler:      router,
 		WriteTimeout: time.Second * 30,
 		ReadTimeout:  time.Second * 10,

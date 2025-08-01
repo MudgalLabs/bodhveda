@@ -1,18 +1,18 @@
 package user_profile
 
 import (
-	"bodhveda/internal/repository"
 	"context"
 	"fmt"
 	"time"
 
-	"github.com/google/uuid"
 	"github.com/jackc/pgx/v5"
 	"github.com/jackc/pgx/v5/pgxpool"
+	"github.com/mudgallabs/tantra/dbx"
+	"github.com/mudgallabs/tantra/repository"
 )
 
 type Reader interface {
-	FindUserProfileByUserID(ctx context.Context, userID uuid.UUID) (*UserProfile, error)
+	FindUserProfileByUserID(ctx context.Context, userID int) (*UserProfile, error)
 }
 
 type Writer interface {
@@ -29,7 +29,7 @@ type ReadWriter interface {
 //
 
 type filter struct {
-	UserID *uuid.UUID
+	UserID *int
 	Email  *string
 }
 
@@ -41,7 +41,7 @@ func NewRepository(db *pgxpool.Pool) *userProfileRepository {
 	return &userProfileRepository{db}
 }
 
-func (r *userProfileRepository) FindUserProfileByUserID(ctx context.Context, userID uuid.UUID) (*UserProfile, error) {
+func (r *userProfileRepository) FindUserProfileByUserID(ctx context.Context, userID int) (*UserProfile, error) {
 	tx, err := r.db.Begin(ctx)
 	if err != nil {
 		return nil, fmt.Errorf("begin: %w", err)
@@ -63,24 +63,22 @@ func (r *userProfileRepository) FindUserProfileByUserID(ctx context.Context, use
 }
 
 func (r *userProfileRepository) findUserProfiles(ctx context.Context, tx pgx.Tx, f *filter) ([]*UserProfile, error) {
-	var where []string
-	args := make(pgx.NamedArgs)
+	baseSQL := `
+	SELECT user_id, email, name, avatar_url, created_at, updated_at
+	FROM user_profile`
+	b := dbx.NewSQLBuilder(baseSQL)
 
 	if v := f.UserID; v != nil {
-		where = append(where, "user_id = @user_id")
-		args["user_id"] = v
+		b.AddCompareFilter("user_id", "=", *v)
 	}
 
 	if v := f.Email; v != nil {
-		where = append(where, "email = @email")
-		args["email"] = v
+		b.AddCompareFilter("email", "=", *v)
 	}
 
-	sql := `
-	SELECT user_id, email, name, avatar_url, created_at, updated_at
-	FROM user_profile ` + repository.WhereSQL(where)
+	query, args := b.Build()
 
-	rows, err := tx.Query(ctx, sql, args)
+	rows, err := tx.Query(ctx, query, args...)
 	if err != nil {
 		return nil, fmt.Errorf("query: %w", err)
 	}

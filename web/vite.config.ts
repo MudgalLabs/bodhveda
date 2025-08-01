@@ -15,7 +15,7 @@ export default ({ mode }: { mode: string }) => {
         ],
         server: {
             host: "localhost",
-            port: 6969,
+            port: 6970,
         },
         resolve: {
             alias: {

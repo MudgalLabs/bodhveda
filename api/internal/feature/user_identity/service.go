@@ -1,14 +1,14 @@
 package user_identity
 
 import (
-	"bodhveda/internal/feature/user_profile"
-	"bodhveda/internal/oauth"
-	"bodhveda/internal/repository"
-	"bodhveda/internal/service"
 	"context"
 	"errors"
 	"fmt"
 
+	"github.com/mudgallabs/bodhveda/internal/feature/user_profile"
+	"github.com/mudgallabs/tantra/auth/oauth"
+	"github.com/mudgallabs/tantra/repository"
+	"github.com/mudgallabs/tantra/service"
 	"golang.org/x/crypto/bcrypt"
 )
 
@@ -114,7 +114,7 @@ func (s *Service) SignUp(ctx context.Context, payload SignUpPayload) (*user_prof
 		return nil, service.ErrInternalServerError, fmt.Errorf("find user identity by email: %w", err)
 	}
 
-	if userIdentity != nil && userIdentity.ID.String() != "" {
+	if userIdentity != nil && userIdentity.ID > 0 {
 		return nil, service.ErrConflict, errors.New("Account with that email already exists")
 	}
 

@@ -1,21 +1,24 @@
 package main
 
 import (
-	"bodhveda/internal/feature/user_profile"
 	"net/http"
+
+	"github.com/mudgallabs/bodhveda/internal/feature/user_profile"
+	"github.com/mudgallabs/bodhveda/internal/middleware"
+	"github.com/mudgallabs/tantra/httpx"
 )
 
 func getMeHandler(s *user_profile.Service) http.HandlerFunc {
 	return func(w http.ResponseWriter, r *http.Request) {
 		ctx := r.Context()
-		id := getUserIDFromContext(ctx)
+		userID := middleware.GetUserIDFromContext(ctx)
 
-		userProfile, errKind, err := s.GetUserMe(ctx, id)
+		userProfile, errKind, err := s.GetUserMe(ctx, userID)
 		if err != nil {
-			serviceErrResponse(w, r, errKind, err)
+			httpx.ServiceErrResponse(w, r, errKind, err)
 			return
 		}
 
-		successResponse(w, r, http.StatusOK, "", userProfile)
+		httpx.SuccessResponse(w, r, http.StatusOK, "", userProfile)
 	}
 }

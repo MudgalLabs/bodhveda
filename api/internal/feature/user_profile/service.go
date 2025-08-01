@@ -1,12 +1,11 @@
 package user_profile
 
 import (
-	"bodhveda/internal/repository"
-	"bodhveda/internal/service"
 	"context"
 	"fmt"
 
-	"github.com/google/uuid"
+	"github.com/mudgallabs/tantra/repository"
+	"github.com/mudgallabs/tantra/service"
 )
 
 type Service struct {
@@ -23,7 +22,7 @@ type GetUserMeResult struct {
 	UserProfile
 }
 
-func (s *Service) GetUserMe(ctx context.Context, id uuid.UUID) (*GetUserMeResult, service.Error, error) {
+func (s *Service) GetUserMe(ctx context.Context, id int) (*GetUserMeResult, service.Error, error) {
 	userProfile, err := s.userProfileRepository.FindUserProfileByUserID(ctx, id)
 	if err != nil {
 		if err == repository.ErrNotFound {

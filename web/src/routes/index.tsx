@@ -30,8 +30,8 @@ function Index() {
 
     return (
         <div>
-            You are Authenticated!
-            <pre>{JSON.stringify(user)}</pre>
+            <p>You are Authenticated! - {user?.email}</p>
+
             <Button onClick={() => logout()}>Log out</Button>
         </div>
     );

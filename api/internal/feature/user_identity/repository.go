@@ -1,18 +1,18 @@
 package user_identity
 
 import (
-	"bodhveda/internal/feature/user_profile"
-	"bodhveda/internal/repository"
 	"context"
 	"fmt"
 
-	"github.com/google/uuid"
 	"github.com/jackc/pgx/v5"
 	"github.com/jackc/pgx/v5/pgxpool"
+	"github.com/mudgallabs/bodhveda/internal/feature/user_profile"
+	"github.com/mudgallabs/tantra/dbx"
+	"github.com/mudgallabs/tantra/repository"
 )
 
 type Reader interface {
-	FindUserIdentityByID(ctx context.Context, id uuid.UUID) (*UserIdentity, error)
+	FindUserIdentityByID(ctx context.Context, id int) (*UserIdentity, error)
 	FindUserIdentityByEmail(ctx context.Context, email string) (*UserIdentity, error)
 }
 
@@ -31,7 +31,7 @@ type ReadWriter interface {
 //
 
 type filter struct {
-	ID    *uuid.UUID
+	ID    *int
 	Email *string
 }
 
@@ -43,7 +43,7 @@ func NewRepository(db *pgxpool.Pool) *userIdentityRepository {
 	return &userIdentityRepository{db}
 }
 
-func (r *userIdentityRepository) FindUserIdentityByID(ctx context.Context, id uuid.UUID) (*UserIdentity, error) {
+func (r *userIdentityRepository) FindUserIdentityByID(ctx context.Context, id int) (*UserIdentity, error) {
 	tx, err := r.db.Begin(ctx)
 	if err != nil {
 		return nil, fmt.Errorf("begin: %w", err)
@@ -84,24 +84,22 @@ func (r *userIdentityRepository) FindUserIdentityByEmail(ctx context.Context, em
 }
 
 func (r *userIdentityRepository) findUserIdentities(ctx context.Context, tx pgx.Tx, f *filter) ([]*UserIdentity, error) {
-	var where []string
-	args := make(pgx.NamedArgs)
+	baseSQL := `
+	SELECT id, email, password_hash, verified, last_login_at, created_at, updated_at 
+	FROM user_identity`
+	b := dbx.NewSQLBuilder(baseSQL)
 
 	if v := f.ID; v != nil {
-		where = append(where, "id = @id")
-		args["id"] = v
+		b.AddCompareFilter("id", "=", *v)
 	}
 
 	if v := f.Email; v != nil {
-		where = append(where, "email = @email")
-		args["email"] = v
+		b.AddCompareFilter("email", "=", *v)
 	}
 
-	sql := `
-	SELECT id, email, password_hash, verified, last_login_at, created_at, updated_at 
-	FROM user_identity ` + repository.WhereSQL(where)
+	query, args := b.Build()
 
-	rows, err := tx.Query(ctx, sql, args)
+	rows, err := tx.Query(ctx, query, args...)
 	if err != nil {
 		return nil, fmt.Errorf("query: %w", err)
 	}
@@ -134,11 +132,11 @@ func (r *userIdentityRepository) SignUp(ctx context.Context, name string, userId
 	defer tx.Rollback(ctx)
 
 	identitySQL := `
-	INSERT INTO user_identity (id, email, password_hash, verified, oauth_provider, last_login_at, created_at, updated_at)
-	VALUES (@id, @email, @password_hash, @verified, @oauth_provider, @last_login_at,  @created_at, @updated_at)
+	INSERT INTO user_identity (email, password_hash, verified, oauth_provider, last_login_at, created_at, updated_at)
+	VALUES (@email, @password_hash, @verified, @oauth_provider, @last_login_at,  @created_at, @updated_at)
+	RETURNING id
 	`
 	identitySQLArgs := pgx.NamedArgs{
-		"id":             userIdentity.ID,
 		"email":          userIdentity.Email,
 		"password_hash":  userIdentity.PasswordHash,
 		"verified":       userIdentity.Verified,
@@ -147,12 +145,14 @@ func (r *userIdentityRepository) SignUp(ctx context.Context, name string, userId
 		"created_at":     userIdentity.CreatedAt,
 		"updated_at":     userIdentity.UpdatedAt,
 	}
-	_, err = tx.Exec(ctx, identitySQL, identitySQLArgs)
+
+	var userID int
+	err = tx.QueryRow(ctx, identitySQL, identitySQLArgs).Scan(&userID)
 	if err != nil {
-		return nil, fmt.Errorf("user identity sql exec: %w", err)
+		return nil, fmt.Errorf("user identity insert: %w", err)
 	}
 
-	userProfile := user_profile.NewUserProfile(userIdentity.ID, userIdentity.Email, name)
+	userProfile := user_profile.NewUserProfile(userID, userIdentity.Email, name)
 
 	profileSQL := `
 	INSERT INTO user_profile (user_id, email, name, avatar_url, created_at, updated_at)

@@ -31,7 +31,7 @@ COPY --from=builder /usr/share/zoneinfo /usr/share/zoneinfo
 # Copy the binary from builder stage
 COPY --from=builder /app/bin/bodhveda .
 # Open port
-EXPOSE 1337
+EXPOSE 1338
 
 # Start API
 CMD ["./bodhveda"]

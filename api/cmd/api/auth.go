@@ -1,12 +1,16 @@
 package main
 
 import (
-	"bodhveda/internal/env"
-	"bodhveda/internal/feature/user_identity"
-	"bodhveda/internal/logger"
-	"bodhveda/internal/oauth"
-	"bodhveda/internal/session"
+	"fmt"
 	"net/http"
+
+	"github.com/mudgallabs/tantra/auth/oauth"
+	"github.com/mudgallabs/tantra/auth/session"
+	"github.com/mudgallabs/tantra/httpx"
+	"github.com/mudgallabs/tantra/logger"
+
+	"github.com/mudgallabs/bodhveda/internal/env"
+	"github.com/mudgallabs/bodhveda/internal/feature/user_identity"
 )
 
 func googleSignInHandler(_ *user_identity.Service) http.HandlerFunc {
@@ -40,13 +44,15 @@ func googleCallbackHandler(s *user_identity.Service) http.HandlerFunc {
 
 		userProfile, _, err := s.OAuthGoogleCallback(ctx, code)
 
+		fmt.Println("########## userProfile:", userProfile)
+
 		if err != nil {
 			l.Errorw("Error during OAuth Google callback", "error", err)
 			http.Redirect(w, r, webURL+"?oauth_error=true", http.StatusFound)
 			return
 		}
 
-		session.Manager.Put(ctx, "user_id", userProfile.UserID.String())
+		session.Manager.Put(ctx, "user_id", userProfile.UserID)
 		http.Redirect(w, r, webURL, http.StatusFound)
 	}
 }
@@ -54,6 +60,6 @@ func googleCallbackHandler(s *user_identity.Service) http.HandlerFunc {
 func signOutHandler(_ *user_identity.Service) http.HandlerFunc {
 	return func(w http.ResponseWriter, r *http.Request) {
 		session.Manager.Destroy(r.Context())
-		successResponse(w, r, http.StatusOK, "Signout successful", nil)
+		httpx.SuccessResponse(w, r, http.StatusOK, "Signout successful", nil)
 	}
 }
