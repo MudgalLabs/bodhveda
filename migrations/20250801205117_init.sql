@@ -30,9 +30,9 @@ CREATE INDEX sessions_expiry_idx ON sessions (expiry);
 
 CREATE TABLE project (
         id           SERIAL PRIMARY KEY,
-        name         VARCHAR(255)   NOT NULL,
+        name         VARCHAR(255) NOT NULL,
         user_id      INT NOT NULL REFERENCES user_identity(id),
-        created_at   TIMESTAMPTZ    NOT NULL,
+        created_at   TIMESTAMPTZ NOT NULL,
         updated_at   TIMESTAMPTZ NOT NULL
 );
 -- +goose StatementEnd

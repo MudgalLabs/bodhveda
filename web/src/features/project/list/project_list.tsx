@@ -1,0 +1,86 @@
+import { Button } from "@/components/button";
+import { LoadingScreen } from "@/components/loading_screen";
+import {
+    useCreateProject,
+    useGetProjects,
+} from "@/features/project/project_hooks";
+import { Link } from "@tanstack/react-router";
+import { useState } from "react";
+
+export function ProjectList() {
+    const [showCreate, setShowCreate] = useState(false);
+    const [name, setName] = useState("");
+
+    const { data, isLoading, isError } = useGetProjects();
+    const { mutate: createProject } = useCreateProject();
+
+    const handleSubmit = (e: React.FormEvent) => {
+        e.preventDefault();
+        if (name.trim() === "") return;
+
+        createProject(
+            { name },
+            {
+                onSuccess: () => {
+                    setName("");
+                    setShowCreate(false);
+                },
+            }
+        );
+    };
+
+    if (isError) {
+        return (
+            <div className="text-text-destructive">Error loading projects</div>
+        );
+    }
+
+    if (isLoading) {
+        return <LoadingScreen />;
+    }
+
+    return (
+        <div className="w-full max-w-[1200px] mx-auto mt-12 px-4">
+            <div className="flex-x justify-between">
+                <h1 className="big-heading">Projects</h1>
+                <Button onClick={() => setShowCreate((prev) => !prev)}>
+                    + Create Project
+                </Button>
+            </div>
+
+            {showCreate && (
+                <div className="mt-4">
+                    <form onSubmit={handleSubmit}>
+                        <input
+                            type="text"
+                            placeholder="Project Name"
+                            className="input"
+                            value={name}
+                            onChange={(e) => setName(e.target.value)}
+                        />
+                        <Button type="submit" className="ml-2">
+                            Create
+                        </Button>
+                    </form>
+                </div>
+            )}
+
+            <div className="mt-4">
+                {data?.data.map((project) => (
+                    <Link
+                        key={project.id}
+                        to={`/projects/$id/overview`}
+                        params={{ id: String(project.id) }}
+                        className="link-unstyled"
+                    >
+                        <div className="p-4 mb-4 border border-border rounded-lg hover:bg-accent">
+                            <h2 className="text-lg font-semibold">
+                                {project.name}
+                            </h2>
+                        </div>
+                    </Link>
+                ))}
+            </div>
+        </div>
+    );
+}

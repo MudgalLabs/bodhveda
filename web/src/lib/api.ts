@@ -7,6 +7,12 @@ export const API_ROUTES = {
     auth: {
         signout: "/v1/platform/auth/sign-out",
     },
+    project: {
+        list: "/v1/platform/projects",
+        create: "/v1/platform/projects",
+        delete: (id: string) => `/v1/platform/projects/${id}`,
+        update: (id: string) => `/v1/platform/projects/${id}`,
+    },
     user: {
         me: "/v1/platform/users/me",
     },
@@ -52,9 +58,9 @@ function createAPIClient(baseURL: string) {
             const status = err.response ? err.response.status : null;
 
             if (status === 401 || status === 403) {
-                if (window.location.pathname !== "/login") {
+                if (window.location.pathname !== "/auth/sign-in") {
                     // Redirect to sign-in page if the user is not authenticated.
-                    window.history.pushState({}, "", "/login");
+                    window.history.pushState({}, "", "/auth/sign-in");
                 }
             }
 

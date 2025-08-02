@@ -3,7 +3,6 @@ package repository
 import (
 	"context"
 
-	"github.com/mudgallabs/bodhveda/internal/model/dto"
 	"github.com/mudgallabs/bodhveda/internal/model/entity"
 )
 
@@ -13,9 +12,9 @@ type ProjectRepository interface {
 }
 
 type ProjectReader interface {
-	// ListProjects(ctx context.Context, userID int) ([]*entity.Project, error)
+	List(ctx context.Context, userID int) ([]*entity.Project, error)
 }
 
 type ProjectWriter interface {
-	Create(ctx context.Context, userID int, payload dto.CreateProjectPaylaod) (*entity.Project, error)
+	Create(ctx context.Context, project *entity.Project) (*entity.Project, error)
 }

@@ -2,7 +2,6 @@ package dbx
 
 import (
 	"context"
-	"fmt"
 	"log"
 	"time"
 
@@ -21,19 +20,10 @@ type DBExecutor interface {
 	QueryRow(ctx context.Context, sql string, args ...any) pgx.Row
 }
 
-var globalPool *pgxpool.Pool
-
 func Init(url string) (*pgxpool.Pool, error) {
 	l := logger.Get()
 
-	if globalPool != nil {
-		l.Warn("database pool already initialized, reusing existing pool")
-		return globalPool, nil
-	}
-
 	l.Info("connecting to database")
-
-	fmt.Println("string:        ", url)
 
 	config, err := pgxpool.ParseConfig(url)
 	if err != nil {
@@ -55,9 +45,6 @@ func Init(url string) (*pgxpool.Pool, error) {
 		log.Panic(err)
 		return nil, err
 	}
-
-	// Set global pool before using it anywhere else
-	globalPool = pool
 
 	session.Manager.Store = pgxstore.NewWithCleanupInterval(pool, 12*time.Hour)
 

@@ -12,4 +12,12 @@ type Project struct {
 	UpdatedAt time.Time
 }
 
-func NewProject(userID int, name string) {}
+func NewProject(userID int, name string) *Project {
+	now := time.Now().UTC()
+	return &Project{
+		Name:      name,
+		UserID:    userID,
+		CreatedAt: now,
+		UpdatedAt: now,
+	}
+}

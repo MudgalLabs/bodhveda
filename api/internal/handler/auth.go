@@ -1,4 +1,4 @@
-package main
+package handler
 
 import (
 	"fmt"
@@ -13,14 +13,14 @@ import (
 	"github.com/mudgallabs/bodhveda/internal/feature/user_identity"
 )
 
-func googleSignInHandler(_ *user_identity.Service) http.HandlerFunc {
+func GoogleSignInHandler(_ *user_identity.Service) http.HandlerFunc {
 	return func(w http.ResponseWriter, r *http.Request) {
 		url := oauth.GoogleConfig.AuthCodeURL("")
 		http.Redirect(w, r, url, http.StatusTemporaryRedirect)
 	}
 }
 
-func googleCallbackHandler(s *user_identity.Service) http.HandlerFunc {
+func GoogleCallbackHandler(s *user_identity.Service) http.HandlerFunc {
 	return func(w http.ResponseWriter, r *http.Request) {
 		// TODO: We should validate the state parameter here to prevent CSRF attacks.
 		// The state parameter should be a random string that is signed and verified.
@@ -57,7 +57,7 @@ func googleCallbackHandler(s *user_identity.Service) http.HandlerFunc {
 	}
 }
 
-func signOutHandler(_ *user_identity.Service) http.HandlerFunc {
+func SignOutHandler(_ *user_identity.Service) http.HandlerFunc {
 	return func(w http.ResponseWriter, r *http.Request) {
 		session.Manager.Destroy(r.Context())
 		httpx.SuccessResponse(w, r, http.StatusOK, "Signout successful", nil)

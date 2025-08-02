@@ -71,21 +71,22 @@ func initRouter() http.Handler {
 	// Platform routes that power the web app.
 	r.Route("/v1/platform", func(r chi.Router) {
 		r.Route("/auth", func(r chi.Router) {
-			r.Get("/oauth/google", googleSignInHandler(app.APP.Service.UserIdentityService))
-			r.Get("/oauth/google/callback", googleCallbackHandler(app.APP.Service.UserIdentityService))
-			r.Post("/sign-out", signOutHandler(app.APP.Service.UserIdentityService))
+			r.Get("/oauth/google", handler.GoogleSignInHandler(app.APP.Service.UserIdentityService))
+			r.Get("/oauth/google/callback", handler.GoogleCallbackHandler(app.APP.Service.UserIdentityService))
+			r.Post("/sign-out", handler.SignOutHandler(app.APP.Service.UserIdentityService))
 		})
 
 		r.Route("/projects", func(r chi.Router) {
 			r.Use(middleware.AuthMiddleware)
 
+			r.Get("/", handler.ListProjects(app.APP.Service.ProjectService))
 			r.Post("/", handler.CreateProject(app.APP.Service.ProjectService))
 		})
 
 		r.Route("/users", func(r chi.Router) {
 			r.Use(middleware.AuthMiddleware)
 
-			r.Get("/me", getMeHandler(app.APP.Service.UserProfileService))
+			r.Get("/me", handler.GetUserMeHandler(app.APP.Service.UserProfileService))
 		})
 	})
 

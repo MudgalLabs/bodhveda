@@ -22,62 +22,6 @@
 /* Theme*/
 
 @theme {
-    --color-background: hsl(224, 76%, 5%);
-
-    --color-red-bg: hsl(352, 60%, 26%);
-    --color-red-foreground: hsl(354, 77%, 90%);
-
-    --color-green-bg: hsl(146, 50%, 30%);
-    --color-green-foreground: hsl(146, 50%, 85%);
-
-    --color-foreground: hsl(210, 40%, 98%);
-    --color-foreground-muted: hsl(219, 18%, 65%);
-    --color-foreground-red: hsl(4, 73%, 65%);
-    --color-foreground-green: hsl(158, 64%, 50%);
-
-    --color-border: hsl(240, 4%, 16%);
-    --color-border-muted: hsl(222, 40%, 30%);
-    --color-border-red: hsl(17, 92.5%, 62.9%, 0.5);
-
-    --color-muted: hsl(222, 40%, 11%);
-    --color-muted-foreground: hsl(223, 7%, 81%);
-
-    --color-primary: hsl(221, 82%, 62%);
-    --color-secondary: hsl(240, 3.7%, 15.9%);
-    --color-accent: hsl(221, 52%, 45%);
-    --color-accent-muted: hsl(221, 52%, 16%);
-    --color-link: hsl(221, 82%, 67%);
-
-    --color-logo: hsl(199, 89%, 48%);
-
-    --color-surface-bg: hsl(224, 76%, 8%);
-    --color-surface-border: hsl(215, 52%, 24%);
-    --color-surface-foreground: hsl(216, 100%, 70%);
-
-    --color-error-bg: hsl(357, 64%, 10%);
-    --color-error-border: hsl(357, 62%, 21%);
-    --color-error-foreground: hsl(356, 100%, 80%);
-
-    --color-warning-bg: hsl(50, 100%, 8%);
-    --color-warning-border: hsl(50, 100%, 15%);
-    --color-warning-foreground: hsl(50, 100%, 50%);
-
-    --font-logo: Museo Sans;
-    --font-heading: Inter;
-    --font-content: Inter;
-
-    /* --color-azure-50: #f2f7fc;
-    --color-azure-100: #e1ecf8;
-    --color-azure-200: #c9def4;
-    --color-azure-300: #a4caec;
-    --color-azure-400: #79aee1;
-    --color-azure-500: #5990d8;
-    --color-azure-600: #4577cb;
-    --color-azure-700: #375dae;
-    --color-azure-800: #355298;
-    --color-azure-900: #2f4679;
-    --color-azure-950: #212c4a; */
-
     --color-azure-50: hsl(213, 52%, 97%);
     --color-azure-100: hsl(213, 62%, 93%);
     --color-azure-200: hsl(213, 66%, 87%);
@@ -245,6 +189,10 @@ body {
 
 a {
     @apply text-link font-content text-sm font-medium underline-offset-4 hover:underline;
+}
+
+@utility link-unstyled {
+    @apply cursor-default! text-base! font-normal! text-inherit! no-underline!;
 }
 
 input,
