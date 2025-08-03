@@ -26,6 +26,7 @@ type App struct {
 // All the services.
 type services struct {
 	APIKey       *service.APIKeyService
+	Notification *service.NotificationService
 	Project      *service.ProjectService
 	UserIdentity *user_identity.Service
 	UserProfile  *user_profile.Service
@@ -35,6 +36,7 @@ type services struct {
 // Write access only available to services.
 type repositories struct {
 	APIKey       repository.APIKeyReader
+	Notification repository.NotificationReader
 	Project      repository.ProjectReader
 	UserIdentity user_identity.Reader
 	UserProfile  user_profile.Reader
@@ -59,17 +61,20 @@ func Init() {
 	oauth.InitGoogle(env.GOOGLE_CLIENT_ID, env.GOOGLE_CLIENT_SECRET, env.GOOGLE_REDIRECT_URL)
 
 	apikeyRepository := pg.NewAPIKeyRepo(db)
+	notificationRepository := pg.NewNotificationRepo(db)
 	projectRepository := pg.NewProjectRepo(db)
 	userProfileRepository := user_profile.NewRepository(db)
 	userIdentityRepository := user_identity.NewRepository(db)
 
 	apikeyService := service.NewAPIKeyService(apikeyRepository, projectRepository)
+	notificationService := service.NewNotificationService(notificationRepository)
 	projectService := service.NewProjectService(projectRepository)
 	userIdentityService := user_identity.NewService(userIdentityRepository, userProfileRepository)
 	userProfileService := user_profile.NewService(userProfileRepository)
 
 	services := services{
 		APIKey:       apikeyService,
+		Notification: notificationService,
 		Project:      projectService,
 		UserIdentity: userIdentityService,
 		UserProfile:  userProfileService,
@@ -77,6 +82,7 @@ func Init() {
 
 	repositories := repositories{
 		APIKey:       apikeyRepository,
+		Notification: notificationRepository,
 		Project:      projectRepository,
 		UserIdentity: userIdentityRepository,
 		UserProfile:  userProfileRepository,

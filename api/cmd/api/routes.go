@@ -56,11 +56,9 @@ func initRouter() http.Handler {
 	})
 
 	r.Route("/v1", func(r chi.Router) {
-		// Core routes that power the Notification service.
-		r.Use(middleware.APIKeyMiddleware)
+		r.Use(middleware.APIKeyBasedAuthMiddleware)
 
-		r.Route("/broadcasts", func(r chi.Router) {
-		})
+		r.Post("/notifications/send", handler.SendNotification(app.APP.Service.Notification))
 
 		r.Route("/recipients/{recipient}", func(r chi.Router) {
 			r.Route("/notifications", func(r chi.Router) {

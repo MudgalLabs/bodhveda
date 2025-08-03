@@ -13,6 +13,7 @@ type APIKeyRepository interface {
 
 type APIKeyReader interface {
 	List(ctx context.Context, userID, projectID int) ([]*entity.APIKey, error)
+	GetByTokenHash(ctx context.Context, tokenHash string) (*entity.APIKey, error)
 }
 
 type APIKeyWriter interface {

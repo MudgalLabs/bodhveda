@@ -23,16 +23,16 @@ func NewAPIKeyRepo(db *pgxpool.Pool) repository.APIKeyRepository {
 
 func (r *APIKeyRepo) Create(ctx context.Context, key *entity.APIKey) (*entity.APIKey, error) {
 	sql := `
-		INSERT INTO api_key (name, token, nonce, scope, project_id, user_id, created_at, updated_at)
-		VALUES ($1, $2, $3, $4, $5, $6, $7, $8)
-		RETURNING id, name, token, nonce, scope, project_id, user_id, created_at, updated_at
+		INSERT INTO api_key (name, token, nonce, token_hash, scope, project_id, user_id, created_at, updated_at)
+		VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9)
+		RETURNING id, name, token, nonce, token_hash, scope, project_id, user_id, created_at, updated_at
 	`
 
-	row := r.db.QueryRow(ctx, sql, key.Name, key.Token, key.Nonce, key.Scope, key.ProjectID, key.UserID, key.CreatedAt, key.UpdatedAt)
+	row := r.db.QueryRow(ctx, sql, key.Name, key.Token, key.Nonce, key.TokenHash, key.Scope, key.ProjectID, key.UserID, key.CreatedAt, key.UpdatedAt)
 
 	var apiKey entity.APIKey
 
-	err := row.Scan(&apiKey.ID, &apiKey.Name, &apiKey.Token, &apiKey.Nonce, &apiKey.Scope, &apiKey.ProjectID, &apiKey.UserID, &apiKey.CreatedAt, &apiKey.UpdatedAt)
+	err := row.Scan(&apiKey.ID, &apiKey.Name, &apiKey.Token, &apiKey.Nonce, &apiKey.TokenHash, &apiKey.Scope, &apiKey.ProjectID, &apiKey.UserID, &apiKey.CreatedAt, &apiKey.UpdatedAt)
 	if err != nil {
 		return nil, err
 	}
@@ -42,9 +42,10 @@ func (r *APIKeyRepo) Create(ctx context.Context, key *entity.APIKey) (*entity.AP
 
 func (r *APIKeyRepo) List(ctx context.Context, userID, projectID int) ([]*entity.APIKey, error) {
 	sql := `
-		SELECT id, name, token, nonce, scope, project_id, user_id, created_at, updated_at
+		SELECT id, name, token, nonce, token_hash, scope, project_id, user_id, created_at, updated_at
 		FROM api_key
 		WHERE user_id = $1 AND project_id = $2
+		ORDER BY id DESC
 	`
 
 	rows, err := r.db.Query(ctx, sql, userID, projectID)
@@ -63,6 +64,7 @@ func (r *APIKeyRepo) List(ctx context.Context, userID, projectID int) ([]*entity
 			&apiKey.Name,
 			&apiKey.Token,
 			&apiKey.Nonce,
+			&apiKey.TokenHash,
 			&apiKey.Scope,
 			&apiKey.ProjectID,
 			&apiKey.UserID,
@@ -81,4 +83,32 @@ func (r *APIKeyRepo) List(ctx context.Context, userID, projectID int) ([]*entity
 	}
 
 	return apiKeys, nil
+}
+
+func (r *APIKeyRepo) GetByTokenHash(ctx context.Context, tokenHash string) (*entity.APIKey, error) {
+	sql := `
+		SELECT id, name, token, nonce, token_hash, scope, project_id, user_id, created_at, updated_at
+		FROM api_key
+		WHERE token_hash = $1
+	`
+	row := r.db.QueryRow(ctx, sql, tokenHash)
+
+	var apiKey entity.APIKey
+	err := row.Scan(
+		&apiKey.ID,
+		&apiKey.Name,
+		&apiKey.Token,
+		&apiKey.Nonce,
+		&apiKey.TokenHash,
+		&apiKey.Scope,
+		&apiKey.ProjectID,
+		&apiKey.UserID,
+		&apiKey.CreatedAt,
+		&apiKey.UpdatedAt,
+	)
+	if err != nil {
+		return nil, err
+	}
+
+	return &apiKey, nil
 }

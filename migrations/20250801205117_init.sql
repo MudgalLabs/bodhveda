@@ -41,6 +41,7 @@ CREATE TABLE IF NOT EXISTS api_key (
         name            VARCHAR(255) NOT NULL,
         token           BYTEA NOT NULL,
         nonce           BYTEA NOT NULL,
+        token_hash      VARCHAR(255) NOT NULL,
         scope           VARCHAR(63) NOT NULL CHECK (scope IN ('full', 'recipient')),
         project_id      INT NOT NULL REFERENCES project(id) ON DELETE CASCADE,
         user_id         INT NOT NULL REFERENCES user_identity(id) ON DELETE CASCADE,
@@ -51,9 +52,9 @@ CREATE TABLE IF NOT EXISTS api_key (
 
 -- +goose Down
 -- +goose StatementBegin
-DROP TABLE IF EXISTS project;
+-- DROP TABLE IF EXISTS project;
 DROP TABLE IF EXISTS api_key;
-DROP TABLE IF EXISTS sessions;
-DROP TABLE IF EXISTS user_profile;
-DROP TABLE IF EXISTS user_identity;
+-- DROP TABLE IF EXISTS sessions;
+-- DROP TABLE IF EXISTS user_profile;
+-- DROP TABLE IF EXISTS user_identity;
 -- +goose StatementEnd

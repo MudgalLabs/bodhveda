@@ -19,6 +19,7 @@ var (
 	GOOGLE_CLIENT_ID     string
 	GOOGLE_CLIENT_SECRET string
 	CipherKey            string
+	HashKey              string
 )
 
 func IsProd() bool {
@@ -45,6 +46,7 @@ func Init(path string) {
 	GOOGLE_CLIENT_ID = os.Getenv("BODHVEDA_GOOGLE_CLIENT_ID")
 	GOOGLE_CLIENT_SECRET = os.Getenv("BODHVEDA_GOOGLE_CLIENT_SECRET")
 	CipherKey = os.Getenv("BODHVEDA_API_CIPHER_KEY")
+	HashKey = os.Getenv("BODHVEDA_API_HASH_KEY")
 
 	// TODO: We should validate the environment variables here to ensure they are set correctly.
 

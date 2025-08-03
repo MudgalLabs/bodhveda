@@ -10,7 +10,10 @@ import (
 
 	"github.com/go-chi/chi/v5/middleware"
 	"github.com/mudgallabs/bodhveda/internal/app"
+	"github.com/mudgallabs/bodhveda/internal/env"
+	"github.com/mudgallabs/bodhveda/internal/model/entity"
 	"github.com/mudgallabs/tantra/auth/session"
+	"github.com/mudgallabs/tantra/cipher"
 	"github.com/mudgallabs/tantra/httpx"
 	"github.com/mudgallabs/tantra/logger"
 	"go.uber.org/zap"
@@ -20,7 +23,7 @@ type contextKey string
 
 const ctxUserIDKey contextKey = "user_id"
 const ctxUserTimezoneKey contextKey = "user_timezone"
-const ctxProjectIDKey contextKey = "project_id"
+const ctxAPIKey contextKey = "api_key"
 
 func AuthMiddleware(next http.Handler) http.Handler {
 	return http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
@@ -159,16 +162,16 @@ func GetUserTimezoneFromCtx(ctx context.Context) *time.Location {
 	return loc
 }
 
-// GetProjectIDFromContext allows downstream access
-func GetProjectIDFromContext(ctx context.Context) int {
-	id, ok := ctx.Value(ctxProjectIDKey).(int)
+// GetAPIKeyFromContext fetches the API key from the context.
+func GetAPIKeyFromContext(ctx context.Context) *entity.APIKey {
+	apiKey, ok := ctx.Value(ctxAPIKey).(*entity.APIKey)
 	if !ok {
-		panic("project ID not valid in context")
+		panic("API Key is not valid in context")
 	}
-	return id
+	return apiKey
 }
 
-func APIKeyMiddleware(next http.Handler) http.Handler {
+func APIKeyBasedAuthMiddleware(next http.Handler) http.Handler {
 	return http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 		ctx := r.Context()
 
@@ -185,9 +188,21 @@ func APIKeyMiddleware(next http.Handler) http.Handler {
 			return
 		}
 
-		projectID := 1
-		// Add projectID to context
-		ctx = context.WithValue(ctx, ctxProjectIDKey, projectID)
+		tokenPlain := parts[1]
+		if tokenPlain == "" {
+			httpx.UnauthorizedErrorResponse(w, r, "Missing API Key in Authorization header", errors.New("missing API Key in Authorization header"))
+			return
+		}
+
+		tokenHash := cipher.HashToken(tokenPlain, []byte(env.HashKey))
+
+		apiKey, err := app.APP.Repository.APIKey.GetByTokenHash(ctx, tokenHash)
+		if err != nil {
+			httpx.UnauthorizedErrorResponse(w, r, "Invalid API Key", errors.New("Invalid API Key"))
+			return
+		}
+
+		ctx = context.WithValue(ctx, ctxAPIKey, apiKey)
 		next.ServeHTTP(w, r.WithContext(ctx))
 	})
 }

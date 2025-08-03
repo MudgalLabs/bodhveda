@@ -12,19 +12,13 @@ import (
 )
 
 type APIKey struct {
-	ID   int
-	Name string
-	// The actual API key token.
-	// Starts with "bv_" to indicate it's a BodhVeda API key.
-	// Encrypted.
-	Token []byte
-	Nonce []byte
-	// The scope of the API key.
-	// This is used to limit the access of the API key.
-	Scope enum.APIKeyScope
-	// Which project this API key belongs to.
+	ID        int
+	Name      string
+	Token     []byte // Encrypted token.
+	Nonce     []byte // Nonce used for encryption.
+	TokenHash string // HMAC-SHA256 hash of the token, used for DB lookup.
+	Scope     enum.APIKeyScope
 	ProjectID int
-	// Who created this API key.
 	UserID    int
 	CreatedAt time.Time
 	UpdatedAt time.Time
@@ -43,12 +37,15 @@ func NewAPIKey(userID, projectID int, name string, scope enum.APIKeyScope) (*API
 		return nil, fmt.Errorf("encrypt token: %w", err)
 	}
 
+	tokenHash := cipher.HashToken(tokenPlain, []byte(env.HashKey))
+
 	return &APIKey{
 		Name:      name,
 		UserID:    userID,
 		ProjectID: projectID,
 		Token:     token,
 		Nonce:     nonce,
+		TokenHash: tokenHash,
 		Scope:     scope,
 		CreatedAt: now,
 		UpdatedAt: now,
