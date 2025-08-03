@@ -20,26 +20,39 @@ CREATE TABLE IF NOT EXISTS user_profile (
         updated_at      TIMESTAMPTZ NOT NULL
 );
 
-CREATE TABLE sessions (
+CREATE TABLE IF NOT EXISTS sessions (
         token   TEXT PRIMARY KEY,
 	data    BYTEA NOT NULL,
 	expiry  TIMESTAMPTZ NOT NULL
 );
 
-CREATE INDEX sessions_expiry_idx ON sessions (expiry);
+CREATE INDEX IF NOT EXISTS sessions_expiry_idx ON sessions (expiry);
 
-CREATE TABLE project (
+CREATE TABLE IF NOT EXISTS project (
         id           SERIAL PRIMARY KEY,
         name         VARCHAR(255) NOT NULL,
         user_id      INT NOT NULL REFERENCES user_identity(id),
         created_at   TIMESTAMPTZ NOT NULL,
         updated_at   TIMESTAMPTZ NOT NULL
 );
+
+CREATE TABLE IF NOT EXISTS api_key (
+        id              SERIAL PRIMARY KEY,
+        name            VARCHAR(255) NOT NULL,
+        token           BYTEA NOT NULL,
+        nonce           BYTEA NOT NULL,
+        scope           VARCHAR(63) NOT NULL CHECK (scope IN ('full', 'recipient')),
+        project_id      INT NOT NULL REFERENCES project(id) ON DELETE CASCADE,
+        user_id         INT NOT NULL REFERENCES user_identity(id) ON DELETE CASCADE,
+        created_at      TIMESTAMPTZ NOT NULL,
+        updated_at      TIMESTAMPTZ NOT NULL
+);
 -- +goose StatementEnd
 
 -- +goose Down
 -- +goose StatementBegin
 DROP TABLE IF EXISTS project;
+DROP TABLE IF EXISTS api_key;
 DROP TABLE IF EXISTS sessions;
 DROP TABLE IF EXISTS user_profile;
 DROP TABLE IF EXISTS user_identity;

@@ -13,7 +13,7 @@ type Project struct {
 
 type CreateProjectPaylaod struct {
 	UserID int
-	Name   string
+	Name   string `json:"name"`
 }
 
 func (p *CreateProjectPaylaod) Validate() error {

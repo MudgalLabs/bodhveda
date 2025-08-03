@@ -25,14 +25,16 @@ type App struct {
 
 // All the services.
 type services struct {
-	ProjectService      *service.ProjectService
-	UserIdentityService *user_identity.Service
-	UserProfileService  *user_profile.Service
+	APIKey       *service.APIKeyService
+	Project      *service.ProjectService
+	UserIdentity *user_identity.Service
+	UserProfile  *user_profile.Service
 }
 
 // Access to all repositories for reading.
 // Write access only available to services.
 type repositories struct {
+	APIKey       repository.APIKeyReader
 	Project      repository.ProjectReader
 	UserIdentity user_identity.Reader
 	UserProfile  user_profile.Reader
@@ -40,6 +42,8 @@ type repositories struct {
 
 func Init() {
 	env.Init("../.env")
+
+	logger.Init(env.LogLevel, env.LogFile)
 
 	// IDK what this does but it was on the blogpost so I'm using it.
 	// I think it has something to do with Go sync for multi threading?
@@ -54,21 +58,25 @@ func Init() {
 
 	oauth.InitGoogle(env.GOOGLE_CLIENT_ID, env.GOOGLE_CLIENT_SECRET, env.GOOGLE_REDIRECT_URL)
 
+	apikeyRepository := pg.NewAPIKeyRepo(db)
 	projectRepository := pg.NewProjectRepo(db)
 	userProfileRepository := user_profile.NewRepository(db)
 	userIdentityRepository := user_identity.NewRepository(db)
 
+	apikeyService := service.NewAPIKeyService(apikeyRepository, projectRepository)
 	projectService := service.NewProjectService(projectRepository)
 	userIdentityService := user_identity.NewService(userIdentityRepository, userProfileRepository)
 	userProfileService := user_profile.NewService(userProfileRepository)
 
 	services := services{
-		ProjectService:      projectService,
-		UserIdentityService: userIdentityService,
-		UserProfileService:  userProfileService,
+		APIKey:       apikeyService,
+		Project:      projectService,
+		UserIdentity: userIdentityService,
+		UserProfile:  userProfileService,
 	}
 
 	repositories := repositories{
+		APIKey:       apikeyRepository,
 		Project:      projectRepository,
 		UserIdentity: userIdentityRepository,
 		UserProfile:  userProfileRepository,

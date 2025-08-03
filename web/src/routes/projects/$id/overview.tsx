@@ -1,4 +1,5 @@
 import { createFileRoute } from "@tanstack/react-router";
+import { PageHeading } from "netra";
 
 export const Route = createFileRoute("/projects/$id/overview")({
     component: RouteComponent,
@@ -7,7 +8,7 @@ export const Route = createFileRoute("/projects/$id/overview")({
 function RouteComponent() {
     return (
         <>
-            <div>Hello "/projects/$id/overview"!</div>
+            <PageHeading heading="Overview" />
         </>
     );
 }

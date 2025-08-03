@@ -13,6 +13,7 @@ type ProjectRepository interface {
 
 type ProjectReader interface {
 	List(ctx context.Context, userID int) ([]*entity.Project, error)
+	UserOwns(ctx context.Context, userID, projectID int) (bool, error)
 }
 
 type ProjectWriter interface {

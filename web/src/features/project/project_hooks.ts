@@ -1,3 +1,4 @@
+import { useParams } from "@tanstack/react-router";
 import {
     AnyUseMutationOptions,
     useMutation,
@@ -10,6 +11,13 @@ import {
     Project,
     CreateProjectPayload,
 } from "@/features/project/project_types";
+
+// This hook retrieves the project ID from the URL parameters.
+// NOTE: This should be used on pages that are under the `/projects/$id` route.
+export function useGetProjectIDFromParams(): string {
+    const { id } = useParams({ from: "/projects/$id" });
+    return id;
+}
 
 export function useGetProjects() {
     return useQuery({

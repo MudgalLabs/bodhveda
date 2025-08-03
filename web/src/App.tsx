@@ -8,8 +8,9 @@ import { RouterProvider, createRouter } from "@tanstack/react-router";
 import { routeTree } from "@/routeTree.gen";
 import { useAuth, AuthProvider } from "@/features/auth/auth_context";
 import { apiErrorHandler } from "@/lib/api";
-import { LoadingScreen } from "./components/loading_screen";
-import { SidebarProvider } from "./components/sidebar/sidebar";
+import { LoadingScreen } from "@/components/loading_screen";
+import { SidebarProvider } from "@/components/sidebar/sidebar";
+import { TooltipProvider } from "netra";
 
 // Create a new router instance
 const router = createRouter({
@@ -60,7 +61,9 @@ export function App() {
         <QueryClientProvider client={queryClient}>
             <AuthProvider>
                 <SidebarProvider>
-                    <InnerApp />
+                    <TooltipProvider>
+                        <InnerApp />
+                    </TooltipProvider>
                 </SidebarProvider>
             </AuthProvider>
         </QueryClientProvider>

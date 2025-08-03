@@ -15,6 +15,7 @@ import { Route as ProjectsIndexRouteImport } from './routes/projects/index'
 import { Route as ProjectsIdRouteImport } from './routes/projects/$id'
 import { Route as AuthSignInRouteImport } from './routes/auth/sign-in'
 import { Route as ProjectsIdOverviewRouteImport } from './routes/projects/$id/overview'
+import { Route as ProjectsIdApiKeysRouteImport } from './routes/projects/$id/api-keys'
 
 const ProjectsRoute = ProjectsRouteImport.update({
   id: '/projects',
@@ -46,6 +47,11 @@ const ProjectsIdOverviewRoute = ProjectsIdOverviewRouteImport.update({
   path: '/overview',
   getParentRoute: () => ProjectsIdRoute,
 } as any)
+const ProjectsIdApiKeysRoute = ProjectsIdApiKeysRouteImport.update({
+  id: '/api-keys',
+  path: '/api-keys',
+  getParentRoute: () => ProjectsIdRoute,
+} as any)
 
 export interface FileRoutesByFullPath {
   '/': typeof IndexRoute
@@ -53,6 +59,7 @@ export interface FileRoutesByFullPath {
   '/auth/sign-in': typeof AuthSignInRoute
   '/projects/$id': typeof ProjectsIdRouteWithChildren
   '/projects/': typeof ProjectsIndexRoute
+  '/projects/$id/api-keys': typeof ProjectsIdApiKeysRoute
   '/projects/$id/overview': typeof ProjectsIdOverviewRoute
 }
 export interface FileRoutesByTo {
@@ -60,6 +67,7 @@ export interface FileRoutesByTo {
   '/auth/sign-in': typeof AuthSignInRoute
   '/projects/$id': typeof ProjectsIdRouteWithChildren
   '/projects': typeof ProjectsIndexRoute
+  '/projects/$id/api-keys': typeof ProjectsIdApiKeysRoute
   '/projects/$id/overview': typeof ProjectsIdOverviewRoute
 }
 export interface FileRoutesById {
@@ -69,6 +77,7 @@ export interface FileRoutesById {
   '/auth/sign-in': typeof AuthSignInRoute
   '/projects/$id': typeof ProjectsIdRouteWithChildren
   '/projects/': typeof ProjectsIndexRoute
+  '/projects/$id/api-keys': typeof ProjectsIdApiKeysRoute
   '/projects/$id/overview': typeof ProjectsIdOverviewRoute
 }
 export interface FileRouteTypes {
@@ -79,6 +88,7 @@ export interface FileRouteTypes {
     | '/auth/sign-in'
     | '/projects/$id'
     | '/projects/'
+    | '/projects/$id/api-keys'
     | '/projects/$id/overview'
   fileRoutesByTo: FileRoutesByTo
   to:
@@ -86,6 +96,7 @@ export interface FileRouteTypes {
     | '/auth/sign-in'
     | '/projects/$id'
     | '/projects'
+    | '/projects/$id/api-keys'
     | '/projects/$id/overview'
   id:
     | '__root__'
@@ -94,6 +105,7 @@ export interface FileRouteTypes {
     | '/auth/sign-in'
     | '/projects/$id'
     | '/projects/'
+    | '/projects/$id/api-keys'
     | '/projects/$id/overview'
   fileRoutesById: FileRoutesById
 }
@@ -147,14 +159,23 @@ declare module '@tanstack/react-router' {
       preLoaderRoute: typeof ProjectsIdOverviewRouteImport
       parentRoute: typeof ProjectsIdRoute
     }
+    '/projects/$id/api-keys': {
+      id: '/projects/$id/api-keys'
+      path: '/api-keys'
+      fullPath: '/projects/$id/api-keys'
+      preLoaderRoute: typeof ProjectsIdApiKeysRouteImport
+      parentRoute: typeof ProjectsIdRoute
+    }
   }
 }
 
 interface ProjectsIdRouteChildren {
+  ProjectsIdApiKeysRoute: typeof ProjectsIdApiKeysRoute
   ProjectsIdOverviewRoute: typeof ProjectsIdOverviewRoute
 }
 
 const ProjectsIdRouteChildren: ProjectsIdRouteChildren = {
+  ProjectsIdApiKeysRoute: ProjectsIdApiKeysRoute,
   ProjectsIdOverviewRoute: ProjectsIdOverviewRoute,
 }
 

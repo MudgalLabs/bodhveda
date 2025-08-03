@@ -18,7 +18,7 @@ var (
 	GOOGLE_REDIRECT_URL  string
 	GOOGLE_CLIENT_ID     string
 	GOOGLE_CLIENT_SECRET string
-	CIPHER_KEY           string
+	CipherKey            string
 )
 
 func IsProd() bool {
@@ -44,7 +44,7 @@ func Init(path string) {
 	GOOGLE_REDIRECT_URL = os.Getenv("BODHVEDA_GOOGLE_REDIRECT_URL")
 	GOOGLE_CLIENT_ID = os.Getenv("BODHVEDA_GOOGLE_CLIENT_ID")
 	GOOGLE_CLIENT_SECRET = os.Getenv("BODHVEDA_GOOGLE_CLIENT_SECRET")
-	CIPHER_KEY = os.Getenv("BODHVEDA_API_CIPHER_KEY")
+	CipherKey = os.Getenv("BODHVEDA_API_CIPHER_KEY")
 
 	// TODO: We should validate the environment variables here to ensure they are set correctly.
 

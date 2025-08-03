@@ -1,7 +1,6 @@
 package handler
 
 import (
-	"fmt"
 	"net/http"
 
 	"github.com/mudgallabs/tantra/auth/oauth"
@@ -43,8 +42,6 @@ func GoogleCallbackHandler(s *user_identity.Service) http.HandlerFunc {
 		}
 
 		userProfile, _, err := s.OAuthGoogleCallback(ctx, code)
-
-		fmt.Println("########## userProfile:", userProfile)
 
 		if err != nil {
 			l.Errorw("Error during OAuth Google callback", "error", err)

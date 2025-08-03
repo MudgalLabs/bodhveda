@@ -9,6 +9,7 @@ import (
 	"time"
 
 	"github.com/go-chi/chi/v5/middleware"
+	"github.com/mudgallabs/bodhveda/internal/app"
 	"github.com/mudgallabs/tantra/auth/session"
 	"github.com/mudgallabs/tantra/httpx"
 	"github.com/mudgallabs/tantra/logger"
@@ -187,6 +188,33 @@ func APIKeyMiddleware(next http.Handler) http.Handler {
 		projectID := 1
 		// Add projectID to context
 		ctx = context.WithValue(ctx, ctxProjectIDKey, projectID)
+		next.ServeHTTP(w, r.WithContext(ctx))
+	})
+}
+
+func MakeSureUserOwnsProjectMiddleware(next http.Handler) http.Handler {
+	return http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		ctx := r.Context()
+		userID := GetUserIDFromContext(ctx)
+		projectID, err := httpx.ParamInt(r, "project_id")
+		if err != nil {
+			httpx.BadRequestResponse(w, r, errors.New("Invalid project ID"))
+			return
+		}
+
+		owns, err := app.APP.Repository.Project.UserOwns(ctx, userID, projectID)
+		if err != nil {
+			httpx.InternalServerErrorResponse(w, r, errors.New("failed to check project ownership"))
+			return
+		}
+
+		if !owns {
+			// NOTE: Not leaking whether the project exists or not.
+			// That's why it's a NotFound error instead of Unauthorized or Forbidden.
+			httpx.NotFoundResponse(w, r, errors.New("Project not found"))
+			return
+		}
+
 		next.ServeHTTP(w, r.WithContext(ctx))
 	})
 }

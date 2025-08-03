@@ -6,25 +6,19 @@ import {
     PropsWithChildren,
     useContext,
 } from "react";
-import {
-    useLocation,
-    useNavigate,
-    Link,
-    useParams,
-} from "@tanstack/react-router";
+import { useLocation, useNavigate, Link } from "@tanstack/react-router";
 import { IconType } from "react-icons";
 
 import { cn } from "@/lib/utils";
 import { useAuth } from "@/features/auth/auth_context";
-import { IconArrowLeft, IconDashboard, IconLogout } from "netra";
+import { IconArrowLeft, IconDashboard, IconLogout, IconKey } from "netra";
+import { useGetProjectIDFromParams } from "@/features/project/project_hooks";
 
 export const Sidebar = () => {
     const { pathname } = useLocation();
     const { isOpen, setIsOpen } = useSidebar();
     const { logout } = useAuth();
-    const { id } = useParams({
-        from: "/projects/$id/overview",
-    });
+    const id = useGetProjectIDFromParams();
 
     const [activeRoute, setActiveRoute] = useState("");
     useEffect(() => {
@@ -74,6 +68,21 @@ export const Sidebar = () => {
                             open={isOpen}
                             isActive={
                                 activeRoute === `/projects/${id}/overview`
+                            }
+                        />
+                    </Link>
+
+                    <Link
+                        to="/projects/$id/api-keys"
+                        params={{ id }}
+                        className="link-unstyled "
+                    >
+                        <SidebarNavItem
+                            label="API Keys"
+                            Icon={IconKey}
+                            open={isOpen}
+                            isActive={
+                                activeRoute === `/projects/${id}/api-keys`
                             }
                         />
                     </Link>

@@ -292,3 +292,13 @@ select:-webkit-autofill:focus {
 .react-resizable-handle react-resizable-handle-se::after {
     background: white !important;
 }
+
+pre {
+    display: inline-block;
+    padding: 4px 10px;
+    font-size: 12px;
+    font-family: monospace;
+    background-color: var(--color-secondary);
+    color: var(--color-text-muted);
+    border-radius: 6px;
+}

@@ -10,8 +10,13 @@ export const API_ROUTES = {
     project: {
         list: "/v1/platform/projects",
         create: "/v1/platform/projects",
-        delete: (id: string) => `/v1/platform/projects/${id}`,
-        update: (id: string) => `/v1/platform/projects/${id}`,
+
+        api_keys: {
+            list: (projectId: string) =>
+                `/v1/platform/projects/${projectId}/api-keys`,
+            create: (projectId: string) =>
+                `/v1/platform/projects/${projectId}/api-keys`,
+        },
     },
     user: {
         me: "/v1/platform/users/me",

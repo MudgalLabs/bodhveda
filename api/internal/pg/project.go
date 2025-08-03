@@ -2,7 +2,6 @@ package pg
 
 import (
 	"context"
-	"time"
 
 	"github.com/jackc/pgx/v5/pgxpool"
 	"github.com/mudgallabs/bodhveda/internal/model/entity"
@@ -11,21 +10,24 @@ import (
 )
 
 type ProjectRepo struct {
-	db dbx.DBExecutor
+	db   dbx.DBExecutor
+	pool *pgxpool.Pool
 }
 
 func NewProjectRepo(db *pgxpool.Pool) repository.ProjectRepository {
-	return &ProjectRepo{db}
+	return &ProjectRepo{
+		db:   db,
+		pool: db,
+	}
 }
 
 func (r *ProjectRepo) Create(ctx context.Context, project *entity.Project) (*entity.Project, error) {
-	now := time.Now().UTC()
 	sql := `
 		INSERT INTO project (user_id, name, created_at, updated_at)
 		VALUES ($1, $2, $3, $4)
 		RETURNING id, user_id, name, created_at, updated_at
 	`
-	row := r.db.QueryRow(ctx, sql, project.UserID, project.Name, now, now)
+	row := r.db.QueryRow(ctx, sql, project.UserID, project.Name, project.CreatedAt, project.UpdatedAt)
 
 	var p entity.Project
 
@@ -66,4 +68,22 @@ func (r *ProjectRepo) List(ctx context.Context, userID int) ([]*entity.Project, 
 	}
 
 	return projects, nil
+}
+
+func (r *ProjectRepo) UserOwns(ctx context.Context, userID, projectID int) (bool, error) {
+	sql := `
+		SELECT EXISTS (
+			SELECT 1 FROM project
+			WHERE user_id = $1 AND id = $2
+		)
+	`
+
+	var exists bool
+
+	err := r.db.QueryRow(ctx, sql, userID, projectID).Scan(&exists)
+	if err != nil {
+		return false, err
+	}
+
+	return exists, nil
 }

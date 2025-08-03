@@ -71,22 +71,33 @@ func initRouter() http.Handler {
 	// Platform routes that power the web app.
 	r.Route("/v1/platform", func(r chi.Router) {
 		r.Route("/auth", func(r chi.Router) {
-			r.Get("/oauth/google", handler.GoogleSignInHandler(app.APP.Service.UserIdentityService))
-			r.Get("/oauth/google/callback", handler.GoogleCallbackHandler(app.APP.Service.UserIdentityService))
-			r.Post("/sign-out", handler.SignOutHandler(app.APP.Service.UserIdentityService))
+			r.Get("/oauth/google", handler.GoogleSignInHandler(app.APP.Service.UserIdentity))
+			r.Get("/oauth/google/callback", handler.GoogleCallbackHandler(app.APP.Service.UserIdentity))
+			r.Post("/sign-out", handler.SignOutHandler(app.APP.Service.UserIdentity))
 		})
 
 		r.Route("/projects", func(r chi.Router) {
 			r.Use(middleware.AuthMiddleware)
 
-			r.Get("/", handler.ListProjects(app.APP.Service.ProjectService))
-			r.Post("/", handler.CreateProject(app.APP.Service.ProjectService))
+			r.Get("/", handler.ListProjects(app.APP.Service.Project))
+			r.Post("/", handler.CreateProject(app.APP.Service.Project))
+
+			r.Route("/{project_id}", func(r chi.Router) {
+				r.Use(middleware.MakeSureUserOwnsProjectMiddleware)
+
+				r.Route("/api-keys", func(r chi.Router) {
+					r.Use(middleware.AuthMiddleware)
+
+					r.Get("/", handler.ListAPIKeys(app.APP.Service.APIKey))
+					r.Post("/", handler.CreateAPIKey(app.APP.Service.APIKey))
+				})
+			})
 		})
 
 		r.Route("/users", func(r chi.Router) {
 			r.Use(middleware.AuthMiddleware)
 
-			r.Get("/me", handler.GetUserMeHandler(app.APP.Service.UserProfileService))
+			r.Get("/me", handler.GetUserMeHandler(app.APP.Service.UserProfile))
 		})
 	})
 
