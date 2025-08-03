@@ -15,7 +15,7 @@ export const Route = createFileRoute("/auth/sign-in")({
 
 function Login() {
     return (
-        <div>
+        <div className="h-screen flex-center">
             <ContinueWithGoogle />
         </div>
     );

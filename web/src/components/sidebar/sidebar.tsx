@@ -13,14 +13,10 @@ import {
     useParams,
 } from "@tanstack/react-router";
 import { IconType } from "react-icons";
-import {
-    LuArrowLeft as IconLeft,
-    LuSquareDashedBottom as IconDashboard,
-    LuLogOut as IconLogout,
-} from "react-icons/lu";
 
 import { cn } from "@/lib/utils";
 import { useAuth } from "@/features/auth/auth_context";
+import { IconArrowLeft, IconDashboard, IconLogout } from "netra";
 
 export const Sidebar = () => {
     const { pathname } = useLocation();
@@ -61,8 +57,8 @@ export const Sidebar = () => {
                         className="link-unstyled"
                     >
                         <SidebarNavItem
-                            label="Projects"
-                            Icon={IconLeft}
+                            label="Back to Projects"
+                            Icon={IconArrowLeft}
                             open={isOpen}
                         />
                     </Link>

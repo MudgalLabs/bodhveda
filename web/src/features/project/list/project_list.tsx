@@ -1,5 +1,4 @@
-import { Button } from "@/components/button";
-import { LoadingScreen } from "@/components/loading_screen";
+import { Button, Card, IconPlus, LoadingScreen } from "netra";
 import {
     useCreateProject,
     useGetProjects,
@@ -44,7 +43,8 @@ export function ProjectList() {
             <div className="flex-x justify-between">
                 <h1 className="big-heading">Projects</h1>
                 <Button onClick={() => setShowCreate((prev) => !prev)}>
-                    + Create Project
+                    <IconPlus size={16} />
+                    Create Project
                 </Button>
             </div>
 
@@ -65,7 +65,7 @@ export function ProjectList() {
                 </div>
             )}
 
-            <div className="mt-4">
+            <div className="mt-8">
                 {data?.data.map((project) => (
                     <Link
                         key={project.id}
@@ -73,11 +73,11 @@ export function ProjectList() {
                         params={{ id: String(project.id) }}
                         className="link-unstyled"
                     >
-                        <div className="p-4 mb-4 border border-border rounded-lg hover:bg-accent">
+                        <Card className="hover:border-border-hover w-72 h-36 flex-center smooth-colors">
                             <h2 className="text-lg font-semibold">
                                 {project.name}
                             </h2>
-                        </div>
+                        </Card>
                     </Link>
                 ))}
             </div>
