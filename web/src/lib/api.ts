@@ -1,7 +1,7 @@
 import axios, { AxiosError, AxiosResponse } from "axios";
 
 import { isProd } from "@/lib/utils";
-import { toast } from "@/components/toast";
+import { toast } from "netra";
 
 export const API_ROUTES = {
     auth: {
@@ -23,6 +23,13 @@ export const API_ROUTES = {
                 `/v1/platform/projects/${projectId}/recipients`,
             create: (projectId: string) =>
                 `/v1/platform/projects/${projectId}/recipients`,
+        },
+
+        preferences: {
+            list: (projectId: string) =>
+                `/v1/platform/projects/${projectId}/preferences`,
+            create: (projectId: string) =>
+                `/v1/platform/projects/${projectId}/preferences`,
         },
     },
     user: {

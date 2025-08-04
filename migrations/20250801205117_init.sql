@@ -59,13 +59,27 @@ CREATE TABLE IF NOT EXISTS recipient (
 
         UNIQUE (project_id, external_id)
 );
+
+CREATE TABLE IF NOT EXISTS project_preference (
+        id              SERIAL PRIMARY KEY,
+        project_id      INT NOT NULL REFERENCES project(id) ON DELETE CASCADE,
+        channel         VARCHAR(255) NOT NULL,
+        topic           VARCHAR(255),
+        event           VARCHAR(255),
+        label           VARCHAR(255) NOT NULL,
+        default_enabled BOOLEAN NOT NULL,
+        created_at      TIMESTAMPTZ NOT NULL,
+        updated_at      TIMESTAMPTZ NOT NULL,
+
+        UNIQUE (project_id, channel, topic, event)
+);
 -- +goose StatementEnd
 
 -- +goose Down
 -- +goose StatementBegin
--- DROP TABLE IF EXISTS project;
 -- DROP TABLE IF EXISTS api_key;
 -- DROP TABLE IF EXISTS recipient;
+-- DROP TABLE IF EXISTS project;
 -- DROP TABLE IF EXISTS sessions;
 -- DROP TABLE IF EXISTS user_profile;
 -- DROP TABLE IF EXISTS user_identity;

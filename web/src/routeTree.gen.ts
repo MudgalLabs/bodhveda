@@ -15,6 +15,7 @@ import { Route as ProjectsIndexRouteImport } from './routes/projects/index'
 import { Route as ProjectsIdRouteImport } from './routes/projects/$id'
 import { Route as AuthSignInRouteImport } from './routes/auth/sign-in'
 import { Route as ProjectsIdRecipientsRouteImport } from './routes/projects/$id/recipients'
+import { Route as ProjectsIdPreferencesRouteImport } from './routes/projects/$id/preferences'
 import { Route as ProjectsIdOverviewRouteImport } from './routes/projects/$id/overview'
 import { Route as ProjectsIdApiKeysRouteImport } from './routes/projects/$id/api-keys'
 
@@ -48,6 +49,11 @@ const ProjectsIdRecipientsRoute = ProjectsIdRecipientsRouteImport.update({
   path: '/recipients',
   getParentRoute: () => ProjectsIdRoute,
 } as any)
+const ProjectsIdPreferencesRoute = ProjectsIdPreferencesRouteImport.update({
+  id: '/preferences',
+  path: '/preferences',
+  getParentRoute: () => ProjectsIdRoute,
+} as any)
 const ProjectsIdOverviewRoute = ProjectsIdOverviewRouteImport.update({
   id: '/overview',
   path: '/overview',
@@ -67,6 +73,7 @@ export interface FileRoutesByFullPath {
   '/projects/': typeof ProjectsIndexRoute
   '/projects/$id/api-keys': typeof ProjectsIdApiKeysRoute
   '/projects/$id/overview': typeof ProjectsIdOverviewRoute
+  '/projects/$id/preferences': typeof ProjectsIdPreferencesRoute
   '/projects/$id/recipients': typeof ProjectsIdRecipientsRoute
 }
 export interface FileRoutesByTo {
@@ -76,6 +83,7 @@ export interface FileRoutesByTo {
   '/projects': typeof ProjectsIndexRoute
   '/projects/$id/api-keys': typeof ProjectsIdApiKeysRoute
   '/projects/$id/overview': typeof ProjectsIdOverviewRoute
+  '/projects/$id/preferences': typeof ProjectsIdPreferencesRoute
   '/projects/$id/recipients': typeof ProjectsIdRecipientsRoute
 }
 export interface FileRoutesById {
@@ -87,6 +95,7 @@ export interface FileRoutesById {
   '/projects/': typeof ProjectsIndexRoute
   '/projects/$id/api-keys': typeof ProjectsIdApiKeysRoute
   '/projects/$id/overview': typeof ProjectsIdOverviewRoute
+  '/projects/$id/preferences': typeof ProjectsIdPreferencesRoute
   '/projects/$id/recipients': typeof ProjectsIdRecipientsRoute
 }
 export interface FileRouteTypes {
@@ -99,6 +108,7 @@ export interface FileRouteTypes {
     | '/projects/'
     | '/projects/$id/api-keys'
     | '/projects/$id/overview'
+    | '/projects/$id/preferences'
     | '/projects/$id/recipients'
   fileRoutesByTo: FileRoutesByTo
   to:
@@ -108,6 +118,7 @@ export interface FileRouteTypes {
     | '/projects'
     | '/projects/$id/api-keys'
     | '/projects/$id/overview'
+    | '/projects/$id/preferences'
     | '/projects/$id/recipients'
   id:
     | '__root__'
@@ -118,6 +129,7 @@ export interface FileRouteTypes {
     | '/projects/'
     | '/projects/$id/api-keys'
     | '/projects/$id/overview'
+    | '/projects/$id/preferences'
     | '/projects/$id/recipients'
   fileRoutesById: FileRoutesById
 }
@@ -171,6 +183,13 @@ declare module '@tanstack/react-router' {
       preLoaderRoute: typeof ProjectsIdRecipientsRouteImport
       parentRoute: typeof ProjectsIdRoute
     }
+    '/projects/$id/preferences': {
+      id: '/projects/$id/preferences'
+      path: '/preferences'
+      fullPath: '/projects/$id/preferences'
+      preLoaderRoute: typeof ProjectsIdPreferencesRouteImport
+      parentRoute: typeof ProjectsIdRoute
+    }
     '/projects/$id/overview': {
       id: '/projects/$id/overview'
       path: '/overview'
@@ -191,12 +210,14 @@ declare module '@tanstack/react-router' {
 interface ProjectsIdRouteChildren {
   ProjectsIdApiKeysRoute: typeof ProjectsIdApiKeysRoute
   ProjectsIdOverviewRoute: typeof ProjectsIdOverviewRoute
+  ProjectsIdPreferencesRoute: typeof ProjectsIdPreferencesRoute
   ProjectsIdRecipientsRoute: typeof ProjectsIdRecipientsRoute
 }
 
 const ProjectsIdRouteChildren: ProjectsIdRouteChildren = {
   ProjectsIdApiKeysRoute: ProjectsIdApiKeysRoute,
   ProjectsIdOverviewRoute: ProjectsIdOverviewRoute,
+  ProjectsIdPreferencesRoute: ProjectsIdPreferencesRoute,
   ProjectsIdRecipientsRoute: ProjectsIdRecipientsRoute,
 }
 

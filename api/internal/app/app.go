@@ -25,23 +25,25 @@ type App struct {
 
 // All the services.
 type services struct {
-	APIKey       *service.APIKeyService
-	Notification *service.NotificationService
-	Project      *service.ProjectService
-	Recipient    *service.RecipientService
-	UserIdentity *user_identity.Service
-	UserProfile  *user_profile.Service
+	APIKey            *service.APIKeyService
+	Notification      *service.NotificationService
+	Project           *service.ProjectService
+	Recipient         *service.RecipientService
+	UserIdentity      *user_identity.Service
+	UserProfile       *user_profile.Service
+	ProjectPreference *service.ProjectPreferenceService
 }
 
 // Access to all repositories for reading.
 // Write access only available to services.
 type repositories struct {
-	APIKey       repository.APIKeyReader
-	Notification repository.NotificationReader
-	Project      repository.ProjectReader
-	Recipient    repository.RecipientReader
-	UserIdentity user_identity.Reader
-	UserProfile  user_profile.Reader
+	APIKey            repository.APIKeyReader
+	Notification      repository.NotificationReader
+	Project           repository.ProjectReader
+	Recipient         repository.RecipientReader
+	UserIdentity      user_identity.Reader
+	UserProfile       user_profile.Reader
+	ProjectPreference repository.ProjectPreferenceRepository
 }
 
 func Init() {
@@ -68,6 +70,7 @@ func Init() {
 	recipientRepository := pg.NewRecipientRepo(db)
 	userProfileRepository := user_profile.NewRepository(db)
 	userIdentityRepository := user_identity.NewRepository(db)
+	projectPreferenceRepository := pg.NewProjectPreferenceRepo(db)
 
 	apikeyService := service.NewAPIKeyService(apikeyRepository, projectRepository)
 	notificationService := service.NewNotificationService(notificationRepository)
@@ -75,23 +78,26 @@ func Init() {
 	recipientService := service.NewRecipientService(recipientRepository)
 	userIdentityService := user_identity.NewService(userIdentityRepository, userProfileRepository)
 	userProfileService := user_profile.NewService(userProfileRepository)
+	projectPreferenceService := service.NewProjectPreferenceService(projectPreferenceRepository)
 
 	services := services{
-		APIKey:       apikeyService,
-		Notification: notificationService,
-		Project:      projectService,
-		Recipient:    recipientService,
-		UserIdentity: userIdentityService,
-		UserProfile:  userProfileService,
+		APIKey:            apikeyService,
+		Notification:      notificationService,
+		Project:           projectService,
+		Recipient:         recipientService,
+		UserIdentity:      userIdentityService,
+		UserProfile:       userProfileService,
+		ProjectPreference: projectPreferenceService,
 	}
 
 	repositories := repositories{
-		APIKey:       apikeyRepository,
-		Notification: notificationRepository,
-		Project:      projectRepository,
-		Recipient:    recipientRepository,
-		UserIdentity: userIdentityRepository,
-		UserProfile:  userProfileRepository,
+		APIKey:            apikeyRepository,
+		Notification:      notificationRepository,
+		Project:           projectRepository,
+		Recipient:         recipientRepository,
+		UserIdentity:      userIdentityRepository,
+		UserProfile:       userProfileRepository,
+		ProjectPreference: projectPreferenceRepository,
 	}
 
 	APP = &App{

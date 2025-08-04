@@ -84,15 +84,16 @@ func initRouter() http.Handler {
 				r.Use(middleware.MakeSureUserOwnsProjectMiddleware)
 
 				r.Route("/api-keys", func(r chi.Router) {
-					r.Use(middleware.AuthMiddleware)
-
 					r.Get("/", handler.ListAPIKeys(app.APP.Service.APIKey))
 					r.Post("/", handler.CreateAPIKey(app.APP.Service.APIKey))
 				})
 
-				r.Route("/recipients", func(r chi.Router) {
-					r.Use(middleware.AuthMiddleware)
+				r.Route("/preferences", func(r chi.Router) {
+					r.Get("/", handler.ListProjectPreferences(app.APP.Service.ProjectPreference))
+					r.Post("/", handler.CreateProjectPreference(app.APP.Service.ProjectPreference))
+				})
 
+				r.Route("/recipients", func(r chi.Router) {
 					r.Get("/", handler.ListRecipients(app.APP.Service.Recipient))
 					r.Post("/", handler.CreateRecipient(app.APP.Service.Recipient))
 				})

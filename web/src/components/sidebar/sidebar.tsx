@@ -17,6 +17,8 @@ import {
     IconLogout,
     IconKey,
     IconUsers,
+    IconSlidersHorizontal,
+    Button,
 } from "netra";
 import { useGetProjectIDFromParams } from "@/features/project/project_hooks";
 
@@ -49,19 +51,18 @@ export const Sidebar = () => {
         >
             <div>
                 <div className="mt-6 flex flex-col gap-y-2 pb-2">
-                    <div className="flex-x mb-8 ml-1 justify-between"></div>
-
-                    <Link
-                        to="/projects"
-                        onClick={() => handleClick("/projects")}
-                        className="link-unstyled"
-                    >
-                        <SidebarNavItem
-                            label="Back to Projects"
-                            Icon={IconArrowLeft}
-                            open={isOpen}
-                        />
-                    </Link>
+                    <div className="flex-x mb-8 ml-2 justify-between">
+                        <Link
+                            to="/projects"
+                            onClick={() => handleClick("/projects")}
+                            className="link-unstyled "
+                        >
+                            <Button variant="link">
+                                <IconArrowLeft size={16} />
+                                Back to Projects
+                            </Button>
+                        </Link>
+                    </div>
 
                     <Link
                         to="/projects/$id/overview"
@@ -89,6 +90,21 @@ export const Sidebar = () => {
                             open={isOpen}
                             isActive={
                                 activeRoute === `/projects/${id}/recipients`
+                            }
+                        />
+                    </Link>
+
+                    <Link
+                        to="/projects/$id/preferences"
+                        params={{ id }}
+                        className="link-unstyled "
+                    >
+                        <SidebarNavItem
+                            label="Preferences"
+                            Icon={IconSlidersHorizontal}
+                            open={isOpen}
+                            isActive={
+                                activeRoute === `/projects/${id}/preferences`
                             }
                         />
                     </Link>

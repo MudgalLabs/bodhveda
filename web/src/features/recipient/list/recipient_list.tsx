@@ -5,9 +5,15 @@ import {
     DataTable,
     DataTableColumnHeader,
     DataTableSmart,
+    DropdownMenu,
+    DropdownMenuContent,
+    DropdownMenuItem,
+    DropdownMenuTrigger,
     ErrorMessage,
     formatTimeAgo,
+    IconEllipsis,
     IconPlus,
+    IconTrash,
     PageHeading,
 } from "netra";
 import { useGetProjectIDFromParams } from "@/features/project/project_hooks";
@@ -32,7 +38,8 @@ export function RecipientList() {
     return (
         <div>
             <PageHeading heading="Recipients" loading={isLoading} />
-            <div className="flex justify-end">
+
+            <div className="flex justify-end mb-4">
                 <CreateRecipientModal
                     renderTrigger={() => (
                         <Button>
@@ -42,6 +49,7 @@ export function RecipientList() {
                     )}
                 />
             </div>
+
             {content}
         </div>
     );
@@ -60,6 +68,25 @@ const columns: ColumnDef<Recipient>[] = [
         accessorKey: "created_at",
         header: () => <DataTableColumnHeader title="Created At" />,
         cell: ({ row }) => formatTimeAgo(new Date(row.original.created_at)),
+    },
+    {
+        id: "actions",
+        cell: () => (
+            <DropdownMenu>
+                <DropdownMenuTrigger asChild>
+                    <Button variant="ghost" size="icon">
+                        <IconEllipsis />
+                    </Button>
+                </DropdownMenuTrigger>
+
+                <DropdownMenuContent>
+                    <DropdownMenuItem>
+                        <IconTrash size={16} />
+                        Delete
+                    </DropdownMenuItem>
+                </DropdownMenuContent>
+            </DropdownMenu>
+        ),
     },
 ];
 

@@ -49,22 +49,22 @@ export function ProjectList() {
 
             <div className="mt-4 grid grid-cols-1 sm:grid-cols-2 md:grid-cols-3 lg:grid-cols-4 gap-6">
                 {data?.data.map((project) => (
-                    <Card
-                        key={project.id}
-                        className="hover:border-border-hover w-full sm:w-72 h-36 flex-center smooth-colors cursor-pointer relative"
+                    <Link
+                        to={`/projects/$id/overview`}
+                        params={{ id: String(project.id) }}
+                        className="link-unstyled w-full h-full flex items-center justify-center"
                     >
-                        <ProjectOptionsDropdownMenu />
-
-                        <Link
-                            to={`/projects/$id/overview`}
-                            params={{ id: String(project.id) }}
-                            className="link-unstyled w-full h-full flex items-center justify-center"
+                        <Card
+                            key={project.id}
+                            className="hover:border-border-hover w-full sm:w-72 h-36 flex-center smooth-colors relative"
                         >
+                            <ProjectOptionsDropdownMenu />
+
                             <h2 className="text-lg font-semibold">
                                 {project.name}
                             </h2>
-                        </Link>
-                    </Card>
+                        </Card>
+                    </Link>
                 ))}
             </div>
         </div>

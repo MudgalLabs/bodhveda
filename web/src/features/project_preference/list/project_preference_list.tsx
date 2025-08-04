@@ -1,6 +1,5 @@
 import { ColumnDef } from "@tanstack/react-table";
 import { useMemo } from "react";
-
 import {
     Button,
     DataTable,
@@ -17,20 +16,18 @@ import {
     IconTrash,
     PageHeading,
 } from "netra";
-
 import { useGetProjectIDFromParams } from "@/features/project/project_hooks";
-import { useGetAPIKeys } from "@/features/api_key/api_key_hooks";
-import { CreateAPIKeyModal } from "@/features/api_key/list/create_api_key_modal";
-import { APIKey, apiKeyScopeToString } from "@/features/api_key/api_key_types";
+import { useGetProjectPreferences } from "@/features/project_preference/project_preference_hooks";
+import { CreateProjectPreferenceModal } from "@/features/project_preference/list/create_project_preference_modal";
+import { ProjectPreference } from "@/features/project_preference/project_preference_type";
 
-export function APIKeyList() {
+export function ProjectPreferenceList() {
     const id = useGetProjectIDFromParams();
-
-    const { data, isLoading, isError } = useGetAPIKeys(id);
+    const { data, isLoading, isError } = useGetProjectPreferences(id);
 
     const content = useMemo(() => {
         if (isError) {
-            return <ErrorMessage errorMsg="Error loading projects" />;
+            return <ErrorMessage errorMsg="Error loading preferences" />;
         }
 
         if (!data) return null;
@@ -40,38 +37,45 @@ export function APIKeyList() {
 
     return (
         <div>
-            <PageHeading heading="API Keys" loading={isLoading} />
+            <PageHeading heading="Preferences" loading={isLoading} />
 
             <div className="flex justify-end mb-4">
-                <CreateAPIKeyModal
+                <CreateProjectPreferenceModal
                     renderTrigger={() => (
                         <Button>
                             <IconPlus size={16} />
-                            Create API Key
+                            Create Preference
                         </Button>
                     )}
                 />
             </div>
-
             {content}
         </div>
     );
 }
 
-const columns: ColumnDef<APIKey>[] = [
+const columns: ColumnDef<ProjectPreference>[] = [
     {
-        accessorKey: "name",
-        header: () => <DataTableColumnHeader title="Name" />,
+        accessorKey: "label",
+        header: () => <DataTableColumnHeader title="Label" />,
     },
     {
-        accessorKey: "token_partial",
-        header: () => <DataTableColumnHeader title="Token" />,
-        cell: ({ row }) => <pre>{row.original.token_partial}</pre>,
+        accessorKey: "default_enabled",
+        header: () => <DataTableColumnHeader title="Default" />,
+        cell: ({ row }) =>
+            row.original.default_enabled ? "Enabled" : "Disabled",
     },
     {
-        accessorKey: "scope",
-        header: () => <DataTableColumnHeader title="Permission" />,
-        cell: ({ row }) => apiKeyScopeToString(row.original.scope),
+        accessorKey: "channel",
+        header: () => <DataTableColumnHeader title="Channel" />,
+    },
+    {
+        accessorKey: "topic",
+        header: () => <DataTableColumnHeader title="Topic" />,
+    },
+    {
+        accessorKey: "event",
+        header: () => <DataTableColumnHeader title="Event" />,
     },
     {
         accessorKey: "created_at",
@@ -100,7 +104,7 @@ const columns: ColumnDef<APIKey>[] = [
 ];
 
 interface ListTableProps {
-    data: APIKey[];
+    data: ProjectPreference[];
 }
 
 function ListTable({ data }: ListTableProps) {
