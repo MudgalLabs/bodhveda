@@ -89,6 +89,13 @@ func initRouter() http.Handler {
 					r.Get("/", handler.ListAPIKeys(app.APP.Service.APIKey))
 					r.Post("/", handler.CreateAPIKey(app.APP.Service.APIKey))
 				})
+
+				r.Route("/recipients", func(r chi.Router) {
+					r.Use(middleware.AuthMiddleware)
+
+					r.Get("/", handler.ListRecipients(app.APP.Service.Recipient))
+					r.Post("/", handler.CreateRecipient(app.APP.Service.Recipient))
+				})
 			})
 		})
 

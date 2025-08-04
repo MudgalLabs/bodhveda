@@ -48,12 +48,24 @@ CREATE TABLE IF NOT EXISTS api_key (
         created_at      TIMESTAMPTZ NOT NULL,
         updated_at      TIMESTAMPTZ NOT NULL
 );
+
+CREATE TABLE IF NOT EXISTS recipient (
+        id              SERIAL PRIMARY KEY,
+        external_id     VARCHAR(255) NOT NULL,
+        name            VARCHAR(255) NOT NULL DEFAULT '',
+        project_id      INT NOT NULL REFERENCES project(id) ON DELETE CASCADE,
+        created_at      TIMESTAMPTZ NOT NULL,
+        updated_at      TIMESTAMPTZ NOT NULL,
+
+        UNIQUE (project_id, external_id)
+);
 -- +goose StatementEnd
 
 -- +goose Down
 -- +goose StatementBegin
 -- DROP TABLE IF EXISTS project;
-DROP TABLE IF EXISTS api_key;
+-- DROP TABLE IF EXISTS api_key;
+-- DROP TABLE IF EXISTS recipient;
 -- DROP TABLE IF EXISTS sessions;
 -- DROP TABLE IF EXISTS user_profile;
 -- DROP TABLE IF EXISTS user_identity;

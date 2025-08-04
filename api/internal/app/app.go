@@ -28,6 +28,7 @@ type services struct {
 	APIKey       *service.APIKeyService
 	Notification *service.NotificationService
 	Project      *service.ProjectService
+	Recipient    *service.RecipientService
 	UserIdentity *user_identity.Service
 	UserProfile  *user_profile.Service
 }
@@ -38,6 +39,7 @@ type repositories struct {
 	APIKey       repository.APIKeyReader
 	Notification repository.NotificationReader
 	Project      repository.ProjectReader
+	Recipient    repository.RecipientReader
 	UserIdentity user_identity.Reader
 	UserProfile  user_profile.Reader
 }
@@ -63,12 +65,14 @@ func Init() {
 	apikeyRepository := pg.NewAPIKeyRepo(db)
 	notificationRepository := pg.NewNotificationRepo(db)
 	projectRepository := pg.NewProjectRepo(db)
+	recipientRepository := pg.NewRecipientRepo(db)
 	userProfileRepository := user_profile.NewRepository(db)
 	userIdentityRepository := user_identity.NewRepository(db)
 
 	apikeyService := service.NewAPIKeyService(apikeyRepository, projectRepository)
 	notificationService := service.NewNotificationService(notificationRepository)
 	projectService := service.NewProjectService(projectRepository)
+	recipientService := service.NewRecipientService(recipientRepository)
 	userIdentityService := user_identity.NewService(userIdentityRepository, userProfileRepository)
 	userProfileService := user_profile.NewService(userProfileRepository)
 
@@ -76,6 +80,7 @@ func Init() {
 		APIKey:       apikeyService,
 		Notification: notificationService,
 		Project:      projectService,
+		Recipient:    recipientService,
 		UserIdentity: userIdentityService,
 		UserProfile:  userProfileService,
 	}
@@ -84,6 +89,7 @@ func Init() {
 		APIKey:       apikeyRepository,
 		Notification: notificationRepository,
 		Project:      projectRepository,
+		Recipient:    recipientRepository,
 		UserIdentity: userIdentityRepository,
 		UserProfile:  userProfileRepository,
 	}
