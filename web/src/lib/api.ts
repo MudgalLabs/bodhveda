@@ -17,6 +17,13 @@ export const API_ROUTES = {
             create: (projectId: string) =>
                 `/v1/platform/projects/${projectId}/api-keys`,
         },
+
+        recipients: {
+            list: (projectId: string) =>
+                `/v1/platform/projects/${projectId}/recipients`,
+            create: (projectId: string) =>
+                `/v1/platform/projects/${projectId}/recipients`,
+        },
     },
     user: {
         me: "/v1/platform/users/me",

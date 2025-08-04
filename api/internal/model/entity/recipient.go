@@ -1,6 +1,9 @@
 package entity
 
-import "time"
+import (
+	"strings"
+	"time"
+)
 
 type Recipient struct {
 	ID         int
@@ -14,7 +17,7 @@ type Recipient struct {
 func NewRecipient(projectID int, externalID, name string) *Recipient {
 	now := time.Now().UTC()
 	return &Recipient{
-		ExternalID: externalID,
+		ExternalID: strings.ToLower(externalID),
 		ProjectID:  projectID,
 		Name:       name,
 		CreatedAt:  now,

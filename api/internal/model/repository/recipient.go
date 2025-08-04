@@ -13,6 +13,7 @@ type RecipientRepository interface {
 
 type RecipientReader interface {
 	List(ctx context.Context, projectID int) ([]*entity.Recipient, error)
+	// GetByProjectIDAndExternalID(ctx context.Context, projectID int, externalID string) (*entity.Recipient, error)
 }
 
 type RecipientWriter interface {

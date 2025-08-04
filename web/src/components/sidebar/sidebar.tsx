@@ -11,7 +11,13 @@ import { IconType } from "react-icons";
 
 import { cn } from "@/lib/utils";
 import { useAuth } from "@/features/auth/auth_context";
-import { IconArrowLeft, IconDashboard, IconLogout, IconKey } from "netra";
+import {
+    IconArrowLeft,
+    IconDashboard,
+    IconLogout,
+    IconKey,
+    IconUsers,
+} from "netra";
 import { useGetProjectIDFromParams } from "@/features/project/project_hooks";
 
 export const Sidebar = () => {
@@ -68,6 +74,21 @@ export const Sidebar = () => {
                             open={isOpen}
                             isActive={
                                 activeRoute === `/projects/${id}/overview`
+                            }
+                        />
+                    </Link>
+
+                    <Link
+                        to="/projects/$id/recipients"
+                        params={{ id }}
+                        className="link-unstyled "
+                    >
+                        <SidebarNavItem
+                            label="Recipients"
+                            Icon={IconUsers}
+                            open={isOpen}
+                            isActive={
+                                activeRoute === `/projects/${id}/recipients`
                             }
                         />
                     </Link>
