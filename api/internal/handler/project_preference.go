@@ -10,7 +10,7 @@ import (
 	"github.com/mudgallabs/tantra/jsonx"
 )
 
-func CreateProjectPreference(s *service.ProjectPreferenceService) http.HandlerFunc {
+func CreateProjectPreference(s *service.PreferenceService) http.HandlerFunc {
 	return func(w http.ResponseWriter, r *http.Request) {
 		ctx := r.Context()
 		projectID, err := httpx.ParamInt(r, "project_id")
@@ -27,7 +27,7 @@ func CreateProjectPreference(s *service.ProjectPreferenceService) http.HandlerFu
 
 		payload.ProjectID = projectID
 
-		result, errKind, err := s.Create(ctx, payload)
+		result, errKind, err := s.CreateProjectPreference(ctx, payload)
 		if err != nil {
 			httpx.ServiceErrResponse(w, r, errKind, err)
 			return
@@ -37,7 +37,7 @@ func CreateProjectPreference(s *service.ProjectPreferenceService) http.HandlerFu
 	}
 }
 
-func ListProjectPreferences(s *service.ProjectPreferenceService) http.HandlerFunc {
+func ListProjectPreferences(s *service.PreferenceService) http.HandlerFunc {
 	return func(w http.ResponseWriter, r *http.Request) {
 		ctx := r.Context()
 		projectID, err := httpx.ParamInt(r, "project_id")
@@ -46,7 +46,7 @@ func ListProjectPreferences(s *service.ProjectPreferenceService) http.HandlerFun
 			return
 		}
 
-		result, errKind, err := s.List(ctx, projectID)
+		result, errKind, err := s.ListProjectPreferences(ctx, projectID)
 		if err != nil {
 			httpx.ServiceErrResponse(w, r, errKind, err)
 			return

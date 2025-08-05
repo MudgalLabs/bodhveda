@@ -7,6 +7,7 @@ import (
 	"github.com/mudgallabs/bodhveda/internal/model/dto"
 	"github.com/mudgallabs/bodhveda/internal/model/entity"
 	"github.com/mudgallabs/bodhveda/internal/model/repository"
+	tantraRepo "github.com/mudgallabs/tantra/repository"
 	"github.com/mudgallabs/tantra/service"
 )
 
@@ -36,6 +37,9 @@ func (s *RecipientService) Create(ctx context.Context, payload dto.CreateRecipie
 	recipient := entity.NewRecipient(payload.ProjectID, payload.ExternalID, name)
 	recipient, err = s.repo.Create(ctx, recipient)
 	if err != nil {
+		if err == tantraRepo.ErrConflict {
+			return nil, service.ErrConflict, fmt.Errorf("Recipient already exists")
+		}
 		return nil, service.ErrInternalServerError, fmt.Errorf("recipient repo create: %w", err)
 	}
 

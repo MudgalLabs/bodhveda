@@ -1,4 +1,4 @@
-import { FC, ReactNode, useEffect, useState } from "react";
+import { FC, ReactNode, useEffect, useMemo, useState } from "react";
 import { useGetProjectIDFromParams } from "@/features/project/project_hooks";
 import {
     Button,
@@ -15,7 +15,7 @@ import {
     ToggleGroupItem,
     WithLabel,
 } from "netra";
-import { useCreateProjectPreference } from "@/features/project_preference/project_preference_hooks";
+import { useCreateProjectPreference } from "@/features/preference/preference_hooks";
 import { apiErrorHandler } from "@/lib/api";
 
 interface CreateProjectPreferenceModalProps {
@@ -61,6 +61,14 @@ export const CreateProjectPreferenceModal: FC<
         });
     };
 
+    const rule = useMemo(() => {
+        let str = "";
+        if (channel.trim()) str += channel.trim();
+        if (topic.trim()) str += `:${topic.trim()}`;
+        if (event.trim()) str += `:${event.trim()}`;
+        return str;
+    }, [channel, event, topic]);
+
     useEffect(() => {
         if (open) {
             setLabel("");
@@ -79,7 +87,7 @@ export const CreateProjectPreferenceModal: FC<
                     <DialogTitle>Create Preference</DialogTitle>
                 </DialogHeader>
                 <form className="flex flex-col gap-4" onSubmit={handleSubmit}>
-                    <WithLabel Label={<Label>Label</Label>}>
+                    <WithLabel Label={<Label>Name</Label>}>
                         <Input
                             className="w-full!"
                             placeholder="Comments on photos of you"
@@ -124,7 +132,7 @@ export const CreateProjectPreferenceModal: FC<
                     <WithLabel Label={<Label>Topic</Label>}>
                         <Input
                             className="w-full!"
-                            placeholder="post_id_123 OR '*' for all OR empty for no topic"
+                            placeholder="'any' / 'none' / anything_but_any_or_none"
                             required
                             maxLength={256}
                             value={topic}
@@ -135,7 +143,7 @@ export const CreateProjectPreferenceModal: FC<
                     <WithLabel Label={<Label>Event</Label>}>
                         <Input
                             className="w-full!"
-                            placeholder="new_comment OR '*' for all OR empty for no event"
+                            placeholder="new_comment"
                             required
                             maxLength={256}
                             value={event}
@@ -143,7 +151,14 @@ export const CreateProjectPreferenceModal: FC<
                         />
                     </WithLabel>
 
-                    <DialogFooter>
+                    <DialogFooter className="flex-x justify-between!">
+                        <div>
+                            {rule && (
+                                <p>
+                                    <strong>Rule:</strong> {rule}
+                                </p>
+                            )}
+                        </div>
                         <Button
                             type="submit"
                             disabled={disableCreate}

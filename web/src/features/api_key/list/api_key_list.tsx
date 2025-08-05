@@ -30,7 +30,7 @@ export function APIKeyList() {
 
     const content = useMemo(() => {
         if (isError) {
-            return <ErrorMessage errorMsg="Error loading projects" />;
+            return <ErrorMessage errorMsg="Error loading API keys" />;
         }
 
         if (!data) return null;

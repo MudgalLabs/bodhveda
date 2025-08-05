@@ -17,9 +17,9 @@ import {
     PageHeading,
 } from "netra";
 import { useGetProjectIDFromParams } from "@/features/project/project_hooks";
-import { useGetProjectPreferences } from "@/features/project_preference/project_preference_hooks";
-import { CreateProjectPreferenceModal } from "@/features/project_preference/list/create_project_preference_modal";
-import { ProjectPreference } from "@/features/project_preference/project_preference_type";
+import { useGetProjectPreferences } from "@/features/preference/preference_hooks";
+import { CreateProjectPreferenceModal } from "@/features/preference/list/create_project_preference_modal";
+import { ProjectPreference } from "@/features/preference/preference_type";
 
 export function ProjectPreferenceList() {
     const id = useGetProjectIDFromParams();
@@ -57,7 +57,7 @@ export function ProjectPreferenceList() {
 const columns: ColumnDef<ProjectPreference>[] = [
     {
         accessorKey: "label",
-        header: () => <DataTableColumnHeader title="Label" />,
+        header: () => <DataTableColumnHeader title="Name" />,
     },
     {
         accessorKey: "default_enabled",

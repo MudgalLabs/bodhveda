@@ -7,6 +7,7 @@ import (
 	"github.com/mudgallabs/bodhveda/internal/model/entity"
 	"github.com/mudgallabs/bodhveda/internal/model/repository"
 	"github.com/mudgallabs/tantra/dbx"
+	tantraRepo "github.com/mudgallabs/tantra/repository"
 )
 
 type RecipientRepo struct {
@@ -33,6 +34,9 @@ func (r *RecipientRepo) Create(ctx context.Context, recipient *entity.Recipient)
 
 	err := row.Scan(&newRecipient.ID, &newRecipient.ExternalID, &newRecipient.Name, &newRecipient.ProjectID, &newRecipient.CreatedAt, &newRecipient.UpdatedAt)
 	if err != nil {
+		if dbx.IsUniqueViolation(err) {
+			return nil, tantraRepo.ErrConflict
+		}
 		return nil, err
 	}
 

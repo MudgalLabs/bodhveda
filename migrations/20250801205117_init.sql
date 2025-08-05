@@ -60,25 +60,47 @@ CREATE TABLE IF NOT EXISTS recipient (
         UNIQUE (project_id, external_id)
 );
 
-CREATE TABLE IF NOT EXISTS project_preference (
+CREATE TABLE IF NOT EXISTS preference (
         id              SERIAL PRIMARY KEY,
-        project_id      INT NOT NULL REFERENCES project(id) ON DELETE CASCADE,
-        channel         VARCHAR(255) NOT NULL,
-        topic           VARCHAR(255),
-        event           VARCHAR(255),
-        label           VARCHAR(255) NOT NULL,
-        default_enabled BOOLEAN NOT NULL,
+        project_id      INT REFERENCES project(id) ON DELETE CASCADE,
+        recipient_id    INT REFERENCES recipient(id) ON DELETE CASCADE,
+        channel         TEXT NOT NULL,
+        topic           TEXT NOT NULL,
+        event           TEXT NOT NULL,
+        label           VARCHAR(255),
+        enabled         BOOLEAN NOT NULL,
         created_at      TIMESTAMPTZ NOT NULL,
         updated_at      TIMESTAMPTZ NOT NULL,
 
-        UNIQUE (project_id, channel, topic, event)
+        -- Enforce mutual exclusivity: must be either project OR recipient preference.
+        CHECK (
+                (recipient_id IS NULL AND project_id IS NOT NULL)
+                OR (recipient_id IS NOT NULL AND project_id IS NOT NULL)
+        ),
+
+        -- Enforce that label is only allowed for project preferences
+        CHECK (
+                (recipient_id IS NULL AND label IS NOT NULL)
+                OR (recipient_id IS NOT NULL AND label IS NULL)
+        )
 );
+
+-- Unique for project preferences.
+CREATE UNIQUE INDEX unique_project_preference
+ON preference (project_id, channel, topic, event)
+WHERE recipient_id IS NULL;
+
+-- Unique for recipient preferences.
+CREATE UNIQUE INDEX unique_recipient_preference
+ON preference (project_id, recipient_id, channel, topic, event)
+WHERE recipient_id IS NOT NULL;
 -- +goose StatementEnd
 
 -- +goose Down
 -- +goose StatementBegin
 -- DROP TABLE IF EXISTS api_key;
 -- DROP TABLE IF EXISTS recipient;
+-- DROP TABLE IF EXISTS preference;
 -- DROP TABLE IF EXISTS project;
 -- DROP TABLE IF EXISTS sessions;
 -- DROP TABLE IF EXISTS user_profile;

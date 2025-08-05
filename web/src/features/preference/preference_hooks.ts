@@ -8,7 +8,7 @@ import { client, API_ROUTES, APIRes } from "@/lib/api";
 import {
     ProjectPreference,
     CreateProjectPreferencePayload,
-} from "./project_preference_type";
+} from "./preference_type";
 
 export function useGetProjectPreferences(projectID: string) {
     return useQuery({

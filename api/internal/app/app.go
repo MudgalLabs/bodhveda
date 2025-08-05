@@ -31,7 +31,7 @@ type services struct {
 	Recipient         *service.RecipientService
 	UserIdentity      *user_identity.Service
 	UserProfile       *user_profile.Service
-	ProjectPreference *service.ProjectPreferenceService
+	ProjectPreference *service.PreferenceService
 }
 
 // Access to all repositories for reading.
@@ -43,7 +43,7 @@ type repositories struct {
 	Recipient         repository.RecipientReader
 	UserIdentity      user_identity.Reader
 	UserProfile       user_profile.Reader
-	ProjectPreference repository.ProjectPreferenceRepository
+	ProjectPreference repository.PreferenceRepository
 }
 
 func Init() {
@@ -70,7 +70,7 @@ func Init() {
 	recipientRepository := pg.NewRecipientRepo(db)
 	userProfileRepository := user_profile.NewRepository(db)
 	userIdentityRepository := user_identity.NewRepository(db)
-	projectPreferenceRepository := pg.NewProjectPreferenceRepo(db)
+	projectPreferenceRepository := pg.NewPreferenceRepo(db)
 
 	apikeyService := service.NewAPIKeyService(apikeyRepository, projectRepository)
 	notificationService := service.NewNotificationService(notificationRepository)
