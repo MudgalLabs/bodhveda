@@ -73,7 +73,7 @@ func Init() {
 	userIdentityRepository := user_identity.NewRepository(db)
 
 	apikeyService := service.NewAPIKeyService(apikeyRepository, projectRepository)
-	notificationService := service.NewNotificationService(notificationRepository, recipientRepository)
+	notificationService := service.NewNotificationService(notificationRepository, recipientRepository, preferenceRepository)
 	preferenceService := service.NewProjectPreferenceService(preferenceRepository, recipientRepository)
 	projectService := service.NewProjectService(projectRepository)
 	recipientService := service.NewRecipientService(recipientRepository)

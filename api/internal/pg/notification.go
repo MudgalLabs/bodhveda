@@ -1,7 +1,11 @@
 package pg
 
 import (
+	"context"
+	"fmt"
+
 	"github.com/jackc/pgx/v5/pgxpool"
+	"github.com/mudgallabs/bodhveda/internal/model/entity"
 	"github.com/mudgallabs/bodhveda/internal/model/repository"
 	"github.com/mudgallabs/tantra/dbx"
 )
@@ -12,8 +16,34 @@ type NotificationRepo struct {
 }
 
 func NewNotificationRepo(db *pgxpool.Pool) repository.NotificationRepository {
-	return &APIKeyRepo{
+	return &NotificationRepo{
 		db:   db,
 		pool: db,
 	}
+}
+
+func (r *NotificationRepo) Create(ctx context.Context, notification *entity.Notification) (*entity.Notification, error) {
+	sql := `
+		INSERT INTO notification (
+			project_id, recipient_external_id, payload, broadcast_id, channel,
+			topic, event, created_at, updated_at
+		)
+		VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9)
+		RETURNING id, project_id, recipient_external_id, payload, broadcast_id, channel, topic, event, created_at, updated_at
+	`
+
+	row := r.db.QueryRow(ctx, sql, notification.ProjectID, notification.RecipientExtID, notification.Payload,
+		notification.BroadcastID, notification.Channel, notification.Topic, notification.Event,
+		notification.CreatedAt, notification.UpdatedAt)
+
+	var newNotification entity.Notification
+	err := row.Scan(&newNotification.ID, &newNotification.ProjectID, &newNotification.RecipientExtID,
+		&newNotification.Payload, &newNotification.BroadcastID, &newNotification.Channel, &newNotification.Topic,
+		&newNotification.Event, &newNotification.CreatedAt, &newNotification.UpdatedAt,
+	)
+	if err != nil {
+		return nil, fmt.Errorf("insert notification: %w", err)
+	}
+
+	return &newNotification, nil
 }

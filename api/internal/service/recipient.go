@@ -46,11 +46,11 @@ func (s *RecipientService) Create(ctx context.Context, payload dto.CreateRecipie
 	return dto.FromRecipient(recipient), service.ErrNone, nil
 }
 
-func (s *RecipientService) List(ctx context.Context, projectID int) ([]*dto.Recipient, service.Error, error) {
+func (s *RecipientService) List(ctx context.Context, projectID int) ([]*dto.RecipientListItem, service.Error, error) {
 	recipients, err := s.repo.List(ctx, projectID)
 	if err != nil {
 		return nil, service.ErrInternalServerError, fmt.Errorf("recipient repo list: %w", err)
 	}
 
-	return dto.FromRecipients(recipients), service.ErrNone, nil
+	return dto.FromRecipientList(recipients), service.ErrNone, nil
 }

@@ -15,6 +15,7 @@ type PreferenceRepository interface {
 
 type PreferenceReader interface {
 	ListPreferences(ctx context.Context, projectID int, kind enum.PreferenceKind) ([]*entity.Preference, error)
+	ShouldTagetedNotificationBeDelivered(ctx context.Context, notification *entity.Notification) (bool, error)
 }
 
 type PreferenceWriter interface {

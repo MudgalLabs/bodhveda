@@ -101,9 +101,10 @@ func (p *SendNotificationPayload) IsTargeted() bool {
 
 type SendNotificationResult struct {
 	// Notification is the notification that was sent.
-	// If this is a broadcast notification, this will be nil.
-	Notification *Notification `json:"notification,omitempty"`
+	// Nil, if this is a broadcast notification.
+	// Nil, if the notification was rejected by preferences.
+	Notification *Notification `json:"notification"`
 	// Broadcast is the broadcast that was sent.
-	// If this is a targeted notification, this will be nil.
-	Broadcast *Broadcast `json:"broadcast,omitempty"`
+	// Nil, if this is a targeted notification.
+	Broadcast *Broadcast `json:"broadcast"`
 }

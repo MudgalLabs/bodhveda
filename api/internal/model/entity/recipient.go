@@ -24,3 +24,10 @@ func NewRecipient(projectID int, externalID, name string) *Recipient {
 		UpdatedAt:  now,
 	}
 }
+
+type RecipientListItem struct {
+	Recipient
+
+	DirectNotificationsCount    int `json:"direct_notifications_count"`
+	BroadcastNotificationsCount int `json:"broadcast_notifications_count"`
+}

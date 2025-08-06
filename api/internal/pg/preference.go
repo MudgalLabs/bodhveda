@@ -29,7 +29,9 @@ func (r *PreferenceRepo) Create(ctx context.Context, pref *entity.Preference) (*
 	sql := `
 		INSERT INTO preference (project_id, recipient_external_id, channel, topic, event, label, enabled, created_at, updated_at)
 		VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9)
-		ON CONFLICT (recipient_external_id, channel, topic, event) DO UPDATE SET
+		ON CONFLICT (project_id, recipient_external_id, channel, topic, event)
+		WHERE recipient_external_id IS NOT NULL
+		DO UPDATE SET
 			enabled = EXCLUDED.enabled,
 			updated_at = EXCLUDED.updated_at
 		RETURNING id, project_id, recipient_external_id, channel, topic, event, label, enabled, created_at, updated_at
@@ -131,4 +133,91 @@ func (r *PreferenceRepo) findPreferences(ctx context.Context, payload repository
 	}
 
 	return prefs, total, nil
+}
+
+func (r *PreferenceRepo) ShouldTagetedNotificationBeDelivered(ctx context.Context, notification *entity.Notification) (bool, error) {
+	shouldDeliver := true
+
+	shouldDeliverSQL := `
+		-- INPUTS:
+		-- $1 = project_id
+		-- $2 = recipient_external_id
+		-- $3 = channel
+		-- $4 = topic (e.g. post_123)
+		-- $5 = event
+
+		WITH
+		-- 1. Try recipient preference for exact match
+		recipient_exact_pref AS (
+		    SELECT enabled
+		    FROM preference
+		    WHERE project_id = $1
+		      AND recipient_external_id= $2
+		      AND channel = $3
+		      AND topic = $4
+		      AND event = $5
+		    LIMIT 1
+		),
+
+		-- 2. Try recipient preference for fallback (topic = 'any'), only if topic != 'none'
+		recipient_fallback_pref AS (
+		    SELECT enabled
+		    FROM preference
+		    WHERE project_id = $1
+		      AND recipient_external_id= $2
+		      AND channel = $3
+		      AND topic = 'any'
+		      AND event = $5
+		      AND $4 != 'none'
+		    LIMIT 1
+		),
+
+		-- 3. Try project-level preference for exact match
+		project_exact_pref AS (
+		    SELECT enabled
+		    FROM preference
+		    WHERE project_id = $1
+		      AND recipient_external_id IS NULL
+		      AND channel = $3
+		      AND topic = $4
+		      AND event = $5
+		    LIMIT 1
+		),
+
+		-- 4. Try project-level preference for fallback (topic = 'any'), only if topic != 'none'
+		project_fallback_pref AS (
+		    SELECT enabled
+		    FROM preference
+		    WHERE project_id = $1
+		      AND recipient_external_id IS NULL
+		      AND channel = $3
+		      AND topic = 'any'
+		      AND event = $5
+		      AND $4 != 'none'
+		    LIMIT 1
+		)
+
+		-- Final selection logic: pick the first available preference match
+		SELECT
+		    COALESCE(
+		        (SELECT enabled FROM recipient_exact_pref),
+		        (SELECT enabled FROM recipient_fallback_pref),
+		        (SELECT enabled FROM project_exact_pref),
+		        (SELECT enabled FROM project_fallback_pref),
+	        true  -- default: DELIVER if nothing found (for direct notification)
+	    ) AS should_deliver;
+	`
+
+	err := r.db.QueryRow(ctx, shouldDeliverSQL,
+		notification.ProjectID,
+		notification.RecipientExtID,
+		notification.Channel,
+		notification.Topic,
+		notification.Event,
+	).Scan(&shouldDeliver)
+	if err != nil {
+		return false, err
+	}
+
+	return shouldDeliver, err
 }

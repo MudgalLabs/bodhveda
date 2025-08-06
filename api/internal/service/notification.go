@@ -2,6 +2,7 @@ package service
 
 import (
 	"context"
+	"fmt"
 
 	"github.com/mudgallabs/bodhveda/internal/model/dto"
 	"github.com/mudgallabs/bodhveda/internal/model/entity"
@@ -10,15 +11,17 @@ import (
 )
 
 type NotificationService struct {
-	repo          repository.NotificationRepository
-	recipientRepo repository.RecipientRepository
+	repo           repository.NotificationRepository
+	recipientRepo  repository.RecipientRepository
+	preferenceRepo repository.PreferenceRepository
 	// broadcastRepo repository.BroadcastRepository
 }
 
-func NewNotificationService(repo repository.NotificationRepository, recipientRepo repository.RecipientRepository) *NotificationService {
+func NewNotificationService(repo repository.NotificationRepository, recipientRepo repository.RecipientRepository, preferenceRepo repository.PreferenceRepository) *NotificationService {
 	return &NotificationService{
-		repo:          repo,
-		recipientRepo: recipientRepo,
+		repo:           repo,
+		recipientRepo:  recipientRepo,
+		preferenceRepo: preferenceRepo,
 	}
 }
 
@@ -43,7 +46,7 @@ func (s *NotificationService) Send(ctx context.Context, payload dto.SendNotifica
 
 		result.Notification, err = s.sendTargetedNotification(ctx, notification)
 		if err != nil {
-			return nil, service.ErrInternalServerError, err
+			return nil, service.ErrInternalServerError, fmt.Errorf("send targeted notification: %w", err)
 		}
 	} else {
 		broadcast := entity.NewBroadcast(
@@ -56,7 +59,7 @@ func (s *NotificationService) Send(ctx context.Context, payload dto.SendNotifica
 
 		result.Broadcast, err = s.sendBroadcastNotification(ctx, broadcast)
 		if err != nil {
-			return nil, service.ErrInternalServerError, err
+			return nil, service.ErrInternalServerError, fmt.Errorf("send broadcast notification: %w", err)
 		}
 	}
 
@@ -64,7 +67,23 @@ func (s *NotificationService) Send(ctx context.Context, payload dto.SendNotifica
 }
 
 func (s *NotificationService) sendTargetedNotification(ctx context.Context, notification *entity.Notification) (*dto.Notification, error) {
-	return nil, nil
+	shouldDeliver, err := s.preferenceRepo.ShouldTagetedNotificationBeDelivered(ctx, notification)
+	if err != nil {
+		return nil, err
+	}
+
+	if !shouldDeliver {
+		// Can return nil here, as the notification is not delivered.
+		// The result will have nil `notification` field in `SendNotificationResult`.
+		return nil, nil
+	}
+
+	notification, err = s.repo.Create(ctx, notification)
+	if err != nil {
+		return nil, fmt.Errorf("create notification: %w", err)
+	}
+
+	return dto.FromNotification(notification), nil
 }
 
 func (s *NotificationService) sendBroadcastNotification(ctx context.Context, broadcast *entity.Broadcast) (*dto.Broadcast, error) {

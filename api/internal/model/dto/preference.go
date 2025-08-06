@@ -1,7 +1,6 @@
 package dto
 
 import (
-	"fmt"
 	"time"
 
 	"github.com/mudgallabs/bodhveda/internal/model/entity"
@@ -65,8 +64,6 @@ func FromPreferenceForProject(e *entity.Preference) *ProjectPreference {
 	if e == nil {
 		return nil
 	}
-
-	fmt.Println("FromPreferenceForProject label", e, e.Label)
 
 	return &ProjectPreference{
 		ID:        e.ID,

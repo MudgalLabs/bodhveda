@@ -5,14 +5,18 @@ import {
     useQueryClient,
 } from "@tanstack/react-query";
 import { client, API_ROUTES, APIRes } from "@/lib/api";
-import { Recipient, CreateRecipientPayload } from "./recipient_types";
+import {
+    Recipient,
+    CreateRecipientPayload,
+    RecipientListItem,
+} from "./recipient_types";
 
 export function useGetRecipients(projectID: string) {
     return useQuery({
         queryKey: ["useGetRecipients", projectID],
         queryFn: () =>
             client.get(API_ROUTES.project.recipients.list(projectID)),
-        select: (res) => res.data as APIRes<Recipient[]>,
+        select: (res) => res.data as APIRes<RecipientListItem[]>,
     });
 }
 

@@ -76,12 +76,18 @@ CREATE TABLE IF NOT EXISTS preference (
         CONSTRAINT preference_label_for_project_only CHECK (
             (recipient_external_id IS NULL AND label IS NOT NULL)
             OR (recipient_external_id IS NOT NULL AND label IS NULL)
-        ),
-
-        UNIQUE (project_id, channel, topic, event),
-
-        UNIQUE (recipient_external_id, channel, topic, event)
+        )
 );
+
+-- Enforce uniqueness for recipient-level preferences
+CREATE UNIQUE INDEX IF NOT EXISTS recipient_pref_unique
+ON preference(project_id, recipient_external_id, channel, topic, event)
+WHERE recipient_external_id IS NOT NULL;
+
+-- Enforce uniqueness for project-level preferences
+CREATE UNIQUE INDEX IF NOT EXISTS project_pref_unique
+ON preference(project_id, channel, topic, event)
+WHERE recipient_external_id IS NULL;
 
 CREATE TABLE IF NOT EXISTS broadcast (
         id              SERIAL PRIMARY KEY,

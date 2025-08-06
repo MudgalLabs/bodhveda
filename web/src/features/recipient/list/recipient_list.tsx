@@ -12,14 +12,16 @@ import {
     ErrorMessage,
     formatTimeAgo,
     IconEllipsis,
+    IconInfo,
     IconPlus,
     IconTrash,
     PageHeading,
+    Tooltip,
 } from "netra";
 import { useGetProjectIDFromParams } from "@/features/project/project_hooks";
 import { useGetRecipients } from "@/features/recipient/recipient_hooks";
 import { CreateRecipientModal } from "@/features/recipient/list/create_recipient_modal";
-import { Recipient } from "@/features/recipient/recipient_types";
+import { RecipientListItem } from "@/features/recipient/recipient_types";
 
 export function RecipientList() {
     const id = useGetProjectIDFromParams();
@@ -55,7 +57,7 @@ export function RecipientList() {
     );
 }
 
-const columns: ColumnDef<Recipient>[] = [
+const columns: ColumnDef<RecipientListItem>[] = [
     {
         accessorKey: "recipient_id",
         header: () => <DataTableColumnHeader title="Recipient ID" />,
@@ -63,6 +65,41 @@ const columns: ColumnDef<Recipient>[] = [
     {
         accessorKey: "name",
         header: () => <DataTableColumnHeader title="Name" />,
+    },
+    {
+        id: "notifications_count",
+        header: () => (
+            <DataTableColumnHeader
+                title={
+                    <p className="flex-x">
+                        Notifications
+                        <Tooltip
+                            content={
+                                <div className="space-y-2">
+                                    <p>
+                                        🎯 <strong>Direct notifications</strong>{" "}
+                                        are sent to a specific recipient.
+                                    </p>
+                                    <p>
+                                        📢{" "}
+                                        <strong>Broadcast notifications</strong>{" "}
+                                        are sent to one or more recipients.
+                                    </p>
+                                </div>
+                            }
+                        >
+                            <IconInfo />
+                        </Tooltip>
+                    </p>
+                }
+            />
+        ),
+        cell: ({ row }) => (
+            <div className="flex-x gap-x-6!">
+                <p>🎯 {row.original.direct_notifications_count}</p>
+                <p>📢 {row.original.broadcast_notifications_count}</p>
+            </div>
+        ),
     },
     {
         accessorKey: "created_at",
@@ -91,7 +128,7 @@ const columns: ColumnDef<Recipient>[] = [
 ];
 
 interface ListTableProps {
-    data: Recipient[];
+    data: RecipientListItem[];
 }
 
 function ListTable({ data }: ListTableProps) {

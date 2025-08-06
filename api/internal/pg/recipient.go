@@ -45,14 +45,14 @@ func (r *RecipientRepo) Create(ctx context.Context, recipient *entity.Recipient)
 	return &newRecipient, nil
 }
 
-func (r *RecipientRepo) List(ctx context.Context, projectID int) ([]*entity.Recipient, error) {
+func (r *RecipientRepo) List(ctx context.Context, projectID int) ([]*entity.RecipientListItem, error) {
 	payload := repository.SearchRecipientPayload{
 		Filters: repository.RecipientSearchFilter{
 			ProjectID: &projectID,
 		},
 	}
 
-	recipients, _, err := r.findRecipients(ctx, payload)
+	recipients, _, err := r.findRecipients(ctx, payload, true)
 	return recipients, err
 }
 
@@ -65,7 +65,7 @@ func (r *RecipientRepo) GetByProjectIDAndExternalID(ctx context.Context, project
 		Pagination: query.Pagination{Limit: 1},
 	}
 
-	recipients, _, err := r.findRecipients(ctx, payload)
+	recipients, _, err := r.findRecipients(ctx, payload, false)
 	if err != nil {
 		return nil, err
 	}
@@ -74,28 +74,43 @@ func (r *RecipientRepo) GetByProjectIDAndExternalID(ctx context.Context, project
 		return nil, tantraRepo.ErrNotFound
 	}
 
-	return recipients[0], err
+	return &recipients[0].Recipient, err
 }
 
-func (r *RecipientRepo) findRecipients(ctx context.Context, payload repository.SearchRecipientPayload) ([]*entity.Recipient, int, error) {
-	baseSQL := `
-		SELECT id, external_id, name, project_id, created_at, updated_at
-		FROM recipient
-		`
+func (r *RecipientRepo) findRecipients(ctx context.Context, payload repository.SearchRecipientPayload, includeNotificationsCount bool) ([]*entity.RecipientListItem, int, error) {
+	const baseFields = `
+	r.id, r.external_id, r.name, r.project_id, r.created_at, r.updated_at
+`
+
+	var baseSQL string
+	if includeNotificationsCount {
+		baseSQL = fmt.Sprintf(`
+		SELECT %s, 
+		COALESCE(SUM(CASE WHEN n.id IS NOT NULL AND n.broadcast_id IS NULL THEN 1 ELSE 0 END), 0) AS direct_count,
+		COALESCE(SUM(CASE WHEN n.id IS NOT NULL AND n.broadcast_id IS NOT NULL THEN 1 ELSE 0 END), 0) AS broadcast_count
+		FROM recipient r
+		LEFT JOIN notification n ON n.recipient_external_id = r.external_id
+	`, baseFields)
+	} else {
+		baseSQL = fmt.Sprintf(`
+		SELECT %s
+		FROM recipient r
+	`, baseFields)
+	}
 
 	builder := dbx.NewSQLBuilder(baseSQL)
 
 	if payload.Filters.ProjectID != nil {
-		builder.AddCompareFilter("project_id", "=", *payload.Filters.ProjectID)
+		builder.AddCompareFilter("r.project_id", "=", *payload.Filters.ProjectID)
 	}
 
 	if payload.Filters.ExternalID != nil {
-		builder.AddCompareFilter("external_id", "=", *payload.Filters.ExternalID)
+		builder.AddCompareFilter("r.external_id", "=", *payload.Filters.ExternalID)
 	}
 
 	// Apply default sorting if not provided.
 	if payload.Sort.Field == "" {
-		payload.Sort.Field = "created_at"
+		payload.Sort.Field = "r.created_at"
 	}
 
 	if payload.Sort.Order == "" {
@@ -110,6 +125,10 @@ func (r *RecipientRepo) findRecipients(ctx context.Context, payload repository.S
 		payload.Pagination.Page = 1
 	}
 
+	if includeNotificationsCount {
+		builder.AddGroupBy("r.id, r.external_id, r.name, r.project_id, r.created_at, r.updated_at")
+	}
+
 	builder.AddPagination(payload.Pagination.Limit, payload.Pagination.Offset())
 
 	sql, args := builder.Build()
@@ -121,11 +140,11 @@ func (r *RecipientRepo) findRecipients(ctx context.Context, payload repository.S
 
 	defer rows.Close()
 
-	recipients := []*entity.Recipient{}
+	recipients := []*entity.RecipientListItem{}
 	for rows.Next() {
-		var newRecipient entity.Recipient
+		var newRecipient entity.RecipientListItem
 
-		err := rows.Scan(&newRecipient.ID, &newRecipient.ExternalID, &newRecipient.Name, &newRecipient.ProjectID, &newRecipient.CreatedAt, &newRecipient.UpdatedAt)
+		err := rows.Scan(&newRecipient.ID, &newRecipient.ExternalID, &newRecipient.Name, &newRecipient.ProjectID, &newRecipient.CreatedAt, &newRecipient.UpdatedAt, &newRecipient.DirectNotificationsCount, &newRecipient.BroadcastNotificationsCount)
 		if err != nil {
 			return nil, 0, fmt.Errorf("scan: %w", err)
 		}

@@ -57,14 +57,27 @@ func FromRecipient(r *entity.Recipient) *Recipient {
 	}
 }
 
-func FromRecipients(r []*entity.Recipient) []*Recipient {
+type RecipientListItem struct {
+	Recipient
+
+	DirectNotificationsCount    int `json:"direct_notifications_count"`
+	BroadcastNotificationsCount int `json:"broadcast_notifications_count"`
+}
+
+func FromRecipientList(r []*entity.RecipientListItem) []*RecipientListItem {
 	if r == nil {
 		return nil
 	}
 
-	dtos := make([]*Recipient, len(r))
+	dtos := make([]*RecipientListItem, len(r))
 	for i, recipient := range r {
-		dtos[i] = FromRecipient(recipient)
+		recipientDto := FromRecipient(&recipient.Recipient)
+		recipientListItem := &RecipientListItem{
+			Recipient:                   *recipientDto,
+			DirectNotificationsCount:    recipient.DirectNotificationsCount,
+			BroadcastNotificationsCount: recipient.BroadcastNotificationsCount,
+		}
+		dtos[i] = recipientListItem
 	}
 
 	return dtos
