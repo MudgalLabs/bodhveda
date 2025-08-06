@@ -17,6 +17,7 @@ type ProjectPreference struct {
 	Enabled   bool      `json:"default_enabled"`
 	Label     string    `json:"label"`
 	CreatedAt time.Time `json:"created_at"`
+	UpdatedAt time.Time `json:"updated_at"`
 }
 
 type CreateProjectPreferencePayload struct {
@@ -59,7 +60,7 @@ func (p *CreateProjectPreferencePayload) Validate() error {
 	return nil
 }
 
-func FromProjectPreference(e *entity.Preference) *ProjectPreference {
+func FromPreferenceForProject(e *entity.Preference) *ProjectPreference {
 	if e == nil {
 		return nil
 	}
@@ -71,7 +72,77 @@ func FromProjectPreference(e *entity.Preference) *ProjectPreference {
 		Topic:     e.Topic,
 		Event:     e.Event,
 		Enabled:   e.Enabled,
-		Label:     e.Label,
+		Label:     *e.Label,
 		CreatedAt: e.CreatedAt,
+		UpdatedAt: e.UpdatedAt,
+	}
+}
+
+type RecipientPreference struct {
+	ID             int       `json:"id"`
+	RecipientExtID string    `json:"recipient_id"`
+	Channel        string    `json:"channel"`
+	Topic          string    `json:"topic"`
+	Event          string    `json:"event"`
+	Enabled        bool      `json:"enabled"`
+	CreatedAt      time.Time `json:"created_at"`
+	UpdatedAt      time.Time `json:"updated_at"`
+}
+
+type UpsertRecipientPreferencePayload struct {
+	ProjectID      int
+	RecipientExtID string
+
+	Channel string `json:"channel"`
+	Topic   string `json:"topic"`
+	Event   string `json:"event"`
+	Enabled bool   `json:"enabled"`
+}
+
+func (p *UpsertRecipientPreferencePayload) Validate() error {
+	var errs service.InputValidationErrors
+
+	if p.RecipientExtID == "" {
+		errs.Add(apires.NewApiError("Recipient is required", "Recipient ID cannot be empty", "recipient_id", p.RecipientExtID))
+	}
+
+	if p.Channel == "" {
+		errs.Add(apires.NewApiError("Channel is required", "Channel cannot be empty", "channel", p.Channel))
+	}
+
+	if p.Event == "" {
+		errs.Add(apires.NewApiError("Event is required", "Event cannot be empty", "event", p.Event))
+	}
+
+	if p.Topic == "" {
+		errs.Add(apires.NewApiError("Topic is required", "Topic cannot be empty", "topic", p.Topic))
+	}
+
+	if len(errs) > 0 {
+		return errs
+	}
+
+	return nil
+}
+
+func FromPreferenceForRecipient(e *entity.Preference) *RecipientPreference {
+	if e == nil {
+		return nil
+	}
+
+	recipientExtID := ""
+	if e.RecipientExtID != nil {
+		recipientExtID = *e.RecipientExtID
+	}
+
+	return &RecipientPreference{
+		ID:             e.ID,
+		RecipientExtID: recipientExtID,
+		Channel:        e.Channel,
+		Topic:          e.Topic,
+		Event:          e.Event,
+		Enabled:        e.Enabled,
+		CreatedAt:      e.CreatedAt,
+		UpdatedAt:      e.UpdatedAt,
 	}
 }

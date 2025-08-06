@@ -6,6 +6,7 @@ require (
 	github.com/alexedwards/scs/pgxstore v0.0.0-20250417082927-ab20b3feb5e9
 	github.com/alexedwards/scs/v2 v2.9.0
 	github.com/go-chi/chi v1.5.5
+	github.com/gorilla/schema v1.4.1
 	github.com/jackc/pgx-shopspring-decimal v0.0.0-20220624020537-1d36b5a1853e
 	github.com/jackc/pgx/v5 v5.7.5
 	go.uber.org/zap v1.27.0

@@ -4,6 +4,7 @@ import {
     Button,
     Dialog,
     DialogContent,
+    DialogDescription,
     DialogFooter,
     DialogHeader,
     DialogTitle,
@@ -84,10 +85,14 @@ export const CreateProjectPreferenceModal: FC<
             <DialogTrigger asChild>{renderTrigger()}</DialogTrigger>
             <DialogContent>
                 <DialogHeader>
-                    <DialogTitle>Create Preference</DialogTitle>
+                    <DialogTitle>Create Project Preference</DialogTitle>
+                    <DialogDescription>
+                        Create a preference that will be available to all the
+                        recipients in this project.
+                    </DialogDescription>
                 </DialogHeader>
                 <form className="flex flex-col gap-4" onSubmit={handleSubmit}>
-                    <WithLabel Label={<Label>Name</Label>}>
+                    <WithLabel Label={<Label>Label</Label>}>
                         <Input
                             className="w-full!"
                             placeholder="Comments on photos of you"
@@ -105,7 +110,7 @@ export const CreateProjectPreferenceModal: FC<
                             size="small"
                             value={defaultEnabled ? "enabled" : "disabled"}
                             onValueChange={(value) =>
-                                setDefaultEnabled(value === "enabled")
+                                value && setDefaultEnabled(value === "enabled")
                             }
                         >
                             <ToggleGroupItem value="enabled">

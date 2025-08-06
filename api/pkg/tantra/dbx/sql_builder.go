@@ -68,6 +68,8 @@ func parseOperator(o Operator) string {
 	return "" // invalid
 }
 
+// TODO: Add a methoda in SQLBuilder to add "JOINS".
+
 type SQLBuilder struct {
 	base    strings.Builder
 	set     []string

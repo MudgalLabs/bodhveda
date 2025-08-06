@@ -73,27 +73,21 @@ CREATE TABLE IF NOT EXISTS preference (
         updated_at      TIMESTAMPTZ NOT NULL,
 
         -- Enforce mutual exclusivity: must be either project OR recipient preference.
-        CHECK (
-                (recipient_id IS NULL AND project_id IS NOT NULL)
-                OR (recipient_id IS NOT NULL AND project_id IS NOT NULL)
+        CONSTRAINT preference_recipient_or_project_check CHECK (
+            (recipient_id IS NULL AND project_id IS NOT NULL)
+            OR (recipient_id IS NOT NULL AND project_id IS NULL)
         ),
 
         -- Enforce that label is only allowed for project preferences
-        CHECK (
-                (recipient_id IS NULL AND label IS NOT NULL)
-                OR (recipient_id IS NOT NULL AND label IS NULL)
-        )
+        CONSTRAINT preference_label_for_project_only CHECK (
+            (recipient_id IS NULL AND label IS NOT NULL)
+            OR (recipient_id IS NOT NULL AND label IS NULL)
+        ),
+
+        UNIQUE (project_id, channel, topic, event),
+
+        UNIQUE (recipient_id, channel, topic, event)
 );
-
--- Unique for project preferences.
-CREATE UNIQUE INDEX unique_project_preference
-ON preference (project_id, channel, topic, event)
-WHERE recipient_id IS NULL;
-
--- Unique for recipient preferences.
-CREATE UNIQUE INDEX unique_recipient_preference
-ON preference (project_id, recipient_id, channel, topic, event)
-WHERE recipient_id IS NOT NULL;
 -- +goose StatementEnd
 
 -- +goose Down

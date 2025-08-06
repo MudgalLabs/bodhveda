@@ -89,13 +89,14 @@ func initRouter() http.Handler {
 				})
 
 				r.Route("/preferences", func(r chi.Router) {
-					r.Get("/", handler.ListProjectPreferences(app.APP.Service.ProjectPreference))
-					r.Post("/", handler.CreateProjectPreference(app.APP.Service.ProjectPreference))
+					r.Get("/", handler.ListProjectPreferences(app.APP.Service.Preference))
+					r.Post("/", handler.CreateProjectPreference(app.APP.Service.Preference))
 				})
 
 				r.Route("/recipients", func(r chi.Router) {
 					r.Get("/", handler.ListRecipients(app.APP.Service.Recipient))
 					r.Post("/", handler.CreateRecipient(app.APP.Service.Recipient))
+					r.Put("/{recipient_id}/preferences", handler.UpsertRecipientPreferences(app.APP.Service.Preference))
 				})
 			})
 		})

@@ -8,14 +8,24 @@ import { client, API_ROUTES, APIRes } from "@/lib/api";
 import {
     ProjectPreference,
     CreateProjectPreferencePayload,
+    PreferenceKind,
+    RecipientPreference,
 } from "./preference_type";
 
-export function useGetProjectPreferences(projectID: string) {
+export function useGetPreferences(projectID: string, kind: PreferenceKind) {
     return useQuery({
-        queryKey: ["useGetProjectPreferences", projectID],
+        queryKey: ["useGetPreferences", projectID, kind],
         queryFn: () =>
-            client.get(API_ROUTES.project.preferences.list(projectID)),
-        select: (res) => res.data as APIRes<ProjectPreference[]>,
+            client.get(API_ROUTES.project.preferences.list(projectID), {
+                params: { kind },
+            }),
+        select: (res) => {
+            if (kind === "project") {
+                return res.data as APIRes<ProjectPreference[]>;
+            } else {
+                return res.data as APIRes<RecipientPreference[]>;
+            }
+        },
     });
 }
 
