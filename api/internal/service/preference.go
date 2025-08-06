@@ -84,17 +84,9 @@ func (s *PreferenceService) UpsertRecipientPreference(ctx context.Context, paylo
 		return nil, service.ErrInvalidInput, err
 	}
 
-	recipient, err := s.recipientRepo.GetByProjectIDAndExternalID(ctx, payload.ProjectID, payload.RecipientExtID)
-	if err != nil {
-		if err == tantraRepo.ErrNotFound {
-			return nil, service.ErrNotFound, fmt.Errorf("Recipient not found: %w", err)
-		}
-		return nil, service.ErrInternalServerError, fmt.Errorf("repo get recipient: %w", err)
-	}
-
 	pref := entity.NewPreference(
-		nil,
-		&recipient.ID,
+		&payload.ProjectID,
+		&payload.RecipientExtID,
 		payload.Channel,
 		payload.Topic,
 		payload.Event,

@@ -2,7 +2,6 @@ package handler
 
 import (
 	"errors"
-	"fmt"
 	"net/http"
 
 	"github.com/mudgallabs/bodhveda/internal/model/dto"
@@ -58,8 +57,6 @@ func ListProjectPreferences(s *service.PreferenceService) http.HandlerFunc {
 			httpx.BadRequestResponse(w, r, errors.New("Invalid preference kind"))
 			return
 		}
-
-		fmt.Printf("Listing preferences for project %d with kind %s\n", projectID, kind)
 
 		switch kind {
 		case "project":

@@ -1,6 +1,7 @@
 package dto
 
 import (
+	"fmt"
 	"time"
 
 	"github.com/mudgallabs/bodhveda/internal/model/entity"
@@ -65,6 +66,8 @@ func FromPreferenceForProject(e *entity.Preference) *ProjectPreference {
 		return nil
 	}
 
+	fmt.Println("FromPreferenceForProject label", e, e.Label)
+
 	return &ProjectPreference{
 		ID:        e.ID,
 		ProjectID: *e.ProjectID,
@@ -80,6 +83,7 @@ func FromPreferenceForProject(e *entity.Preference) *ProjectPreference {
 
 type RecipientPreference struct {
 	ID             int       `json:"id"`
+	ProjectID      int       `json:"project_id"`
 	RecipientExtID string    `json:"recipient_id"`
 	Channel        string    `json:"channel"`
 	Topic          string    `json:"topic"`
@@ -90,17 +94,21 @@ type RecipientPreference struct {
 }
 
 type UpsertRecipientPreferencePayload struct {
-	ProjectID      int
-	RecipientExtID string
+	ProjectID int
 
-	Channel string `json:"channel"`
-	Topic   string `json:"topic"`
-	Event   string `json:"event"`
-	Enabled bool   `json:"enabled"`
+	RecipientExtID string `json:"recipient_id"`
+	Channel        string `json:"channel"`
+	Topic          string `json:"topic"`
+	Event          string `json:"event"`
+	Enabled        bool   `json:"enabled"`
 }
 
 func (p *UpsertRecipientPreferencePayload) Validate() error {
 	var errs service.InputValidationErrors
+
+	if p.ProjectID <= 0 {
+		errs.Add(apires.NewApiError("Project is required", "Project ID must be a positive integer", "project_id", p.ProjectID))
+	}
 
 	if p.RecipientExtID == "" {
 		errs.Add(apires.NewApiError("Recipient is required", "Recipient ID cannot be empty", "recipient_id", p.RecipientExtID))
@@ -130,14 +138,10 @@ func FromPreferenceForRecipient(e *entity.Preference) *RecipientPreference {
 		return nil
 	}
 
-	recipientExtID := ""
-	if e.RecipientExtID != nil {
-		recipientExtID = *e.RecipientExtID
-	}
-
 	return &RecipientPreference{
 		ID:             e.ID,
-		RecipientExtID: recipientExtID,
+		ProjectID:      *e.ProjectID,
+		RecipientExtID: *e.RecipientExtID,
 		Channel:        e.Channel,
 		Topic:          e.Topic,
 		Event:          e.Event,

@@ -65,8 +65,8 @@ export const CreateProjectPreferenceModal: FC<
     const rule = useMemo(() => {
         let str = "";
         if (channel.trim()) str += channel.trim();
-        if (topic.trim()) str += `:${topic.trim()}`;
-        if (event.trim()) str += `:${event.trim()}`;
+        if (topic.trim()) str += ` : ${topic.trim()}`;
+        if (event.trim()) str += ` : ${event.trim()}`;
         return str;
     }, [channel, event, topic]);
 
