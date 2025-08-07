@@ -3,6 +3,8 @@ package service
 import (
 	"context"
 	"fmt"
+	"math/rand"
+	"time"
 
 	"github.com/mudgallabs/bodhveda/internal/model/dto"
 	"github.com/mudgallabs/bodhveda/internal/model/entity"
@@ -53,4 +55,32 @@ func (s *RecipientService) List(ctx context.Context, projectID int) ([]*dto.Reci
 	}
 
 	return dto.FromRecipientList(recipients), service.ErrNone, nil
+}
+
+func (s *RecipientService) CreateRandomRecipients(ctx context.Context, projectID int, count int) error {
+	names := []string{
+		"Alice Johnson", "Bob Smith", "Charlie Brown", "Diana Prince", "Edward Norton",
+		"Fiona Green", "George Wilson", "Hannah Lee", "Ian Davis", "Julia Roberts",
+		"Kevin Hart", "Linda Chen", "Michael Scott", "Nancy Drew", "Oliver Twist",
+		"Patricia Moore", "Quinn Adams", "Rachel Green", "Steven King", "Tina Turner",
+		"Uma Thurman", "Victor Hugo", "Wendy Williams", "Xavier Woods", "Yvonne Carter",
+		"Zachary Taylor", "Amanda Clarke", "Benjamin Franklin", "Catherine Zeta", "Daniel Craig",
+	}
+
+	recipients := make([]*entity.Recipient, count)
+	now := time.Now().UTC()
+
+	for i := range recipients {
+		externalID := fmt.Sprintf("user_%d_%d", projectID, 1030010+i) // Unique external ID for each recipient
+
+		recipients[i] = &entity.Recipient{
+			ExternalID: externalID,
+			ProjectID:  projectID,
+			Name:       names[rand.Intn(len(names))],
+			CreatedAt:  now,
+			UpdatedAt:  now,
+		}
+	}
+
+	return s.repo.BatchCreate(ctx, recipients)
 }

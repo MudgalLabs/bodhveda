@@ -51,7 +51,7 @@ type repositories struct {
 	UserProfile  user_profile.ReadWriter
 }
 
-var asynqClient *asynq.Client
+var ASYNQCLIENT *asynq.Client
 
 func Init() {
 	env.Init("../.env")
@@ -71,7 +71,7 @@ func Init() {
 	}
 	DB = db
 
-	asynqClient, err = jobs.NewAsynqClient()
+	ASYNQCLIENT, err = jobs.NewAsynqClient()
 	if err != nil {
 		logger.Get().Errorf("failed to create Asynq client: %v", err)
 		panic(err)
@@ -91,7 +91,7 @@ func Init() {
 
 	apikeyService := service.NewAPIKeyService(apikeyRepository, projectRepository)
 	notificationService := service.NewNotificationService(notificationRepository, recipientRepository,
-		preferenceRepository, broadcastRepository, broadcastBatchRepository, asynqClient)
+		preferenceRepository, broadcastRepository, broadcastBatchRepository, ASYNQCLIENT)
 	preferenceService := service.NewProjectPreferenceService(preferenceRepository, recipientRepository)
 	projectService := service.NewProjectService(projectRepository)
 	recipientService := service.NewRecipientService(recipientRepository)
@@ -124,6 +124,13 @@ func Init() {
 		Service:    services,
 		Repository: repositories,
 	}
+
+	// err = recipientService.CreateRandomRecipients(context.Background(), 1, 1000000)
+	// if err != nil {
+	// 	logger.Get().Errorf("failed to create random recipients: %v", err)
+	// } else {
+	// 	logger.Get().Infof("created random recipients successfully")
+	// }
 }
 
 func Close() {
@@ -131,8 +138,8 @@ func Close() {
 		DB.Close()
 	}
 
-	if asynqClient != nil {
-		err := asynqClient.Close()
+	if ASYNQCLIENT != nil {
+		err := ASYNQCLIENT.Close()
 		if err != nil {
 			logger.Get().Errorf("failed to close Asynq client: %v", err)
 		}

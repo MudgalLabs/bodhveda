@@ -4,6 +4,7 @@ import (
 	"context"
 	"fmt"
 
+	"github.com/jackc/pgx/v5"
 	"github.com/jackc/pgx/v5/pgxpool"
 	"github.com/mudgallabs/bodhveda/internal/model/entity"
 	"github.com/mudgallabs/bodhveda/internal/model/repository"
@@ -43,6 +44,34 @@ func (r *RecipientRepo) Create(ctx context.Context, recipient *entity.Recipient)
 	}
 
 	return &newRecipient, nil
+}
+
+func (r *RecipientRepo) BatchCreate(ctx context.Context, recipients []*entity.Recipient) error {
+	if len(recipients) == 0 {
+		return nil
+	}
+
+	sql := `
+		INSERT INTO recipient (external_id, name, project_id, created_at, updated_at)
+		VALUES ($1, $2, $3, $4, $5)
+	`
+
+	batch := &pgx.Batch{}
+	for _, recipient := range recipients {
+		batch.Queue(sql, recipient.ExternalID, recipient.Name, recipient.ProjectID, recipient.CreatedAt, recipient.UpdatedAt)
+	}
+
+	br := r.pool.SendBatch(ctx, batch)
+	defer br.Close()
+
+	for i := range recipients {
+		_, err := br.Exec()
+		if err != nil {
+			return fmt.Errorf("batch insert recipient %d: %w", i, err)
+		}
+	}
+
+	return nil
 }
 
 func (r *RecipientRepo) List(ctx context.Context, projectID int) ([]*entity.RecipientListItem, error) {

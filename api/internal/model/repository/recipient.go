@@ -19,6 +19,7 @@ type RecipientReader interface {
 
 type RecipientWriter interface {
 	Create(ctx context.Context, recipient *entity.Recipient) (*entity.Recipient, error)
+	BatchCreate(ctx context.Context, recipients []*entity.Recipient) error
 }
 
 type RecipientSearchFilter struct {

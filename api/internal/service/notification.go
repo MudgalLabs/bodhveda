@@ -121,44 +121,16 @@ func (s *NotificationService) sendBroadcastNotification(ctx context.Context, pay
 		return nil, fmt.Errorf("create broadcast: %w", err)
 	}
 
-	recipientExtIDs, err := s.preferenceRepo.ListEligibleRecipientExtIDsForBroadcast(ctx, broadcast)
+	taskPayload, err := json.Marshal(entity.NewPrepareBroadcastBatchesPayload(broadcast))
 	if err != nil {
-		return nil, fmt.Errorf("list eligible recipient external IDs: %w", err)
+		return nil, fmt.Errorf("marshal prepare broadcast batches payload: %w", err)
 	}
 
-	const batchSize = 100
+	task := asynq.NewTask(jobs.TaskTypePrepareBroadcastBatches, taskPayload)
 
-	for i := 0; i < len(recipientExtIDs); i += batchSize {
-		end := min(i+batchSize, len(recipientExtIDs))
-
-		recipientsBatch := recipientExtIDs[i:end]
-		broadcastBatch := entity.NewBroadcastBatch(broadcast.ID, len(recipientsBatch))
-
-		broadcastBatch, err := s.broadcastBatchRepo.Create(ctx, broadcastBatch)
-		if err != nil {
-			return nil, fmt.Errorf("create broadcast batch: %w", err)
-		}
-
-		payload, err := json.Marshal(entity.NewBroadcastDeliveryTaskPayload(
-			payload.ProjectID,
-			broadcast.ID,
-			broadcastBatch.ID,
-			recipientsBatch,
-			payload.Payload,
-			payload.To.Channel,
-			payload.To.Topic,
-			payload.To.Event,
-		))
-		if err != nil {
-			return nil, fmt.Errorf("marshal notification batch payload: %w", err)
-		}
-
-		task := asynq.NewTask(jobs.TaskTypeBroadcastDelivery, payload)
-
-		_, err = s.asynqClient.Enqueue(task, asynq.MaxRetry(3))
-		if err != nil {
-			return nil, fmt.Errorf("enqueue broadcast delivery task: %w", err)
-		}
+	_, err = s.asynqClient.Enqueue(task, asynq.MaxRetry(5))
+	if err != nil {
+		return nil, fmt.Errorf("enqueue prepare broadcast batches task: %w", err)
 	}
 
 	return dto.FromBroadcast(broadcast), nil

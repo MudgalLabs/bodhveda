@@ -3,6 +3,7 @@ import {
     CardContent,
     CardTitle,
     ErrorMessage,
+    formatCurrency,
     LoadingScreen,
     PageHeading,
 } from "netra";
@@ -65,7 +66,13 @@ function OverviewCard(props: OverviewCardProps) {
                 <span className="heading">{props.emoji}</span>
             </CardTitle>
             <CardContent>
-                <div className="big-heading">{props.count}</div>
+                <div className="big-heading">
+                    {/* 100000 -> 100,000 */}
+                    {formatCurrency(props.count, {
+                        hideSymbol: true,
+                        locale: "en-US",
+                    })}
+                </div>
             </CardContent>
         </Card>
     );

@@ -17,7 +17,8 @@ import (
 )
 
 const (
-	TaskTypeBroadcastDelivery = "broadcast:delivery"
+	TaskTypePrepareBroadcastBatches = "broadcast:prepare_batches"
+	TaskTypeBroadcastDelivery       = "broadcast:delivery"
 )
 
 type BroadcastDeliveryProcessor struct {
@@ -115,6 +116,94 @@ func (processor *BroadcastDeliveryProcessor) ProcessTask(ctx context.Context, t 
 		err = processor.broadcastRepo.Update(ctx, broadcast)
 		if err != nil {
 			err = fmt.Errorf("update broadcast: %w", err)
+			logger.Get().Error(err)
+			return err
+		}
+	}
+
+	return nil
+}
+
+type PrepareBroadcastBatchesProcessor struct {
+	db                 *pgxpool.Pool
+	asynqClient        *asynq.Client
+	preferenceRepo     repository.PreferenceRepository
+	broadcastRepo      repository.BroadcastRepository
+	broadcastBatchRepo repository.BroadcastBatchRepository
+}
+
+func NewPrepareBroadcastBatchesProcessor(
+	db *pgxpool.Pool, asynqClient *asynq.Client, preferenceRepo repository.PreferenceRepository,
+	broadcastRepo repository.BroadcastRepository, broadcastBatchRepo repository.BroadcastBatchRepository,
+) *PrepareBroadcastBatchesProcessor {
+	return &PrepareBroadcastBatchesProcessor{
+		db:                 db,
+		asynqClient:        asynqClient,
+		preferenceRepo:     preferenceRepo,
+		broadcastRepo:      broadcastRepo,
+		broadcastBatchRepo: broadcastBatchRepo,
+	}
+}
+
+func (processor *PrepareBroadcastBatchesProcessor) ProcessTask(ctx context.Context, t *asynq.Task) error {
+	var payload entity.PrepareBroadcastBatchesPayload
+	if err := json.Unmarshal(t.Payload(), &payload); err != nil {
+		err = fmt.Errorf("json.Unmarshal failed: %v: %w", err, asynq.SkipRetry)
+		logger.Get().Error(err)
+		return err
+	}
+
+	broadcast := payload.Broadcast
+
+	recipientExtIDs, err := processor.preferenceRepo.ListEligibleRecipientExtIDsForBroadcast(ctx, broadcast)
+	if err != nil {
+		err = fmt.Errorf("list eligible recipient external IDs: %w", err)
+		logger.Get().Error(err)
+		return err
+	}
+
+	var batchSize int
+
+	if len(recipientExtIDs) <= 100 {
+		batchSize = len(recipientExtIDs)
+	} else {
+		batchSize = min(max(len(recipientExtIDs)/10, 100), 1000)
+	}
+
+	for i := 0; i < len(recipientExtIDs); i += batchSize {
+		end := min(i+batchSize, len(recipientExtIDs))
+
+		recipientsBatch := recipientExtIDs[i:end]
+		broadcastBatch := entity.NewBroadcastBatch(broadcast.ID, len(recipientsBatch))
+
+		broadcastBatch, err := processor.broadcastBatchRepo.Create(ctx, broadcastBatch)
+		if err != nil {
+			err = fmt.Errorf("create broadcast batch: %w", err)
+			logger.Get().Error(err)
+			return err
+		}
+
+		payload, err := json.Marshal(entity.NewBroadcastDeliveryTaskPayload(
+			broadcast.ProjectID,
+			broadcast.ID,
+			broadcastBatch.ID,
+			recipientsBatch,
+			broadcast.Payload,
+			broadcast.Channel,
+			broadcast.Topic,
+			broadcast.Event,
+		))
+		if err != nil {
+			err = fmt.Errorf("marshal notification batch payload: %w", err)
+			logger.Get().Error(err)
+			return err
+		}
+
+		task := asynq.NewTask(TaskTypeBroadcastDelivery, payload)
+
+		_, err = processor.asynqClient.Enqueue(task, asynq.MaxRetry(3))
+		if err != nil {
+			err = fmt.Errorf("enqueue broadcast delivery task: %w", err)
 			logger.Get().Error(err)
 			return err
 		}

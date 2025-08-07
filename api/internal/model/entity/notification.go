@@ -34,6 +34,16 @@ func NewNotification(projectID int, recipientExtID string, payload json.RawMessa
 	}
 }
 
+type PrepareBroadcastBatchesPayload struct {
+	Broadcast *Broadcast
+}
+
+func NewPrepareBroadcastBatchesPayload(broadcast *Broadcast) *PrepareBroadcastBatchesPayload {
+	return &PrepareBroadcastBatchesPayload{
+		Broadcast: broadcast,
+	}
+}
+
 type BroadcastDeliveryTaskPayload struct {
 	ProjectID       int
 	BroadcastID     int

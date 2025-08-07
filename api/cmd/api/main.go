@@ -27,6 +27,10 @@ func main() {
 	}
 
 	asynqMux := asynq.NewServeMux()
+	asynqMux.Handle(jobs.TaskTypePrepareBroadcastBatches, jobs.NewPrepareBroadcastBatchesProcessor(
+		app.DB, app.ASYNQCLIENT, app.APP.Repository.Preference, app.APP.Repository.Broadcast,
+		app.APP.Repository.BroadcastBatch,
+	))
 	asynqMux.Handle(jobs.TaskTypeBroadcastDelivery, jobs.NewBroadcastDeliveryProcessor(
 		app.DB, app.APP.Repository.Notification, app.APP.Repository.Broadcast, app.APP.Repository.BroadcastBatch,
 	))
