@@ -6,6 +6,7 @@ import (
 
 	"github.com/jackc/pgx/v5"
 	"github.com/jackc/pgx/v5/pgxpool"
+	"github.com/mudgallabs/bodhveda/internal/model/dto"
 	"github.com/mudgallabs/bodhveda/internal/model/entity"
 	"github.com/mudgallabs/bodhveda/internal/model/repository"
 	"github.com/mudgallabs/tantra/dbx"
@@ -71,4 +72,29 @@ func (r *NotificationRepo) BatchCreateTx(ctx context.Context, tx pgx.Tx, notific
 	}, pgx.CopyFromRows(rows))
 
 	return err
+}
+
+func (r *NotificationRepo) Overview(ctx context.Context, projectID int) (*dto.NotificationsOverviewResult, error) {
+	sql := `
+		SELECT
+		    COUNT(*) FILTER (WHERE n.broadcast_id IS NULL) AS total_direct_sent,
+		    COUNT(DISTINCT b.id) AS total_broadcast_sent,
+		    COUNT(*) AS total_notifications
+		FROM notification n
+		LEFT JOIN broadcast b ON n.broadcast_id = b.id
+		WHERE n.project_id = $1;
+	`
+
+	result := &dto.NotificationsOverviewResult{}
+
+	err := r.db.QueryRow(ctx, sql, projectID).Scan(
+		&result.TotalDirectSent,
+		&result.TotalBroadcastSent,
+		&result.TotalNotifications,
+	)
+	if err != nil {
+		return nil, fmt.Errorf("overview query: %w", err)
+	}
+
+	return result, nil
 }

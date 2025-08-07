@@ -4,6 +4,7 @@ import (
 	"context"
 
 	"github.com/jackc/pgx/v5"
+	"github.com/mudgallabs/bodhveda/internal/model/dto"
 	"github.com/mudgallabs/bodhveda/internal/model/entity"
 )
 
@@ -13,6 +14,7 @@ type NotificationRepository interface {
 }
 
 type NotificationReader interface {
+	Overview(ctx context.Context, projectID int) (*dto.NotificationsOverviewResult, error)
 }
 
 type NotificationWriter interface {

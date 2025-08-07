@@ -18,6 +18,11 @@ export const API_ROUTES = {
                 `/v1/platform/projects/${projectId}/api-keys`,
         },
 
+        notifications: {
+            overview: (projectId: string) =>
+                `/v1/platform/projects/${projectId}/notifications/overview`,
+        },
+
         recipients: {
             list: (projectId: string) =>
                 `/v1/platform/projects/${projectId}/recipients`,

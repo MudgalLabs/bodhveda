@@ -165,5 +165,9 @@ func (s *NotificationService) sendBroadcastNotification(ctx context.Context, pay
 }
 
 func (s *NotificationService) Overview(ctx context.Context, projectID int) (*dto.NotificationsOverviewResult, service.Error, error) {
-	return nil, service.ErrNone, nil
+	result, err := s.repo.Overview(ctx, projectID)
+	if err != nil {
+		return nil, service.ErrInternalServerError, fmt.Errorf("notification repo overview: %w", err)
+	}
+	return result, service.ErrNone, nil
 }
