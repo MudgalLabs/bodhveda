@@ -1,7 +1,7 @@
 .PHONY: up dev down logs db build build_web build_api
 
 up:
-	docker compose up -d db
+	docker compose up db redis asynqmon -d
 
 down:
 	docker compose down

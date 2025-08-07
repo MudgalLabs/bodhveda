@@ -15,7 +15,8 @@ type PreferenceRepository interface {
 
 type PreferenceReader interface {
 	ListPreferences(ctx context.Context, projectID int, kind enum.PreferenceKind) ([]*entity.Preference, error)
-	ShouldTagetedNotificationBeDelivered(ctx context.Context, notification *entity.Notification) (bool, error)
+	ShouldDirectNotificationBeDelivered(ctx context.Context, notification *entity.Notification) (bool, error)
+	ListEligibleRecipientExtIDsForBroadcast(ctx context.Context, broadcast *entity.Broadcast) ([]string, error)
 }
 
 type PreferenceWriter interface {
@@ -24,7 +25,7 @@ type PreferenceWriter interface {
 
 type PreferenceSearchFilter struct {
 	ProjectOrRecipient enum.PreferenceKind
-	ProjectID          *int // Only applied if ProjectOrRecipient is enum.PreferenceKindProject
+	ProjectID          int
 }
 
 type SearchPreferencePayload = query.SearchPayload[PreferenceSearchFilter]

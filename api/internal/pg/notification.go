@@ -4,6 +4,7 @@ import (
 	"context"
 	"fmt"
 
+	"github.com/jackc/pgx/v5"
 	"github.com/jackc/pgx/v5/pgxpool"
 	"github.com/mudgallabs/bodhveda/internal/model/entity"
 	"github.com/mudgallabs/bodhveda/internal/model/repository"
@@ -46,4 +47,28 @@ func (r *NotificationRepo) Create(ctx context.Context, notification *entity.Noti
 	}
 
 	return &newNotification, nil
+}
+
+func (r *NotificationRepo) BatchCreateTx(ctx context.Context, tx pgx.Tx, notifications []*entity.Notification) error {
+	rows := make([][]any, len(notifications))
+	for i, n := range notifications {
+		rows[i] = []any{
+			n.ProjectID,
+			n.RecipientExtID,
+			n.Payload,
+			n.BroadcastID,
+			n.Channel,
+			n.Topic,
+			n.Event,
+			n.CreatedAt,
+			n.UpdatedAt,
+		}
+	}
+
+	_, err := tx.CopyFrom(ctx, pgx.Identifier{"notification"}, []string{
+		"project_id", "recipient_external_id", "payload", "broadcast_id",
+		"channel", "topic", "event", "created_at", "updated_at",
+	}, pgx.CopyFromRows(rows))
+
+	return err
 }

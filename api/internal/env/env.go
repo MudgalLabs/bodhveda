@@ -11,6 +11,7 @@ var (
 	LogLevel string
 	LogFile  string
 	DBURL    string
+	RedisURL string
 	WebURL   string
 	// ENABLE_SIGN_UP       bool
 	// ENABLE_SIGN_IN       bool
@@ -38,6 +39,7 @@ func Init(path string) {
 	LogLevel = os.Getenv("BODHVEDA_API_LOG_LEVEL")
 	LogFile = os.Getenv("BODHVEDA_API_LOG_FILE")
 	DBURL = os.Getenv("BODHVEDA_DB_URL")
+	RedisURL = os.Getenv("BODHVEDA_REDIS_URL")
 	WebURL = os.Getenv("BODHVEDA_WEB_URL")
 	// ENABLE_SIGN_UP = os.Getenv("BODHVEDA_ENABLE_SIGN_UP") == "true"
 	// ENABLE_SIGN_IN = os.Getenv("BODHVEDA_ENABLE_SIGN_IN") == "true"

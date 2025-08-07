@@ -56,7 +56,7 @@ func (r *PreferenceRepo) ListPreferences(ctx context.Context, projectID int, kin
 	prefs, _, err := r.findPreferences(ctx, repository.SearchPreferencePayload{
 		Filters: repository.PreferenceSearchFilter{
 			ProjectOrRecipient: kind,
-			ProjectID:          &projectID,
+			ProjectID:          projectID,
 		},
 	})
 	return prefs, err
@@ -70,8 +70,8 @@ func (r *PreferenceRepo) findPreferences(ctx context.Context, payload repository
 
 	builder := dbx.NewSQLBuilder(baseSQL)
 
-	if payload.Filters.ProjectID != nil {
-		builder.AddCompareFilter("p.project_id", "=", *payload.Filters.ProjectID)
+	if payload.Filters.ProjectID > 0 {
+		builder.AddCompareFilter("p.project_id", "=", payload.Filters.ProjectID)
 	}
 
 	switch payload.Filters.ProjectOrRecipient {
@@ -135,7 +135,7 @@ func (r *PreferenceRepo) findPreferences(ctx context.Context, payload repository
 	return prefs, total, nil
 }
 
-func (r *PreferenceRepo) ShouldTagetedNotificationBeDelivered(ctx context.Context, notification *entity.Notification) (bool, error) {
+func (r *PreferenceRepo) ShouldDirectNotificationBeDelivered(ctx context.Context, notification *entity.Notification) (bool, error) {
 	shouldDeliver := true
 
 	shouldDeliverSQL := `
@@ -220,4 +220,56 @@ func (r *PreferenceRepo) ShouldTagetedNotificationBeDelivered(ctx context.Contex
 	}
 
 	return shouldDeliver, err
+}
+
+func (r *PreferenceRepo) ListEligibleRecipientExtIDsForBroadcast(ctx context.Context, broadcast *entity.Broadcast) ([]string, error) {
+	sql := `
+		-- INPUTS:
+		-- $1 = project_id
+		-- $2 = channel
+		-- $3 = topic
+		-- $4 = event
+
+		SELECT r.external_id
+		FROM recipient r
+		LEFT JOIN preference rp
+			ON rp.project_id = r.project_id
+			AND rp.recipient_external_id = r.external_id
+			AND rp.channel = $2
+			AND rp.topic = $3
+			AND rp.event = $4
+		LEFT JOIN preference pp
+			ON pp.project_id = r.project_id
+			AND pp.recipient_external_id IS NULL
+			AND pp.channel = $2
+			AND pp.topic = $3
+			AND pp.event = $4
+		WHERE r.project_id = $1
+			AND (
+				rp.enabled = true
+				OR (rp.id IS NULL AND pp.enabled = true)
+			);
+	`
+
+	rows, err := r.db.Query(ctx, sql, broadcast.ProjectID, broadcast.Channel, broadcast.Topic, broadcast.Event)
+	if err != nil {
+		return nil, fmt.Errorf("query: %w", err)
+	}
+
+	defer rows.Close()
+
+	var extIDs []string
+	for rows.Next() {
+		var extID string
+		if err := rows.Scan(&extID); err != nil {
+			return nil, fmt.Errorf("scan error: %w", err)
+		}
+		extIDs = append(extIDs, extID)
+	}
+
+	if err := rows.Err(); err != nil {
+		return nil, fmt.Errorf("rows error: %w", err)
+	}
+
+	return extIDs, nil
 }

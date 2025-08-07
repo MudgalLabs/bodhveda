@@ -1,10 +1,12 @@
 package app
 
 import (
+	"github.com/hibiken/asynq"
 	"github.com/jackc/pgx/v5/pgxpool"
 	"github.com/mudgallabs/bodhveda/internal/env"
 	"github.com/mudgallabs/bodhveda/internal/feature/user_identity"
 	"github.com/mudgallabs/bodhveda/internal/feature/user_profile"
+	"github.com/mudgallabs/bodhveda/internal/jobs"
 	"github.com/mudgallabs/bodhveda/internal/model/repository"
 	"github.com/mudgallabs/bodhveda/internal/pg"
 	"github.com/mudgallabs/bodhveda/internal/service"
@@ -15,7 +17,6 @@ import (
 )
 
 var APP *App
-
 var DB *pgxpool.Pool
 
 type App struct {
@@ -30,6 +31,7 @@ type services struct {
 	Preference   *service.PreferenceService
 	Project      *service.ProjectService
 	Recipient    *service.RecipientService
+
 	UserIdentity *user_identity.Service
 	UserProfile  *user_profile.Service
 }
@@ -37,14 +39,19 @@ type services struct {
 // Access to all repositories for reading.
 // Write access only available to services.
 type repositories struct {
-	APIKey       repository.APIKeyReader
-	Notification repository.NotificationReader
-	Preference   repository.PreferenceRepository
-	Project      repository.ProjectReader
-	Recipient    repository.RecipientReader
-	UserIdentity user_identity.Reader
-	UserProfile  user_profile.Reader
+	APIKey         repository.APIKeyRepository
+	Broadcast      repository.BroadcastRepository
+	BroadcastBatch repository.BroadcastBatchRepository
+	Notification   repository.NotificationRepository
+	Preference     repository.PreferenceRepository
+	Project        repository.ProjectRepository
+	Recipient      repository.RecipientRepository
+
+	UserIdentity user_identity.ReadWriter
+	UserProfile  user_profile.ReadWriter
 }
+
+var asynqClient *asynq.Client
 
 func Init() {
 	env.Init("../.env")
@@ -59,12 +66,22 @@ func Init() {
 
 	db, err := dbx.Init(env.DBURL)
 	if err != nil {
+		logger.Get().Errorf("failed to connect to database: %v", err)
+		panic(err)
+	}
+	DB = db
+
+	asynqClient, err = jobs.NewAsynqClient()
+	if err != nil {
+		logger.Get().Errorf("failed to create Asynq client: %v", err)
 		panic(err)
 	}
 
 	oauth.InitGoogle(env.GOOGLE_CLIENT_ID, env.GOOGLE_CLIENT_SECRET, env.GOOGLE_REDIRECT_URL)
 
 	apikeyRepository := pg.NewAPIKeyRepo(db)
+	broadcastRepository := pg.NewBroadcastRepo(db)
+	broadcastBatchRepository := pg.NewBroadcastBatchRepo(db)
 	notificationRepository := pg.NewNotificationRepo(db)
 	preferenceRepository := pg.NewPreferenceRepo(db)
 	projectRepository := pg.NewProjectRepo(db)
@@ -73,7 +90,8 @@ func Init() {
 	userIdentityRepository := user_identity.NewRepository(db)
 
 	apikeyService := service.NewAPIKeyService(apikeyRepository, projectRepository)
-	notificationService := service.NewNotificationService(notificationRepository, recipientRepository, preferenceRepository)
+	notificationService := service.NewNotificationService(notificationRepository, recipientRepository,
+		preferenceRepository, broadcastRepository, broadcastBatchRepository, asynqClient)
 	preferenceService := service.NewProjectPreferenceService(preferenceRepository, recipientRepository)
 	projectService := service.NewProjectService(projectRepository)
 	recipientService := service.NewRecipientService(recipientRepository)
@@ -91,17 +109,32 @@ func Init() {
 	}
 
 	repositories := repositories{
-		APIKey:       apikeyRepository,
-		Notification: notificationRepository,
-		Preference:   preferenceRepository,
-		Project:      projectRepository,
-		Recipient:    recipientRepository,
-		UserIdentity: userIdentityRepository,
-		UserProfile:  userProfileRepository,
+		APIKey:         apikeyRepository,
+		Broadcast:      broadcastRepository,
+		BroadcastBatch: broadcastBatchRepository,
+		Notification:   notificationRepository,
+		Preference:     preferenceRepository,
+		Project:        projectRepository,
+		Recipient:      recipientRepository,
+		UserIdentity:   userIdentityRepository,
+		UserProfile:    userProfileRepository,
 	}
 
 	APP = &App{
 		Service:    services,
 		Repository: repositories,
+	}
+}
+
+func Close() {
+	if DB != nil {
+		DB.Close()
+	}
+
+	if asynqClient != nil {
+		err := asynqClient.Close()
+		if err != nil {
+			logger.Get().Errorf("failed to close Asynq client: %v", err)
+		}
 	}
 }

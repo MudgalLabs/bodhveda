@@ -23,12 +23,12 @@ func SendNotification(s *service.NotificationService) http.HandlerFunc {
 
 		payload.ProjectID = apiKey.ProjectID
 
-		result, errKind, err := s.Send(ctx, payload)
+		result, message, errKind, err := s.Send(ctx, payload)
 		if err != nil {
 			httpx.ServiceErrResponse(w, r, errKind, err)
 			return
 		}
 
-		httpx.SuccessResponse(w, r, http.StatusOK, "Notification sent", result)
+		httpx.SuccessResponse(w, r, http.StatusOK, message, result)
 	}
 }

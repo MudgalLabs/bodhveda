@@ -37,7 +37,7 @@ func FromNotification(n *entity.Notification) *Notification {
 
 type NotificationTarget struct {
 	// RecipientExtID is the ID of the recipient for the notification.
-	// Optional, if nil then it's a broadcast notification, if present then it's a targeted notification.
+	// Optional, if nil then it's a broadcast notification, if present then it's a direct notification.
 	RecipientExtID *string `json:"recipient_id"`
 	Channel        string  `json:"channel"`
 	// Cannot be "any" as that's reserved for preferences and it makes no sense to
@@ -66,7 +66,7 @@ func (p *SendNotificationPayload) Validate() error {
 
 	// If RecipientExtID is nil, then it's a broadcast notification.
 	// We need to ensure that valid channel, topic, and event are provided, if this is a broadcast notification
-	// OR even if it's a targeted notification, but a value was provided for channel/topic/event.
+	// OR even if it's a direct notification, but a value was provided for channel/topic/event.
 	if p.To.RecipientExtID == nil || (p.To.Channel != "" || p.To.Topic != "" || p.To.Event != "") {
 		if p.To.Channel == "" {
 			errs.Add(apires.NewApiError("Channel is required", "Channel cannot be empty", "channel", p.To.Channel))
@@ -91,12 +91,12 @@ func (p *SendNotificationPayload) Validate() error {
 	return nil
 }
 
-func (p *SendNotificationPayload) IsBroadcast() bool {
-	return p.To.RecipientExtID == nil
+func (p *SendNotificationPayload) IsDirect() bool {
+	return p.To.RecipientExtID != nil && *p.To.RecipientExtID != ""
 }
 
-func (p *SendNotificationPayload) IsTargeted() bool {
-	return p.To.RecipientExtID != nil && *p.To.RecipientExtID != ""
+func (p *SendNotificationPayload) IsBroadcast() bool {
+	return p.To.RecipientExtID == nil
 }
 
 type SendNotificationResult struct {
@@ -105,6 +105,6 @@ type SendNotificationResult struct {
 	// Nil, if the notification was rejected by preferences.
 	Notification *Notification `json:"notification"`
 	// Broadcast is the broadcast that was sent.
-	// Nil, if this is a targeted notification.
+	// Nil, if this is a direct notification.
 	Broadcast *Broadcast `json:"broadcast"`
 }

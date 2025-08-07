@@ -51,9 +51,9 @@ CREATE TABLE IF NOT EXISTS api_key (
 
 CREATE TABLE IF NOT EXISTS recipient (
         id              SERIAL PRIMARY KEY,
+        project_id      INT NOT NULL REFERENCES project(id) ON DELETE CASCADE,
         external_id     VARCHAR(255) NOT NULL,
         name            VARCHAR(255) NOT NULL DEFAULT '',
-        project_id      INT NOT NULL REFERENCES project(id) ON DELETE CASCADE,
         created_at      TIMESTAMPTZ NOT NULL,
         updated_at      TIMESTAMPTZ NOT NULL,
 
@@ -96,7 +96,7 @@ CREATE TABLE IF NOT EXISTS broadcast (
         channel         TEXT NOT NULL,
         topic           TEXT NOT NULL,
         event           TEXT NOT NULL,
-        completed_at    TIMESTAMPTZ NOT NULL,
+        completed_at    TIMESTAMPTZ,
         created_at      TIMESTAMPTZ NOT NULL,
         updated_at      TIMESTAMPTZ NOT NULL
 );
@@ -113,6 +113,16 @@ CREATE TABLE IF NOT EXISTS notification (
         created_at              TIMESTAMPTZ NOT NULL,
         updated_at              TIMESTAMPTZ NOT NULL
 );
+
+CREATE TABLE IF NOT EXISTS broadcast_batch (
+        id              SERIAL PRIMARY KEY,
+        broadcast_id    INT NOT NULL REFERENCES broadcast(id) ON DELETE CASCADE,
+        status          TEXT NOT NULL CHECK (status IN ('pending', 'processing', 'completed', 'failed')),
+        attempt         INT NOT NULL DEFAULT 0,
+        duration        INT NOT NULL DEFAULT 0,
+        created_at      TIMESTAMPTZ NOT NULL,
+        updated_at      TIMESTAMPTZ NOT NULL
+);
 -- +goose StatementEnd
 
 -- +goose Down
@@ -120,6 +130,8 @@ CREATE TABLE IF NOT EXISTS notification (
 -- DROP TABLE IF EXISTS api_key;
 -- DROP TABLE IF EXISTS recipient;
 -- DROP TABLE IF EXISTS preference;
+-- DROP TABLE IF EXISTS broadcast_batch;
+-- DROP TABLE IF EXISTS broadcast;
 -- DROP TABLE IF EXISTS notification;
 -- DROP TABLE IF EXISTS project;
 -- DROP TABLE IF EXISTS sessions;
