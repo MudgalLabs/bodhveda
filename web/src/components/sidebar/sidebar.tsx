@@ -13,11 +13,11 @@ import { cn } from "@/lib/utils";
 import { useAuth } from "@/features/auth/auth_context";
 import {
     IconArrowLeft,
-    IconDashboard,
     IconLogout,
     IconKey,
     IconUsers,
     IconSlidersHorizontal,
+    IconBell,
     Button,
 } from "netra";
 import { useGetProjectIDFromParams } from "@/features/project/project_hooks";
@@ -65,16 +65,16 @@ export const Sidebar = () => {
                     </div>
 
                     <Link
-                        to="/projects/$id/overview"
+                        to="/projects/$id/notifications"
                         params={{ id }}
                         className="link-unstyled "
                     >
                         <SidebarNavItem
-                            label="Overview"
-                            Icon={IconDashboard}
+                            label="Notifications"
+                            Icon={IconBell}
                             open={isOpen}
                             isActive={
-                                activeRoute === `/projects/${id}/overview`
+                                activeRoute === `/projects/${id}/notifications`
                             }
                         />
                     </Link>

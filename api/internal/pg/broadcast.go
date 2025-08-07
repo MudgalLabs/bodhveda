@@ -46,3 +46,35 @@ func (r *BroadcastRepo) Create(ctx context.Context, broadcast *entity.Broadcast)
 
 	return &newBroadcast, nil
 }
+
+func (r *BroadcastRepo) GetByID(ctx context.Context, id int) (*entity.Broadcast, error) {
+	sql := `
+		SELECT id, project_id, payload, channel, topic, event, completed_at, created_at, updated_at
+		FROM broadcast
+		WHERE id = $1
+	`
+	row := r.db.QueryRow(ctx, sql, id)
+
+	var broadcast entity.Broadcast
+
+	err := row.Scan(&broadcast.ID, &broadcast.ProjectID, &broadcast.Payload, &broadcast.Channel, &broadcast.Topic,
+		&broadcast.Event, &broadcast.CompletedAt, &broadcast.CreatedAt, &broadcast.UpdatedAt)
+	if err != nil {
+		return nil, fmt.Errorf("scan broadcast by id: %w", err)
+	}
+
+	return &broadcast, nil
+}
+
+func (r *BroadcastRepo) Update(ctx context.Context, broadcast *entity.Broadcast) error {
+	sql := `
+		UPDATE broadcast
+		SET payload = $2, channel = $3, topic = $4, event = $5, completed_at = $6, updated_at = $7
+		WHERE id = $1
+	`
+	_, err := r.db.Exec(
+		ctx, sql, broadcast.ID, broadcast.Payload, broadcast.Channel, broadcast.Topic, broadcast.Event,
+		broadcast.CompletedAt, broadcast.UpdatedAt,
+	)
+	return err
+}

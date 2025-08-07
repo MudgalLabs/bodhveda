@@ -6,7 +6,7 @@ import (
 	"github.com/mudgallabs/bodhveda/internal/env"
 	"github.com/mudgallabs/bodhveda/internal/feature/user_identity"
 	"github.com/mudgallabs/bodhveda/internal/feature/user_profile"
-	"github.com/mudgallabs/bodhveda/internal/jobs"
+	jobs "github.com/mudgallabs/bodhveda/internal/job"
 	"github.com/mudgallabs/bodhveda/internal/model/repository"
 	"github.com/mudgallabs/bodhveda/internal/pg"
 	"github.com/mudgallabs/bodhveda/internal/service"

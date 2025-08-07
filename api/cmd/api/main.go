@@ -12,7 +12,7 @@ import (
 	"github.com/hibiken/asynq"
 	"github.com/mudgallabs/bodhveda/internal/app"
 	"github.com/mudgallabs/bodhveda/internal/env"
-	"github.com/mudgallabs/bodhveda/internal/jobs"
+	jobs "github.com/mudgallabs/bodhveda/internal/job"
 	"github.com/mudgallabs/tantra/logger"
 )
 
@@ -27,7 +27,9 @@ func main() {
 	}
 
 	asynqMux := asynq.NewServeMux()
-	asynqMux.Handle(jobs.TaskTypeBroadcastDelivery, jobs.NewBroadcastProcessor(app.DB, app.APP.Repository.Notification, app.APP.Repository.BroadcastBatch))
+	asynqMux.Handle(jobs.TaskTypeBroadcastDelivery, jobs.NewBroadcastDeliveryProcessor(
+		app.DB, app.APP.Repository.Notification, app.APP.Repository.Broadcast, app.APP.Repository.BroadcastBatch,
+	))
 
 	router := initRouter()
 

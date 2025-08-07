@@ -108,3 +108,9 @@ type SendNotificationResult struct {
 	// Nil, if this is a direct notification.
 	Broadcast *Broadcast `json:"broadcast"`
 }
+
+type NotificationsOverviewResult struct {
+	TotalNotifications int `json:"total_notifications"`
+	TotalDirectSent    int `json:"total_direct_sent"`
+	TotalBroadcastSent int `json:"total_broadcast_sent"`
+}

@@ -117,7 +117,8 @@ CREATE TABLE IF NOT EXISTS notification (
 CREATE TABLE IF NOT EXISTS broadcast_batch (
         id              SERIAL PRIMARY KEY,
         broadcast_id    INT NOT NULL REFERENCES broadcast(id) ON DELETE CASCADE,
-        status          TEXT NOT NULL CHECK (status IN ('pending', 'processing', 'completed', 'failed')),
+        recipients      INT NOT NULL DEFAULT 0,
+        status          TEXT NOT NULL CHECK (status IN ('pending', 'completed', 'failed')),
         attempt         INT NOT NULL DEFAULT 0,
         duration        INT NOT NULL DEFAULT 0,
         created_at      TIMESTAMPTZ NOT NULL,

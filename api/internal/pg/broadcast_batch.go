@@ -26,31 +26,43 @@ func NewBroadcastBatchRepo(db *pgxpool.Pool) repository.BroadcastBatchRepository
 func (r *BroadcastBatchRepo) Create(ctx context.Context, broadcastBatch *entity.BroadcastBatch) (*entity.BroadcastBatch, error) {
 	sql := `
 		INSERT INTO broadcast_batch (
-			broadcast_id, status, attempt, duration, created_at, updated_at
+			broadcast_id, recipients, status, attempt, duration, created_at, updated_at
 		)
-		VALUES ($1, $2, $3, $4, $5, $6)
-		RETURNING id, broadcast_id, status, attempt, duration, created_at, updated_at
+		VALUES ($1, $2, $3, $4, $5, $6, $7)
+		RETURNING id, broadcast_id, recipients, status, attempt, duration, created_at, updated_at
 	`
-	row := r.db.QueryRow(ctx, sql, broadcastBatch.BroadcastID, broadcastBatch.Status, broadcastBatch.Attempt,
-		broadcastBatch.Duration, broadcastBatch.CreatedAt, broadcastBatch.UpdatedAt,
+	row := r.db.QueryRow(ctx, sql, broadcastBatch.BroadcastID, broadcastBatch.Recipients, broadcastBatch.Status,
+		broadcastBatch.Attempt, broadcastBatch.Duration, broadcastBatch.CreatedAt, broadcastBatch.UpdatedAt,
 	)
 
 	var newBatch entity.BroadcastBatch
-	err := row.Scan(&newBatch.ID, &newBatch.BroadcastID, &newBatch.Status, &newBatch.Attempt, &newBatch.Duration,
-		&newBatch.CreatedAt, &newBatch.UpdatedAt,
+
+	err := row.Scan(&newBatch.ID, &newBatch.BroadcastID, &newBatch.Recipients, &newBatch.Status, &newBatch.Attempt,
+		&newBatch.Duration, &newBatch.CreatedAt, &newBatch.UpdatedAt,
 	)
 	if err != nil {
 		return nil, err
 	}
+
 	return &newBatch, nil
 }
 
-func (r *BroadcastBatchRepo) Update(ctx context.Context, batchID int, status enum.BroadcastBatchStatus, duration int) error {
+func (r *BroadcastBatchRepo) Update(ctx context.Context, batchID int, payload *entity.BroadcastBatchUpdatePayload) error {
 	sql := `
 		UPDATE broadcast_batch
-		SET status = $1, duration = $2, updated_at = $3
-		WHERE id = $4
+		SET updated_at = $2, status = $3, attempt = $4, duration = $5
+		WHERE id = $1
 	`
-	_, err := r.db.Exec(ctx, sql, status, duration, time.Now().UTC(), batchID)
+	_, err := r.db.Exec(ctx, sql, batchID, time.Now().UTC(), payload.Status, payload.Attempt, payload.Duration)
 	return err
+}
+
+func (r *BroadcastBatchRepo) PendingCount(ctx context.Context, broadcastID int) (int, error) {
+	sql := `
+		SELECT COUNT(id) FROM broadcast_batch
+		WHERE broadcast_id = $1 AND status = $2
+	`
+	var count int
+	err := r.db.QueryRow(ctx, sql, broadcastID, enum.BroadcastBatchStatusPending).Scan(&count)
+	return count, err
 }

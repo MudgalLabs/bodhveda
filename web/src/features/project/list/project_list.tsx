@@ -50,7 +50,7 @@ export function ProjectList() {
             <div className="mt-4 grid grid-cols-1 sm:grid-cols-2 md:grid-cols-3 lg:grid-cols-4 gap-6">
                 {data?.data.map((project) => (
                     <Link
-                        to={`/projects/$id/overview`}
+                        to={`/projects/$id/notifications`}
                         params={{ id: String(project.id) }}
                         className="link-unstyled w-full h-full flex items-center justify-center"
                     >

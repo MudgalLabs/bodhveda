@@ -88,6 +88,10 @@ func initRouter() http.Handler {
 					r.Post("/", handler.CreateAPIKey(app.APP.Service.APIKey))
 				})
 
+				r.Route("/notifications", func(r chi.Router) {
+					r.Get("/overview", handler.NotificationsOverview(app.APP.Service.Notification))
+				})
+
 				r.Route("/preferences", func(r chi.Router) {
 					r.Get("/", handler.ListProjectPreferences(app.APP.Service.Preference))
 					r.Post("/", handler.CreateProjectPreference(app.APP.Service.Preference))

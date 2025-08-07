@@ -6,7 +6,7 @@ import (
 	"fmt"
 
 	"github.com/hibiken/asynq"
-	"github.com/mudgallabs/bodhveda/internal/jobs"
+	jobs "github.com/mudgallabs/bodhveda/internal/job"
 	"github.com/mudgallabs/bodhveda/internal/model/dto"
 	"github.com/mudgallabs/bodhveda/internal/model/entity"
 	"github.com/mudgallabs/bodhveda/internal/model/repository"
@@ -132,7 +132,7 @@ func (s *NotificationService) sendBroadcastNotification(ctx context.Context, pay
 		end := min(i+batchSize, len(recipientExtIDs))
 
 		recipientsBatch := recipientExtIDs[i:end]
-		broadcastBatch := entity.NewBroadcastBatch(broadcast.ID)
+		broadcastBatch := entity.NewBroadcastBatch(broadcast.ID, len(recipientsBatch))
 
 		broadcastBatch, err := s.broadcastBatchRepo.Create(ctx, broadcastBatch)
 		if err != nil {
@@ -162,4 +162,8 @@ func (s *NotificationService) sendBroadcastNotification(ctx context.Context, pay
 	}
 
 	return dto.FromBroadcast(broadcast), nil
+}
+
+func (s *NotificationService) Overview(ctx context.Context, projectID int) (*dto.NotificationsOverviewResult, service.Error, error) {
+	return nil, service.ErrNone, nil
 }
