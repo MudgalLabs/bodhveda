@@ -39,3 +39,9 @@ func NewPreference(projectID *int, recipientExtID *string, channel string, topic
 		UpdatedAt:      now,
 	}
 }
+
+type ProjectPreferenceListItem struct {
+	Preference
+
+	Subscribers int
+}

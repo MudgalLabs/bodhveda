@@ -147,3 +147,27 @@ func FromPreferenceForRecipient(e *entity.Preference) *RecipientPreference {
 		UpdatedAt:      e.UpdatedAt,
 	}
 }
+
+type ProjectPreferenceListItem struct {
+	ProjectPreference
+
+	Subscribers int `json:"subscribers"`
+}
+
+func FromProjectPreferenceList(list []*entity.ProjectPreferenceListItem) []*ProjectPreferenceListItem {
+	if list == nil {
+		return nil
+	}
+
+	DTOs := make([]*ProjectPreferenceListItem, len(list))
+	for i, item := range list {
+		projectPreferenctDTO := FromPreferenceForProject(&item.Preference)
+		proejctPreferenceListItem := &ProjectPreferenceListItem{
+			ProjectPreference: *projectPreferenctDTO,
+			Subscribers:       item.Subscribers,
+		}
+		DTOs[i] = proejctPreferenceListItem
+	}
+
+	return DTOs
+}

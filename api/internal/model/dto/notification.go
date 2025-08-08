@@ -46,6 +46,33 @@ type NotificationTarget struct {
 	Event string `json:"event"`
 }
 
+func TargetFromBroadcast(broadcast *entity.Broadcast) NotificationTarget {
+	return NotificationTarget{
+		RecipientExtID: nil,
+		Channel:        broadcast.Channel,
+		Topic:          broadcast.Topic,
+		Event:          broadcast.Event,
+	}
+}
+
+func TargetFromNotification(notification *entity.Notification) NotificationTarget {
+	return NotificationTarget{
+		RecipientExtID: &notification.RecipientExtID,
+		Channel:        notification.Channel,
+		Topic:          notification.Topic,
+		Event:          notification.Event,
+	}
+}
+
+func TargetFromPreference(pref *entity.Preference) NotificationTarget {
+	return NotificationTarget{
+		RecipientExtID: pref.RecipientExtID,
+		Channel:        pref.Channel,
+		Topic:          pref.Topic,
+		Event:          pref.Event,
+	}
+}
+
 type SendNotificationPayload struct {
 	ProjectID int
 

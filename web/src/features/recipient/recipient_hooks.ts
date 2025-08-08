@@ -13,7 +13,7 @@ import {
 
 export function useGetRecipients(projectID: string) {
     return useQuery({
-        queryKey: ["useGetRecipients", projectID],
+        queryKey: getRecipientsKey(projectID),
         queryFn: () =>
             client.get(API_ROUTES.project.recipients.list(projectID)),
         select: (res) => res.data as APIRes<RecipientListItem[]>,
@@ -36,9 +36,21 @@ export function useCreateRecipient(options: AnyUseMutationOptions = {}) {
             );
         },
         onSuccess: (...args) => {
-            queryClient.invalidateQueries({ queryKey: ["useGetRecipients"] });
+            queryClient.invalidateQueries({
+                predicate: (query) =>
+                    Array.isArray(query.queryKey) &&
+                    query.queryKey[0] === getRecipientsKey()[0],
+            });
             onSuccess?.(...args);
         },
         ...rest,
     });
+}
+
+function getRecipientsKey(projectID?: string) {
+    if (projectID) {
+        return ["useGetRecipients", projectID];
+    } else {
+        return ["useGetRecipients"];
+    }
 }

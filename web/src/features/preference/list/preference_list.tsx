@@ -10,6 +10,7 @@ import {
     DropdownMenuItem,
     DropdownMenuTrigger,
     ErrorMessage,
+    formatNumber,
     formatTimeAgo,
     IconEllipsis,
     IconPlus,
@@ -99,6 +100,11 @@ const projectPreferenceColumns: ColumnDef<ProjectPreference>[] = [
         header: () => <DataTableColumnHeader title="Label" />,
     },
     {
+        accessorKey: "subscribers",
+        header: () => <DataTableColumnHeader title="Subscribers" />,
+        cell: ({ row }) => formatNumber(row.original.subscribers),
+    },
+    {
         accessorKey: "default_enabled",
         header: () => <DataTableColumnHeader title="Default" />,
         cell: ({ row }) =>
@@ -160,8 +166,8 @@ const recipientPreferenceColumns: ColumnDef<RecipientPreference>[] = [
         header: () => <DataTableColumnHeader title="Recipient ID" />,
     },
     {
-        accessorKey: "Enabled / Disabled",
-        header: () => <DataTableColumnHeader title="Default" />,
+        accessorKey: "enabled",
+        header: () => <DataTableColumnHeader title="Enabled / Disabled" />,
         cell: ({ row }) => (row.original.enabled ? "Enabled" : "Disabled"),
     },
     {

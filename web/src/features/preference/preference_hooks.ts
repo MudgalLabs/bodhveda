@@ -14,7 +14,7 @@ import {
 
 export function useGetPreferences(projectID: string, kind: PreferenceKind) {
     return useQuery({
-        queryKey: ["useGetPreferences", projectID, kind],
+        queryKey: getProjectPreferencesKey(projectID, kind),
         queryFn: () =>
             client.get(API_ROUTES.project.preferences.list(projectID), {
                 params: { kind },
@@ -48,10 +48,19 @@ export function useCreateProjectPreference(
         },
         onSuccess: (...args) => {
             queryClient.invalidateQueries({
-                queryKey: ["useGetProjectPreferences"],
+                predicate: (query) =>
+                    Array.isArray(query.queryKey) &&
+                    query.queryKey[0] === getProjectPreferencesKey()[0],
             });
             onSuccess?.(...args);
         },
         ...rest,
     });
+}
+
+function getProjectPreferencesKey(projectID?: string, kind?: PreferenceKind) {
+    if (projectID && kind) {
+        return ["useGetProjectPreferences", projectID, kind];
+    }
+    return ["useGetProjectPreferences"];
 }

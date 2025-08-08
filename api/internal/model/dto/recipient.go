@@ -69,16 +69,16 @@ func FromRecipientList(r []*entity.RecipientListItem) []*RecipientListItem {
 		return nil
 	}
 
-	dtos := make([]*RecipientListItem, len(r))
+	DTOs := make([]*RecipientListItem, len(r))
 	for i, recipient := range r {
-		recipientDto := FromRecipient(&recipient.Recipient)
+		recipientDTO := FromRecipient(&recipient.Recipient)
 		recipientListItem := &RecipientListItem{
-			Recipient:                   *recipientDto,
+			Recipient:                   *recipientDTO,
 			DirectNotificationsCount:    recipient.DirectNotificationsCount,
 			BroadcastNotificationsCount: recipient.BroadcastNotificationsCount,
 		}
-		dtos[i] = recipientListItem
+		DTOs[i] = recipientListItem
 	}
 
-	return dtos
+	return DTOs
 }

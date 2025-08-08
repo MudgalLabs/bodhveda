@@ -3,6 +3,7 @@ package repository
 import (
 	"context"
 
+	"github.com/mudgallabs/bodhveda/internal/model/dto"
 	"github.com/mudgallabs/bodhveda/internal/model/entity"
 	"github.com/mudgallabs/bodhveda/internal/model/enum"
 	"github.com/mudgallabs/tantra/query"
@@ -15,8 +16,8 @@ type PreferenceRepository interface {
 
 type PreferenceReader interface {
 	ListPreferences(ctx context.Context, projectID int, kind enum.PreferenceKind) ([]*entity.Preference, error)
-	ShouldDirectNotificationBeDelivered(ctx context.Context, notification *entity.Notification) (bool, error)
-	ListEligibleRecipientExtIDsForBroadcast(ctx context.Context, broadcast *entity.Broadcast) ([]string, error)
+	ShouldDirectNotificationBeDelivered(ctx context.Context, projectID int, target dto.NotificationTarget) (bool, error)
+	ListEligibleRecipientExtIDsForBroadcast(ctx context.Context, projectID int, target dto.NotificationTarget) ([]string, error)
 }
 
 type PreferenceWriter interface {

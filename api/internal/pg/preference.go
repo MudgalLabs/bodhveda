@@ -5,6 +5,7 @@ import (
 	"fmt"
 
 	"github.com/jackc/pgx/v5/pgxpool"
+	"github.com/mudgallabs/bodhveda/internal/model/dto"
 	"github.com/mudgallabs/bodhveda/internal/model/entity"
 	"github.com/mudgallabs/bodhveda/internal/model/enum"
 	"github.com/mudgallabs/bodhveda/internal/model/repository"
@@ -64,7 +65,9 @@ func (r *PreferenceRepo) ListPreferences(ctx context.Context, projectID int, kin
 
 func (r *PreferenceRepo) findPreferences(ctx context.Context, payload repository.SearchPreferencePayload) ([]*entity.Preference, int, error) {
 	baseSQL := `
-		SELECT p.id, p.project_id, p.recipient_external_id, p.channel, p.topic, p.event, p.label, p.enabled, p.created_at, p.updated_at
+		SELECT 
+			p.id, p.project_id, p.recipient_external_id, p.channel, p.topic, p.event, p.label, p.enabled, p.created_at, p.updated_at
+			
 		FROM preference p
 	`
 
@@ -87,7 +90,7 @@ func (r *PreferenceRepo) findPreferences(ctx context.Context, payload repository
 	}
 
 	if payload.Sort.Order == "" {
-		payload.Sort.Order = query.SortOrderASC
+		payload.Sort.Order = query.SortOrderDESC
 	}
 
 	// Apply default pagination if not provided.
@@ -135,7 +138,7 @@ func (r *PreferenceRepo) findPreferences(ctx context.Context, payload repository
 	return prefs, total, nil
 }
 
-func (r *PreferenceRepo) ShouldDirectNotificationBeDelivered(ctx context.Context, notification *entity.Notification) (bool, error) {
+func (r *PreferenceRepo) ShouldDirectNotificationBeDelivered(ctx context.Context, projectID int, target dto.NotificationTarget) (bool, error) {
 	shouldDeliver := true
 
 	shouldDeliverSQL := `
@@ -209,11 +212,11 @@ func (r *PreferenceRepo) ShouldDirectNotificationBeDelivered(ctx context.Context
 	`
 
 	err := r.db.QueryRow(ctx, shouldDeliverSQL,
-		notification.ProjectID,
-		notification.RecipientExtID,
-		notification.Channel,
-		notification.Topic,
-		notification.Event,
+		projectID,
+		target.RecipientExtID,
+		target.Channel,
+		target.Topic,
+		target.Event,
 	).Scan(&shouldDeliver)
 	if err != nil {
 		return false, err
@@ -222,7 +225,7 @@ func (r *PreferenceRepo) ShouldDirectNotificationBeDelivered(ctx context.Context
 	return shouldDeliver, err
 }
 
-func (r *PreferenceRepo) ListEligibleRecipientExtIDsForBroadcast(ctx context.Context, broadcast *entity.Broadcast) ([]string, error) {
+func (r *PreferenceRepo) ListEligibleRecipientExtIDsForBroadcast(ctx context.Context, projectID int, target dto.NotificationTarget) ([]string, error) {
 	sql := `
 		-- INPUTS:
 		-- $1 = project_id
@@ -251,7 +254,7 @@ func (r *PreferenceRepo) ListEligibleRecipientExtIDsForBroadcast(ctx context.Con
 			);
 	`
 
-	rows, err := r.db.Query(ctx, sql, broadcast.ProjectID, broadcast.Channel, broadcast.Topic, broadcast.Event)
+	rows, err := r.db.Query(ctx, sql, projectID, target.Channel, target.Topic, target.Event)
 	if err != nil {
 		return nil, fmt.Errorf("query: %w", err)
 	}

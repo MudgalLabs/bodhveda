@@ -71,7 +71,7 @@ func (s *RecipientService) CreateRandomRecipients(ctx context.Context, projectID
 	now := time.Now().UTC()
 
 	for i := range recipients {
-		externalID := fmt.Sprintf("user_%d_%d", projectID, 1030010+i) // Unique external ID for each recipient
+		externalID := fmt.Sprintf("user_%d_%d", projectID, 100000+i) // Unique external ID for each recipient
 
 		recipients[i] = &entity.Recipient{
 			ExternalID: externalID,

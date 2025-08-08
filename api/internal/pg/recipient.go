@@ -139,7 +139,7 @@ func (r *RecipientRepo) findRecipients(ctx context.Context, payload repository.S
 
 	// Apply default sorting if not provided.
 	if payload.Sort.Field == "" {
-		payload.Sort.Field = "r.created_at"
+		payload.Sort.Field = "r.id"
 	}
 
 	if payload.Sort.Order == "" {
@@ -159,6 +159,7 @@ func (r *RecipientRepo) findRecipients(ctx context.Context, payload repository.S
 	}
 
 	builder.AddPagination(payload.Pagination.Limit, payload.Pagination.Offset())
+	builder.AddSorting(payload.Sort.Field, payload.Sort.Order)
 
 	sql, args := builder.Build()
 

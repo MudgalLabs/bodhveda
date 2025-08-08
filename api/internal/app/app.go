@@ -125,7 +125,7 @@ func Init() {
 		Repository: repositories,
 	}
 
-	// err = recipientService.CreateRandomRecipients(context.Background(), 1, 1000000)
+	// err = recipientService.CreateRandomRecipients(context.Background(), 1, 10000)
 	// if err != nil {
 	// 	logger.Get().Errorf("failed to create random recipients: %v", err)
 	// } else {

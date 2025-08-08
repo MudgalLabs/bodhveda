@@ -51,15 +51,25 @@ func (s *PreferenceService) CreateProjectPreference(ctx context.Context, payload
 	return dto.FromPreferenceForProject(newPref), service.ErrNone, nil
 }
 
-func (s *PreferenceService) ListProjectPreferences(ctx context.Context, projectID int) ([]*dto.ProjectPreference, service.Error, error) {
+func (s *PreferenceService) ListProjectPreferences(ctx context.Context, projectID int) ([]*dto.ProjectPreferenceListItem, service.Error, error) {
 	prefs, err := s.repo.ListPreferences(ctx, projectID, enum.PreferenceKindProject)
 	if err != nil {
 		return nil, service.ErrInternalServerError, fmt.Errorf("repo list preferences: %w", err)
 	}
 
-	dtos := []*dto.ProjectPreference{}
-	for _, e := range prefs {
-		dtos = append(dtos, dto.FromPreferenceForProject(e))
+	dtos := []*dto.ProjectPreferenceListItem{}
+	for _, pref := range prefs {
+		target := dto.TargetFromPreference(pref)
+
+		recipients, err := s.repo.ListEligibleRecipientExtIDsForBroadcast(ctx, projectID, target)
+		if err != nil {
+			return nil, service.ErrInternalServerError, fmt.Errorf("repo list eligible recipients: %w", err)
+		}
+
+		dtos = append(dtos, &dto.ProjectPreferenceListItem{
+			ProjectPreference: *dto.FromPreferenceForProject(pref),
+			Subscribers:       len(recipients),
+		})
 	}
 
 	return dtos, service.ErrNone, nil

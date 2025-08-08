@@ -87,7 +87,7 @@ func (s *NotificationService) sendDirectNotification(ctx context.Context, payloa
 		payload.To.Event,
 	)
 
-	shouldDeliver, err := s.preferenceRepo.ShouldDirectNotificationBeDelivered(ctx, notification)
+	shouldDeliver, err := s.preferenceRepo.ShouldDirectNotificationBeDelivered(ctx, notification.ProjectID, dto.TargetFromNotification(notification))
 	if err != nil {
 		return nil, err
 	}

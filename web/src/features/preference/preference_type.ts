@@ -9,6 +9,8 @@ export interface ProjectPreference {
     event: string;
     created_at: string;
     updated_at: string;
+
+    subscribers: number;
 }
 
 export interface CreateProjectPreferencePayload {
