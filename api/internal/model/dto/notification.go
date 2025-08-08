@@ -17,22 +17,34 @@ type Notification struct {
 	Channel        string          `json:"channel"`
 	Topic          string          `json:"topic"`
 	Event          string          `json:"event"`
+	Read           bool            `json:"read"`
+	Opened         bool            `json:"opened"`
 	CreatedAt      time.Time       `json:"created_at"`
 	UpdatedAt      time.Time       `json:"updated_at"`
 }
 
-func FromNotification(n *entity.Notification) *Notification {
-	return &Notification{
-		ID:             n.ID,
-		RecipientExtID: n.RecipientExtID,
-		Payload:        n.Payload,
-		BroadcastID:    n.BroadcastID,
-		Channel:        n.Channel,
-		Topic:          n.Topic,
-		Event:          n.Event,
-		CreatedAt:      n.CreatedAt,
-		UpdatedAt:      n.UpdatedAt,
+func FromNotification(notification *entity.Notification) *Notification {
+	dto := &Notification{
+		ID:             notification.ID,
+		RecipientExtID: notification.RecipientExtID,
+		Payload:        notification.Payload,
+		BroadcastID:    notification.BroadcastID,
+		Channel:        notification.Channel,
+		Topic:          notification.Topic,
+		Event:          notification.Event,
+		CreatedAt:      notification.CreatedAt,
+		UpdatedAt:      notification.UpdatedAt,
 	}
+
+	if notification.ReadAt != nil {
+		dto.Read = true
+	}
+
+	if notification.OpenedAt != nil {
+		dto.Opened = true
+	}
+
+	return dto
 }
 
 type NotificationTarget struct {
@@ -143,40 +155,32 @@ type NotificationsOverviewResult struct {
 }
 
 type NotificationListItem struct {
-	ID             int             `json:"id"`
-	RecipientExtID string          `json:"recipient_id"`
-	Payload        json.RawMessage `json:"payload"`
-	BroadcastID    *int            `json:"broadcast_id"`
-	Channel        string          `json:"channel"`
-	Topic          string          `json:"topic"`
-	Event          string          `json:"event"`
-	CreatedAt      time.Time       `json:"created_at"`
-	UpdatedAt      time.Time       `json:"updated_at"`
+	Notification
 }
 
-func FromNotificationList(notifs []*entity.Notification) []*NotificationListItem {
-	if notifs == nil {
+func FromNotificationList(notifications []*entity.Notification) []*NotificationListItem {
+	if notifications == nil {
 		return nil
 	}
-	items := make([]*NotificationListItem, len(notifs))
-	for i, n := range notifs {
-		items[i] = &NotificationListItem{
-			ID:             n.ID,
-			RecipientExtID: n.RecipientExtID,
-			Payload:        n.Payload,
-			BroadcastID:    n.BroadcastID,
-			Channel:        n.Channel,
-			Topic:          n.Topic,
-			Event:          n.Event,
-			CreatedAt:      n.CreatedAt,
-			UpdatedAt:      n.UpdatedAt,
+
+	dtos := make([]*NotificationListItem, len(notifications))
+
+	for i, n := range notifications {
+		notificationDto := FromNotification(n)
+		dtos[i] = &NotificationListItem{
+			Notification: *notificationDto,
 		}
 	}
-	return items
+
+	return dtos
 }
 
 type ListRecipientNotificationsRequest struct {
 	RecipientExtID string
 	Before         string
 	Limit          int
+}
+
+type NotificationIDsPayload struct {
+	NotificationIDs []int `json:"notification_ids"`
 }

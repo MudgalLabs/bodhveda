@@ -22,4 +22,11 @@ type NotificationReader interface {
 type NotificationWriter interface {
 	Create(ctx context.Context, notification *entity.Notification) (*entity.Notification, error)
 	BatchCreateTx(ctx context.Context, tx pgx.Tx, notifications []*entity.Notification) error
+	// Pass nil for notificationIDs to mark all as read for the recipient.
+	MarkAsReadForRecipient(ctx context.Context, projectID int, recipientExtID string, notificationIDs []int) (int, error)
+	MarkAsUnreadForRecipient(ctx context.Context, projectID int, recipientExtID string, notificationIDs []int) (int, error)
+	// Pass nil for notificationIDs to mark all as read for the recipient.
+	MarkAsOpenedForRecipient(ctx context.Context, projectID int, recipientExtID string, notificationIDs []int) (int, error)
+	// Pass nil for notificationIDs to mark all as read for the recipient.
+	DeleteForRecipient(ctx context.Context, projectID int, recipientExtID string, notificationIDs []int) (int, error)
 }

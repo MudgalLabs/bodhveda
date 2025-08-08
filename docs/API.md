@@ -243,7 +243,15 @@ Get the count of unread notifications for a recipient.
 
 ```json
 {
-    "notification_ids": ["notif_123", "notif_456"]
+    "notification_ids": [123, 456]
+}
+```
+
+**Response Example:**
+
+```json
+{
+    "updated": 5
 }
 ```
 
@@ -255,27 +263,13 @@ Get the count of unread notifications for a recipient.
 
 Marks all notifications as read for the recipient.
 
----
-
-#### Mark Notifications as Opened
-
-**PATCH** `/v1/recipients/:recipient/notifications/mark-opened`
-
-**Request Body:**
+**Response Example:**
 
 ```json
 {
-    "notification_ids": ["notif_123", "notif_456"]
+    "updated": 42
 }
 ```
-
----
-
-#### Mark All as Opened
-
-**PATCH** `/v1/recipients/:recipient/notifications/mark-all-opened`
-
-Marks all notifications as opened for the recipient.
 
 ---
 
@@ -287,7 +281,53 @@ Marks all notifications as opened for the recipient.
 
 ```json
 {
-    "notification_ids": ["notif_123", "notif_456"]
+    "notification_ids": [123, 456]
+}
+```
+
+**Response Example:**
+
+```json
+{
+    "updated": 2
+}
+```
+
+---
+
+#### Mark Notifications as Opened
+
+**PATCH** `/v1/recipients/:recipient/notifications/mark-opened`
+
+**Request Body:**
+
+```json
+{
+    "notification_ids": [123, 456]
+}
+```
+
+**Response Example:**
+
+```json
+{
+    "updated": 2
+}
+```
+
+---
+
+#### Mark All as Opened
+
+**PATCH** `/v1/recipients/:recipient/notifications/mark-all-opened`
+
+Marks all notifications as opened for the recipient.
+
+**Response Example:**
+
+```json
+{
+    "updated": 69
 }
 ```
 
@@ -301,7 +341,15 @@ Marks all notifications as opened for the recipient.
 
 ```json
 {
-    "notification_ids": ["notif_123", "notif_456"]
+    "notification_ids": [123, 456]
+}
+```
+
+**Response Example:**
+
+```json
+{
+    "updated": 2
 }
 ```
 
@@ -312,6 +360,14 @@ Marks all notifications as opened for the recipient.
 **DELETE** `/v1/recipients/:recipient/notifications/delete-all`
 
 Deletes all notifications for the recipient.
+
+**Response Example:**
+
+```json
+{
+    "updated": 13
+}
+```
 
 ---
 

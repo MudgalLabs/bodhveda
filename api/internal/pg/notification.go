@@ -3,6 +3,7 @@ package pg
 import (
 	"context"
 	"fmt"
+	"time"
 
 	"github.com/jackc/pgx/v5"
 	"github.com/jackc/pgx/v5/pgxpool"
@@ -28,20 +29,20 @@ func (r *NotificationRepo) Create(ctx context.Context, notification *entity.Noti
 	sql := `
 		INSERT INTO notification (
 			project_id, recipient_external_id, payload, broadcast_id, channel,
-			topic, event, created_at, updated_at
+			topic, event, read_at, opened_at, created_at, updated_at
 		)
-		VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9)
-		RETURNING id, project_id, recipient_external_id, payload, broadcast_id, channel, topic, event, created_at, updated_at
+		VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11)
+		RETURNING id, project_id, recipient_external_id, payload, broadcast_id, channel, topic, event, read_at, opened_at, created_at, updated_at
 	`
 
 	row := r.db.QueryRow(ctx, sql, notification.ProjectID, notification.RecipientExtID, notification.Payload,
 		notification.BroadcastID, notification.Channel, notification.Topic, notification.Event,
-		notification.CreatedAt, notification.UpdatedAt)
+		notification.ReadAt, notification.OpenedAt, notification.CreatedAt, notification.UpdatedAt)
 
 	var newNotification entity.Notification
 	err := row.Scan(&newNotification.ID, &newNotification.ProjectID, &newNotification.RecipientExtID,
 		&newNotification.Payload, &newNotification.BroadcastID, &newNotification.Channel, &newNotification.Topic,
-		&newNotification.Event, &newNotification.CreatedAt, &newNotification.UpdatedAt,
+		&newNotification.Event, &newNotification.ReadAt, &newNotification.OpenedAt, &newNotification.CreatedAt, &newNotification.UpdatedAt,
 	)
 	if err != nil {
 		return nil, fmt.Errorf("insert notification: %w", err)
@@ -61,6 +62,8 @@ func (r *NotificationRepo) BatchCreateTx(ctx context.Context, tx pgx.Tx, notific
 			n.Channel,
 			n.Topic,
 			n.Event,
+			n.ReadAt,
+			n.OpenedAt,
 			n.CreatedAt,
 			n.UpdatedAt,
 		}
@@ -68,7 +71,7 @@ func (r *NotificationRepo) BatchCreateTx(ctx context.Context, tx pgx.Tx, notific
 
 	_, err := tx.CopyFrom(ctx, pgx.Identifier{"notification"}, []string{
 		"project_id", "recipient_external_id", "payload", "broadcast_id",
-		"channel", "topic", "event", "created_at", "updated_at",
+		"channel", "topic", "event", "read_at", "opened_at", "created_at", "updated_at",
 	}, pgx.CopyFromRows(rows))
 
 	return err
@@ -106,7 +109,7 @@ ON notification (id DESC, project_id, recipient_external_id);
 
 func (r *NotificationRepo) ListForRecipient(ctx context.Context, projectID int, recipientExtID string, before string, limit int) ([]*entity.Notification, error) {
 	sb := dbx.NewSQLBuilder(`
-		SELECT id, project_id, recipient_external_id, payload, broadcast_id, channel, topic, event, created_at, updated_at
+		SELECT id, project_id, recipient_external_id, payload, broadcast_id, channel, topic, event, read_at, opened_at, created_at, updated_at
 		FROM notification
 	`)
 	sb.AddCompareFilter("project_id", dbx.OperatorEQ, projectID)
@@ -139,7 +142,7 @@ func (r *NotificationRepo) ListForRecipient(ctx context.Context, projectID int, 
 	notifs := []*entity.Notification{}
 	for rows.Next() {
 		var n entity.Notification
-		err := rows.Scan(&n.ID, &n.ProjectID, &n.RecipientExtID, &n.Payload, &n.BroadcastID, &n.Channel, &n.Topic, &n.Event, &n.CreatedAt, &n.UpdatedAt)
+		err := rows.Scan(&n.ID, &n.ProjectID, &n.RecipientExtID, &n.Payload, &n.BroadcastID, &n.Channel, &n.Topic, &n.Event, &n.ReadAt, &n.OpenedAt, &n.CreatedAt, &n.UpdatedAt)
 		if err != nil {
 			return nil, fmt.Errorf("scan: %w", err)
 		}
@@ -166,4 +169,117 @@ func (r *NotificationRepo) UnreadCountForRecipient(ctx context.Context, projectI
 	}
 
 	return count, nil
+}
+
+func (r *NotificationRepo) MarkAsReadForRecipient(ctx context.Context, projectID int, recipientExtID string, notificationIDs []int) (int, error) {
+	now := time.Now().UTC()
+	sb := dbx.NewSQLBuilder("UPDATE notification")
+	sb.SetColumn("read_at", now)
+	sb.SetColumn("updated_at", now)
+	sb.AddCompareFilter("project_id", dbx.OperatorEQ, projectID)
+	sb.AddCompareFilter("recipient_external_id", dbx.OperatorEQ, recipientExtID)
+
+	if notificationIDs == nil {
+		// Mark all as read for the recipient
+	} else if len(notificationIDs) == 0 {
+		return 0, nil
+	} else {
+		// Mark only specific notifications as read
+		ids := make([]any, len(notificationIDs))
+		for i, id := range notificationIDs {
+			ids[i] = id
+		}
+		sb.AddArrayFilter("id", ids)
+	}
+
+	sb.AppendWhere("read_at IS NULL")
+
+	sql, args := sb.Build()
+	res, err := r.db.Exec(ctx, sql, args...)
+	if err != nil {
+		return 0, fmt.Errorf("update notifications as read: %w", err)
+	}
+
+	return int(res.RowsAffected()), nil
+}
+
+func (r *NotificationRepo) MarkAsOpenedForRecipient(ctx context.Context, projectID int, recipientExtID string, notificationIDs []int) (int, error) {
+	now := time.Now().UTC()
+	sb := dbx.NewSQLBuilder("UPDATE notification")
+	sb.SetColumn("opened_at", now)
+	sb.SetColumn("updated_at", now)
+	sb.AddCompareFilter("project_id", dbx.OperatorEQ, projectID)
+	sb.AddCompareFilter("recipient_external_id", dbx.OperatorEQ, recipientExtID)
+
+	if notificationIDs == nil {
+		// Mark all as opened for the recipient
+	} else if len(notificationIDs) == 0 {
+		return 0, nil
+	} else {
+		// Mark only specific notifications as opened
+		ids := make([]any, len(notificationIDs))
+		for i, id := range notificationIDs {
+			ids[i] = id
+		}
+		sb.AddArrayFilter("id", ids)
+	}
+
+	sb.AppendWhere("opened_at IS NULL")
+
+	sql, args := sb.Build()
+	res, err := r.db.Exec(ctx, sql, args...)
+	if err != nil {
+		return 0, fmt.Errorf("update notifications as opened: %w", err)
+	}
+
+	return int(res.RowsAffected()), nil
+}
+
+func (r *NotificationRepo) MarkAsUnreadForRecipient(ctx context.Context, projectID int, recipientExtID string, notificationIDs []int) (int, error) {
+	if len(notificationIDs) == 0 {
+		return 0, nil
+	}
+
+	sql := `
+		UPDATE notification
+		SET read_at = NULL, updated_at = $1
+		WHERE project_id = $2
+		  AND recipient_external_id = $3
+		  AND id = ANY($4)
+		  AND read_at IS NOT NULL
+	`
+
+	now := time.Now().UTC()
+
+	res, err := r.db.Exec(ctx, sql, now, projectID, recipientExtID, notificationIDs)
+	if err != nil {
+		return 0, fmt.Errorf("update notifications as unread: %w", err)
+	}
+
+	return int(res.RowsAffected()), nil
+}
+
+func (r *NotificationRepo) DeleteForRecipient(ctx context.Context, projectID int, recipientExtID string, notificationIDs []int) (int, error) {
+	sb := dbx.NewSQLBuilder("DELETE FROM notification")
+	sb.AddCompareFilter("project_id", dbx.OperatorEQ, projectID)
+	sb.AddCompareFilter("recipient_external_id", dbx.OperatorEQ, recipientExtID)
+
+	if notificationIDs == nil {
+		// Delete all for recipient (no id filter)
+	} else if len(notificationIDs) == 0 {
+		return 0, nil
+	} else {
+		ids := make([]any, len(notificationIDs))
+		for i, id := range notificationIDs {
+			ids[i] = id
+		}
+		sb.AddArrayFilter("id", ids)
+	}
+
+	sql, args := sb.Build()
+	res, err := r.db.Exec(ctx, sql, args...)
+	if err != nil {
+		return 0, err
+	}
+	return int(res.RowsAffected()), nil
 }

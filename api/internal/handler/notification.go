@@ -1,6 +1,7 @@
 package handler
 
 import (
+	"encoding/json"
 	"errors"
 	"net/http"
 
@@ -60,7 +61,7 @@ func ListNotifications(s *service.NotificationService) http.HandlerFunc {
 
 		recipientExtID := httpx.ParamStr(r, "recipient_external_id")
 		if recipientExtID == "" {
-			httpx.BadRequestResponse(w, r, errors.New("Recipient ID required"))
+			httpx.BadRequestResponse(w, r, errors.New("recipient_id required"))
 			return
 		}
 
@@ -87,7 +88,7 @@ func UnreadCountForRecipient(s *service.NotificationService) http.HandlerFunc {
 
 		recipientExtID := httpx.ParamStr(r, "recipient_external_id")
 		if recipientExtID == "" {
-			httpx.BadRequestResponse(w, r, errors.New("Recipient ID required"))
+			httpx.BadRequestResponse(w, r, errors.New("recipient_id required"))
 			return
 		}
 
@@ -98,5 +99,173 @@ func UnreadCountForRecipient(s *service.NotificationService) http.HandlerFunc {
 		}
 
 		httpx.SuccessResponse(w, r, http.StatusOK, "", map[string]int{"unread_count": count})
+	}
+}
+
+func MarkNotificationsAsRead(s *service.NotificationService) http.HandlerFunc {
+	return func(w http.ResponseWriter, r *http.Request) {
+		ctx := r.Context()
+		apiKey := middleware.GetAPIKeyFromContext(ctx)
+
+		recipientExtID := httpx.ParamStr(r, "recipient_external_id")
+		if recipientExtID == "" {
+			httpx.BadRequestResponse(w, r, errors.New("recipient_id required"))
+			return
+		}
+
+		var req dto.NotificationIDsPayload
+		if err := json.NewDecoder(r.Body).Decode(&req); err != nil {
+			httpx.MalformedJSONResponse(w, r, err)
+			return
+		}
+
+		updated, errKind, err := s.MarkAsReadForRecipient(ctx, apiKey.ProjectID, recipientExtID, req.NotificationIDs)
+		if err != nil {
+			httpx.ServiceErrResponse(w, r, errKind, err)
+			return
+		}
+		httpx.SuccessResponse(w, r, http.StatusOK, "", map[string]int{"updated": updated})
+	}
+}
+
+func MarkNotificationsAsUnread(s *service.NotificationService) http.HandlerFunc {
+	return func(w http.ResponseWriter, r *http.Request) {
+		ctx := r.Context()
+		apiKey := middleware.GetAPIKeyFromContext(ctx)
+
+		recipientExtID := httpx.ParamStr(r, "recipient_external_id")
+		if recipientExtID == "" {
+			httpx.BadRequestResponse(w, r, errors.New("recipient_id required"))
+			return
+		}
+
+		var req dto.NotificationIDsPayload
+		if err := json.NewDecoder(r.Body).Decode(&req); err != nil {
+			httpx.MalformedJSONResponse(w, r, err)
+			return
+		}
+
+		updated, errKind, err := s.MarkAsUnreadForRecipient(ctx, apiKey.ProjectID, recipientExtID, req.NotificationIDs)
+		if err != nil {
+			httpx.ServiceErrResponse(w, r, errKind, err)
+			return
+		}
+
+		httpx.SuccessResponse(w, r, http.StatusOK, "", map[string]int{"updated": updated})
+	}
+}
+
+func MarkAllNotificationsAsRead(s *service.NotificationService) http.HandlerFunc {
+	return func(w http.ResponseWriter, r *http.Request) {
+		ctx := r.Context()
+		apiKey := middleware.GetAPIKeyFromContext(ctx)
+
+		recipientExtID := httpx.ParamStr(r, "recipient_external_id")
+		if recipientExtID == "" {
+			httpx.BadRequestResponse(w, r, errors.New("recipient_id required"))
+			return
+		}
+
+		updated, errKind, err := s.MarkAllAsReadForRecipient(ctx, apiKey.ProjectID, recipientExtID)
+		if err != nil {
+			httpx.ServiceErrResponse(w, r, errKind, err)
+			return
+		}
+
+		httpx.SuccessResponse(w, r, http.StatusOK, "", map[string]int{"updated": updated})
+	}
+}
+
+func MarkNotificationsAsOpened(s *service.NotificationService) http.HandlerFunc {
+	return func(w http.ResponseWriter, r *http.Request) {
+		ctx := r.Context()
+		apiKey := middleware.GetAPIKeyFromContext(ctx)
+
+		recipientExtID := httpx.ParamStr(r, "recipient_external_id")
+		if recipientExtID == "" {
+			httpx.BadRequestResponse(w, r, errors.New("recipient_id required"))
+			return
+		}
+
+		var req dto.NotificationIDsPayload
+		if err := json.NewDecoder(r.Body).Decode(&req); err != nil {
+			httpx.MalformedJSONResponse(w, r, err)
+			return
+		}
+
+		updated, errKind, err := s.MarkAsOpenedForRecipient(ctx, apiKey.ProjectID, recipientExtID, req.NotificationIDs)
+		if err != nil {
+			httpx.ServiceErrResponse(w, r, errKind, err)
+			return
+		}
+
+		httpx.SuccessResponse(w, r, http.StatusOK, "", map[string]int{"updated": updated})
+	}
+}
+
+func MarkAllNotificationsAsOpened(s *service.NotificationService) http.HandlerFunc {
+	return func(w http.ResponseWriter, r *http.Request) {
+		ctx := r.Context()
+		apiKey := middleware.GetAPIKeyFromContext(ctx)
+
+		recipientExtID := httpx.ParamStr(r, "recipient_external_id")
+		if recipientExtID == "" {
+			httpx.BadRequestResponse(w, r, errors.New("recipient_id required"))
+			return
+		}
+
+		updated, errKind, err := s.MarkAllAsOpenedForRecipient(ctx, apiKey.ProjectID, recipientExtID)
+		if err != nil {
+			httpx.ServiceErrResponse(w, r, errKind, err)
+			return
+		}
+
+		httpx.SuccessResponse(w, r, http.StatusOK, "", map[string]int{"updated": updated})
+	}
+}
+
+func DeleteNotifications(s *service.NotificationService) http.HandlerFunc {
+	return func(w http.ResponseWriter, r *http.Request) {
+		ctx := r.Context()
+		apiKey := middleware.GetAPIKeyFromContext(ctx)
+
+		recipientExtID := httpx.ParamStr(r, "recipient_external_id")
+		if recipientExtID == "" {
+			httpx.BadRequestResponse(w, r, errors.New("recipient_id required"))
+			return
+		}
+
+		var req dto.NotificationIDsPayload
+		if err := json.NewDecoder(r.Body).Decode(&req); err != nil {
+			httpx.MalformedJSONResponse(w, r, err)
+			return
+		}
+
+		updated, errKind, err := s.DeleteForRecipient(ctx, apiKey.ProjectID, recipientExtID, req.NotificationIDs)
+		if err != nil {
+			httpx.ServiceErrResponse(w, r, errKind, err)
+			return
+		}
+		httpx.SuccessResponse(w, r, http.StatusOK, "", map[string]int{"updated": updated})
+	}
+}
+
+func DeleteAllNotifications(s *service.NotificationService) http.HandlerFunc {
+	return func(w http.ResponseWriter, r *http.Request) {
+		ctx := r.Context()
+		apiKey := middleware.GetAPIKeyFromContext(ctx)
+
+		recipientExtID := httpx.ParamStr(r, "recipient_external_id")
+		if recipientExtID == "" {
+			httpx.BadRequestResponse(w, r, errors.New("recipient_id required"))
+			return
+		}
+
+		updated, errKind, err := s.DeleteAllForRecipient(ctx, apiKey.ProjectID, recipientExtID)
+		if err != nil {
+			httpx.ServiceErrResponse(w, r, errKind, err)
+			return
+		}
+		httpx.SuccessResponse(w, r, http.StatusOK, "", map[string]int{"updated": updated})
 	}
 }
