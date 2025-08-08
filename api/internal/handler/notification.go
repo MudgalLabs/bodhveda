@@ -79,3 +79,24 @@ func ListNotifications(s *service.NotificationService) http.HandlerFunc {
 		httpx.SuccessResponse(w, r, http.StatusOK, "", result)
 	}
 }
+
+func UnreadCountForRecipient(s *service.NotificationService) http.HandlerFunc {
+	return func(w http.ResponseWriter, r *http.Request) {
+		ctx := r.Context()
+		apiKey := middleware.GetAPIKeyFromContext(ctx)
+
+		recipientExtID := httpx.ParamStr(r, "recipient_external_id")
+		if recipientExtID == "" {
+			httpx.BadRequestResponse(w, r, errors.New("Recipient ID required"))
+			return
+		}
+
+		count, errKind, err := s.UnreadCountForRecipient(ctx, apiKey.ProjectID, recipientExtID)
+		if err != nil {
+			httpx.ServiceErrResponse(w, r, errKind, err)
+			return
+		}
+
+		httpx.SuccessResponse(w, r, http.StatusOK, "", map[string]int{"unread_count": count})
+	}
+}

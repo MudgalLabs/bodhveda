@@ -16,6 +16,7 @@ type NotificationRepository interface {
 type NotificationReader interface {
 	Overview(ctx context.Context, projectID int) (*dto.NotificationsOverviewResult, error)
 	ListForRecipient(ctx context.Context, projectID int, recipientExtID string, before string, limit int) ([]*entity.Notification, error)
+	UnreadCountForRecipient(ctx context.Context, projectID int, recipientExtID string) (int, error)
 }
 
 type NotificationWriter interface {

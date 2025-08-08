@@ -63,6 +63,7 @@ func initRouter() http.Handler {
 		r.Route("/recipients/{recipient_external_id}", func(r chi.Router) {
 			r.Route("/notifications", func(r chi.Router) {
 				r.Get("/", handler.ListNotifications(app.APP.Service.Notification))
+				r.Get("/unread-count", handler.UnreadCountForRecipient(app.APP.Service.Notification))
 			})
 		})
 	})

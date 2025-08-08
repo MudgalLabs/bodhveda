@@ -152,3 +152,18 @@ func (r *NotificationRepo) ListForRecipient(ctx context.Context, projectID int, 
 
 	return notifs, nil
 }
+
+func (r *NotificationRepo) UnreadCountForRecipient(ctx context.Context, projectID int, recipientExtID string) (int, error) {
+	sql := `
+		SELECT COUNT(*) FROM notification
+		WHERE project_id = $1 AND recipient_external_id = $2 AND read_at IS NULL
+	`
+	var count int
+
+	err := r.db.QueryRow(ctx, sql, projectID, recipientExtID).Scan(&count)
+	if err != nil {
+		return 0, fmt.Errorf("query and scan: %w", err)
+	}
+
+	return count, nil
+}

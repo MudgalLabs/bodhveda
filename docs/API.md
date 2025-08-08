@@ -221,6 +221,18 @@ Get notifications for a recipient with pagination.
 
 Get the count of unread notifications for a recipient.
 
+**Path Parameter:**
+
+-   `:recipient` — recipient ID (e.g., user_id, email)
+
+**Response Example:**
+
+```json
+{
+    "unread_count": 5
+}
+```
+
 ---
 
 #### Mark Notifications as Read

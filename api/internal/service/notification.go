@@ -156,3 +156,16 @@ func (s *NotificationService) ListForRecipient(ctx context.Context, projectID in
 
 	return dto.FromNotificationList(notifs), service.ErrNone, nil
 }
+
+func (s *NotificationService) UnreadCountForRecipient(ctx context.Context, projectID int, recipientExtID string) (int, service.Error, error) {
+	if recipientExtID == "" {
+		return 0, service.ErrInvalidInput, fmt.Errorf("recipient id required")
+	}
+
+	count, err := s.repo.UnreadCountForRecipient(ctx, projectID, recipientExtID)
+	if err != nil {
+		return 0, service.ErrInternalServerError, err
+	}
+
+	return count, service.ErrNone, nil
+}
