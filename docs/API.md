@@ -1,331 +1,416 @@
-# Bodhveda REST API Reference
+# Bodhveda Developer API Reference
+
+Welcome to the Bodhveda Developer API documentation.
+
+Bodhveda is a modern notification infrastructure built for product teams who value thoughtful delivery, user preferences, and a clean developer experience. With just a few API calls, you can:
+
+-   Send direct or broadcast notifications
+-   Create and manage recipients (your users)
+-   Allow recipients to subscribe or unsubscribe from specific notification types
+-   Fetch, mark as read/open/unread, or delete recipient’s notifications
+-   Automatically respect recipient's preferences and collect delivery analytics
+
+This guide covers the versioned REST API (v1), designed for both server and client integrations. Whether you're using our SDKs or calling APIs directly, this documentation will walk you through every API, clearly and efficiently.
 
 Base URL:
 
 ```
 https://api.bodhveda.com/v1
-```
-
-Authentication:
-All requests require the `Authorization` header with a Bearer token:
-
-```
-Authorization: Bearer YOUR_API_KEY
-```
-
-# Bodhveda REST API Reference
-
-This document outlines the REST API endpoints available in Bodhveda. These endpoints power the platform's core features: sending and fetching notifications, managing recipient preferences, muting/unmuting, and managing recipients.
-
-Base URL:
-
-```
-https://api.bodhveda.com/v1
-```
-
-Authentication:
-All requests require the `Authorization` header with a Bearer token:
-
-```
-Authorization: Bearer YOUR_API_KEY
 ```
 
 ## Index
 
--   [Send Notification (Direct or Broadcast)](#send-notification-direct-or-broadcast)
--   [Fetch Recipient Inbox](#fetch-recipient-inbox)
--   [Get Unread Count](#get-unread-count)
--   [Mark Notifications as Read](#mark-notifications-as-read)
--   [Mark Notifications as Opened](#mark-notifications-as-opened)
--   [Delete Notifications](#delete-notifications)
--   [Delete All Notifications](#delete-all-notifications)
--   [Create Notification Preference Type](#create-notification-preference-type)
--   [Get Preferences for Recipient](#get-preferences-for-recipient)
--   [Mute Notification Type](#mute-notification-type)
--   [Unmute Notification Type](#unmute-notification-type)
--   [List Mutes for Recipient](#list-mutes-for-recipient)
--   [Create Recipient (Join)](#create-recipient-join)
--   [Get Recipient](#get-recipient)
--   [Update Recipient](#update-recipient)
--   [Delete Recipient](#delete-recipient)
--   [List Recipients](#list-recipients)
+-   [Authentication](#authentication)
+-   [Notifications (Full Scope)](#notifications-full-scope)
+    -   [Send Notification](#send-notification)
+    -   [Targeting Rules](#targeting-rules)
+-   [Recipients](#recipients)
+    -   [Recipient Notifications (Recipient or Full Scope)](#recipient-notifications-recipient-or-full-scope)
+        -   [Get Notifications](#get-notifications)
+        -   [Get Unread Count](#unread-count)
+        -   [Mark Notifications as Read](#mark-notifications-as-read)
+        -   [Mark All as Read](#mark-all-as-read)
+        -   [Mark Notifications as Opened](#mark-notifications-as-opened)
+        -   [Mark All as Opened](#mark-all-as-opened)
+        -   [Mark Notifications as Unread](#mark-notifications-as-unread)
+        -   [Delete Notifications](#delete-notifications)
+        -   [Delete All Notifications](#delete-all-notifications)
+    -   [Recipient Preferences (Recipient or Full Scope)](#recipient-preferences-recipient-or-full-scope)
+        -   [Get Global Preferences](#get-global-preferences)
+        -   [Subscribe](#subscribe-to-notifications)
+        -   [Unsubscribe](#unsubscribe-from-notifications)
+    -   [Recipient Management (Full Scope)](#recipient-management-full-scope)
+        -   [Get Recipient](#get-recipient)
+        -   [Create Recipient](#create-recipient)
+        -   [Create Recipients Batch](#create-recipients-batch)
+        -   [Update Recipient](#update-recipient)
+        -   [Delete Recipient](#delete-recipient)
 
-## Send Notification (Direct or Broadcast)
+## Authentication
 
-**POST** `/v1/notifications`
+All requests require the `Authorization` header with a Bearer token:
 
-Unified endpoint for both direct and broadcast notifications.
+```
+Authorization: Bearer YOUR_API_KEY
+```
 
--   If `recipient` is provided → **Direct Notification** (1:1)
--   If `recipient` is not provided → **Broadcast Notification** (fan-out via background jobs)
+Replace `YOUR_API_KEY` with your actual API key.
+
+There are 2 scopes for an API KEY :
+
+-   **full** – Full access to all project-level APIs. Use only on the **server side**.
+-   **recipient** – Limited-scope API keys intended for **client-side/browser** use. These allow a recipient to **fetch and manage only their own notifications and preferences**.
+
+> ⚠️ **Security Warning:**  
+> If your `recipient_id` values are predictable (e.g., auto-incrementing integers), you **should not** expose `recipient`-scoped API keys on the frontend.  
+> Instead, route requests through your own backend to ensure recipient access is properly scoped and protected.
+
+---
+
+## Notifications (Full Scope)
+
+> **Requires API key with scope `"full"`**
+
+### Send Notification
+
+**POST** `/v1/notifications/send`
+
+Send a direction notification to a recipient or broadcast it to multiple recipients.
+
+💡 See [Targeting Rules](#targeting-rules) for how to construct the `to` object and how preferences/analytics behave.
+
+**Request Body Example:**
 
 ```json
 {
-    "recipient": "user_123",
-    "payload": {
-        "title": "Someone followed you",
-        "body": "Elon Musk just followed your profile."
-    },
-    "channel": "social",
-    "topic": "followers",
-    "event": "followed"
-}
-```
-
----
-
-## Fetch Recipient Inbox
-
-**GET** `/v1/recipients/{recipient}/notifications`
-
-Query Params:
-
--   `limit`
--   `offset`
-
-Example Response:
-
-```json
-[
-    {
-        "id": "notif_abc123",
-        "payload": {
-            "title": "Welcome!",
-            "body": "Thanks for signing up."
-        },
-        "read": false,
-        "opened": false,
-        "delivered_at": "2025-07-30T10:15:00Z"
-    }
-]
-```
-
----
-
-## Get Unread Count
-
-**GET** `/v1/recipients/{recipient}/notifications/unread-count`
-
-Example Response:
-
-```json
-{
-    "unread_count": 3
-}
-```
-
----
-
-## Mark Notifications as Read
-
-**POST** `/v1/recipients/{recipient}/notifications/read`
-
-```json
-{
-    "ids": ["notif_123", "notif_456"]
-}
-```
-
----
-
-## Mark Notifications as Opened
-
-**POST** `/v1/recipients/{recipient}/notifications/open`
-
-```json
-{
-    "ids": ["notif_123"]
-}
-```
-
----
-
-## Delete Notifications
-
-**DELETE** `/v1/recipients/{recipient}/notifications`
-
-```json
-{
-    "ids": ["notif_123"]
-}
-```
-
----
-
-## Delete All Notifications
-
-**DELETE** `/v1/recipients/{recipient}/notifications/all`
-
----
-
-## Create Notification Preference Type
-
-**POST** `/v1/projects/{project_id}/preference-types`
-
-```json
-{
-    "channel": "announcements",
-    "topic": null,
-    "event": "new_feature"
-}
-```
-
----
-
-## Get Preferences for Recipient
-
-**GET** `/v1/recipients/{recipient}/preferences`
-
-Returns all available preference types + mute state for that recipient.
-
-Example Response:
-
-```json
-[
-    {
+    "to": {
+        "recipient_id": "user@example.com", // Omit this field to send a broadcast.
         "channel": "announcements",
-        "event": "new_feature",
-        "muted": false
+        "topic": "none",
+        "event": "new_feature"
+    },
+    "payload": {
+        "title": "Hey there",
+        "message": "You looking good tonight. Slay!!!"
     }
-]
+}
 ```
 
----
+**Responses:**
 
-## Mute Notification Type
+-   Direct success: Notification sent to the recipient.
+-   Direct rejected: Did not deliver because recipient has unsubscribed to this target.
+-   Broadcast success: Broadcast sent to all recipients subscribed to this target.
 
-**POST** `/v1/recipients/{recipient}/mutes`
+## Targeting Rules
+
+Bodhveda uses the `to` object to determine who receives the notification and under what context. This applies to both direct and broadcast notifications.
+
+### Direct Notification (No Target)
+
+You can send a notification to a single recipient **without any target**:
 
 ```json
 {
-    "channel": "product",
-    "topic": null,
-    "event": "feature_release"
+    "to": {
+        "recipient_id": "user@example.com"
+    },
+    "payload": {
+        "title": "Hello!",
+        "message": "This won't track preferences or analytics."
+    }
+}
+```
+
+⚠️ Preferences and analytics will not apply.
+
+---
+
+### Direct Notification (With Target)
+
+```json
+{
+    "to": {
+        "recipient_id": "user@example.com",
+        "channel": "announcements",
+        "topic": "none",
+        "event": "new_feature"
+    },
+    "payload": {
+        "title": "Feature Alert",
+        "message": "We just launched something cool!"
+    }
+}
+```
+
+-   ✅ Preferences will be respected.
+-   ✅ Analytics will track this event.
+-   ⚠️ If any of channel, topic, or event is provided, then **all three must be provided**.
+
+---
+
+### Broadcast Notification
+
+```json
+{
+    "to": {
+        "channel": "announcements",
+        "topic": "none",
+        "event": "new_feature"
+    },
+    "payload": {
+        "title": "New Feature!",
+        "message": "Check out what we've just shipped."
+    }
+}
+```
+
+-   ✅ recipient_id must be omitted
+-   ✅ channel, topic, and event are required
+
+This sends the notification to **all recipients** who have **subscribed** to the given `channel:topic:event`.
+
+---
+
+### `any` and `none` in Preferences
+
+When subscribing/unsubscribing preferences:
+
+-   `"topic": "any"` means "all topics under this channel/event"
+-   `"topic": "none"` means "only the base channel/event"
+
+For example, this preference:
+
+```json
+{ "channel": "marketing", "topic": "any", "event": "update" }
+```
+
+will match:
+
+-   `marketing:pricing:update`
+-   `marketing:feature:update`
+
+However, when sending a notification, `"any"` makes no sense. You must specify a concrete `channel`, `topic`, and `event`.
+
+## Recipients
+
+### Recipient Notifications (Recipient or Full Scope)
+
+> **Requires API key with scope `"recipient"` or `"full"`**
+
+#### Get Notifications
+
+**GET** `/v1/recipients/:recipient/notifications?before=notif_123&limit=20`
+
+Get notifications for a recipient with pagination.
+
+**Path Parameter:**
+
+-   `:recipient` — recipient ID (e.g., user_id, email)
+
+**Query Parameters:**
+
+-   `before` cursor (default: '')
+-   `limit` (default: 20)
+
+---
+
+#### Unread Count
+
+**GET** `/v1/recipients/:recipient/notifications/unread-count`
+
+Get the count of unread notifications for a recipient.
+
+---
+
+#### Mark Notifications as Read
+
+**PATCH** `/v1/recipients/:recipient/notifications/mark-read`
+
+**Request Body:**
+
+```json
+{
+    "notification_ids": ["notif_123", "notif_456"]
 }
 ```
 
 ---
 
-## Unmute Notification Type
+#### Mark All as Read
 
-**DELETE** `/v1/recipients/{recipient}/mutes`
+**PATCH** `/v1/recipients/:recipient/notifications/mark-all-read`
+
+Marks all notifications as read for the recipient.
+
+---
+
+#### Mark Notifications as Opened
+
+**PATCH** `/v1/recipients/:recipient/notifications/mark-opened`
+
+**Request Body:**
 
 ```json
 {
-    "channel": "product",
-    "topic": null,
-    "event": "feature_release"
+    "notification_ids": ["notif_123", "notif_456"]
 }
 ```
 
 ---
 
-## List Mutes for Recipient
+#### Mark All as Opened
 
-**GET** `/v1/recipients/{recipient}/mutes`
+**PATCH** `/v1/recipients/:recipient/notifications/mark-all-opened`
 
-Example Response:
+Marks all notifications as opened for the recipient.
+
+---
+
+#### Mark Notifications as Unread
+
+**PATCH** `/v1/recipients/:recipient/notifications/mark-unread`
+
+**Request Body:**
 
 ```json
-[
-    {
-        "channel": "product",
-        "event": "feature_release"
-    }
-]
+{
+    "notification_ids": ["notif_123", "notif_456"]
+}
 ```
 
 ---
 
-## Create Recipient (Join)
+#### Delete Notifications
+
+**DELETE** `/v1/recipients/:recipient/notifications/delete`
+
+**Request Body:**
+
+```json
+{
+    "notification_ids": ["notif_123", "notif_456"]
+}
+```
+
+---
+
+#### Delete All Notifications
+
+**DELETE** `/v1/recipients/:recipient/notifications/delete-all`
+
+Deletes all notifications for the recipient.
+
+---
+
+### Recipient Preferences (Recipient or Full Scope)
+
+> **Requires API key with scope `"recipient"` or `"full"`**
+
+#### Get Global Preferences
+
+**GET** `/v1/recipients/:recipient/preferences`
+
+Get global notification preferences for a recipient.
+
+---
+
+#### Subscribe to Notifications
+
+**PATCH** `/v1/recipients/:recipient/preferences/subscribe`
+
+**Request Body:**
+
+```json
+{
+    "to": {
+        "channel": "announcements",
+        "topic": "none",
+        "event": "new_feature"
+    }
+}
+```
+
+---
+
+#### Unsubscribe from Notifications
+
+**PATCH** `/v1/recipients/:recipient/preferences/unsubscribe`
+
+**Request Body:**
+
+```json
+{
+    "from": {
+        "channel": "announcements",
+        "topic": "none",
+        "event": "new_feature"
+    }
+}
+```
+
+---
+
+### Recipient Management (Full Scope)
+
+> **Requires API key with scope `"full"`**
+
+#### Get Recipient
+
+**GET** `/v1/recipients/:recipient`
+
+Get recipient details.
+
+---
+
+#### Create Recipient
 
 **POST** `/v1/recipients`
 
-```json
-{
-    "recipient": "user_123",
-    "name": "Elon Musk",
-    "properties": {
-        "role": "admin",
-        "location": "Mars"
-    }
-}
-```
-
-Example Response:
+**Request Body:**
 
 ```json
 {
-    "recipient": "user_123",
-    "name": "Elon Musk",
-    "properties": {
-        "role": "admin",
-        "location": "Mars"
-    },
-    "created_at": "2025-07-30T14:00:00Z"
+    "recipient_id": "user@example.com",
+    "name": "User Name"
 }
 ```
 
 ---
 
-## Get Recipient
+#### Create Recipients Batch
 
-**GET** `/v1/recipients/{recipient}`
+**POST** `/v1/recipients/batch`
 
-Example Response:
+**Request Body:**
 
 ```json
 {
-    "recipient": "user_123",
-    "name": "Elon Musk",
-    "properties": {
-        "location": "Mars"
-    },
-    "created_at": "2025-07-30T14:00:00Z"
+    "recipients": [
+        { "recipient_id": "user1@example.com", "name": "User One" },
+        { "recipient_id": "user2@example.com", "name": "User Two" }
+    ]
 }
 ```
 
 ---
 
-## Update Recipient
+#### Update Recipient
 
-**PATCH** `/v1/recipients/{recipient}`
+**PATCH** `/v1/recipients/:recipient`
+
+**Request Body:**
 
 ```json
 {
-    "name": "Elon Musk Jr.",
-    "properties": {
-        "location": "Earth"
-    }
+    "name": "New Name"
 }
 ```
 
 ---
 
-## Delete Recipient
+#### Delete Recipient
 
-**DELETE** `/v1/recipients/{recipient}`
+**DELETE** `/v1/recipients/:recipient`
 
----
-
-## List Recipients
-
-**GET** `/v1/recipients`
-
-Supports pagination (limit, offset).
-
-Example Response:
-
-```json
-[
-    {
-        "recipient": "user_123",
-        "name": "Elon Musk",
-        "properties": {
-            "location": "Mars"
-        }
-    }
-]
-```
-
----
+Deletes a recipient.
