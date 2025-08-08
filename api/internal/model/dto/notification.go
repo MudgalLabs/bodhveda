@@ -141,3 +141,42 @@ type NotificationsOverviewResult struct {
 	TotalDirectSent    int `json:"total_direct_sent"`
 	TotalBroadcastSent int `json:"total_broadcast_sent"`
 }
+
+type NotificationListItem struct {
+	ID             int             `json:"id"`
+	RecipientExtID string          `json:"recipient_id"`
+	Payload        json.RawMessage `json:"payload"`
+	BroadcastID    *int            `json:"broadcast_id"`
+	Channel        string          `json:"channel"`
+	Topic          string          `json:"topic"`
+	Event          string          `json:"event"`
+	CreatedAt      time.Time       `json:"created_at"`
+	UpdatedAt      time.Time       `json:"updated_at"`
+}
+
+func FromNotificationList(notifs []*entity.Notification) []*NotificationListItem {
+	if notifs == nil {
+		return nil
+	}
+	items := make([]*NotificationListItem, len(notifs))
+	for i, n := range notifs {
+		items[i] = &NotificationListItem{
+			ID:             n.ID,
+			RecipientExtID: n.RecipientExtID,
+			Payload:        n.Payload,
+			BroadcastID:    n.BroadcastID,
+			Channel:        n.Channel,
+			Topic:          n.Topic,
+			Event:          n.Event,
+			CreatedAt:      n.CreatedAt,
+			UpdatedAt:      n.UpdatedAt,
+		}
+	}
+	return items
+}
+
+type ListRecipientNotificationsRequest struct {
+	RecipientExtID string
+	Before         string
+	Limit          int
+}

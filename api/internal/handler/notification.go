@@ -52,3 +52,30 @@ func NotificationsOverview(s *service.NotificationService) http.HandlerFunc {
 		httpx.SuccessResponse(w, r, http.StatusOK, "", result)
 	}
 }
+
+func ListNotifications(s *service.NotificationService) http.HandlerFunc {
+	return func(w http.ResponseWriter, r *http.Request) {
+		ctx := r.Context()
+		apiKey := middleware.GetAPIKeyFromContext(ctx)
+
+		recipientExtID := httpx.ParamStr(r, "recipient_external_id")
+		if recipientExtID == "" {
+			httpx.BadRequestResponse(w, r, errors.New("Recipient ID required"))
+			return
+		}
+
+		before := httpx.QueryStr(r, "before")
+		limit, err := httpx.QueryInt(r, "limit")
+		if err != nil {
+			limit = 20 // Default limit
+		}
+
+		result, errKind, err := s.ListForRecipient(ctx, apiKey.ProjectID, recipientExtID, before, limit)
+		if err != nil {
+			httpx.ServiceErrResponse(w, r, errKind, err)
+			return
+		}
+
+		httpx.SuccessResponse(w, r, http.StatusOK, "", result)
+	}
+}

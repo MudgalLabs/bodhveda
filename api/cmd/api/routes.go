@@ -60,8 +60,9 @@ func initRouter() http.Handler {
 
 		r.Post("/notifications/send", handler.SendNotification(app.APP.Service.Notification))
 
-		r.Route("/recipients/{recipient}", func(r chi.Router) {
+		r.Route("/recipients/{recipient_external_id}", func(r chi.Router) {
 			r.Route("/notifications", func(r chi.Router) {
+				r.Get("/", handler.ListNotifications(app.APP.Service.Notification))
 			})
 		})
 	})

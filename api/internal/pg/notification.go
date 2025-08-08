@@ -98,3 +98,57 @@ func (r *NotificationRepo) Overview(ctx context.Context, projectID int) (*dto.No
 
 	return result, nil
 }
+
+/*
+CREATE INDEX CONCURRENTLY IF NOT EXISTS idx_notification_id_project_recipient
+ON notification (id DESC, project_id, recipient_external_id);
+*/
+
+func (r *NotificationRepo) ListForRecipient(ctx context.Context, projectID int, recipientExtID string, before string, limit int) ([]*entity.Notification, error) {
+	sb := dbx.NewSQLBuilder(`
+		SELECT id, project_id, recipient_external_id, payload, broadcast_id, channel, topic, event, created_at, updated_at
+		FROM notification
+	`)
+	sb.AddCompareFilter("project_id", dbx.OperatorEQ, projectID)
+	sb.AddCompareFilter("recipient_external_id", dbx.OperatorEQ, recipientExtID)
+
+	if before != "" {
+		// For simplicity, treat before as notification id (string, but should be int)
+		sb.AddCompareFilter("id", dbx.OperatorLT, before)
+	}
+
+	sb.AddSorting("id", "DESC")
+
+	if limit <= 0 {
+		limit = 20 // Default limit
+	} else if limit > 100 {
+		limit = 100 // Cap limit to 100
+	}
+
+	sb.AddPagination(limit, 0)
+
+	sql, args := sb.Build()
+
+	rows, err := r.db.Query(ctx, sql, args...)
+	if err != nil {
+		return nil, fmt.Errorf("query: %w", err)
+	}
+
+	defer rows.Close()
+
+	notifs := []*entity.Notification{}
+	for rows.Next() {
+		var n entity.Notification
+		err := rows.Scan(&n.ID, &n.ProjectID, &n.RecipientExtID, &n.Payload, &n.BroadcastID, &n.Channel, &n.Topic, &n.Event, &n.CreatedAt, &n.UpdatedAt)
+		if err != nil {
+			return nil, fmt.Errorf("scan: %w", err)
+		}
+		notifs = append(notifs, &n)
+	}
+
+	if err := rows.Err(); err != nil {
+		return nil, fmt.Errorf("rows error: %w", err)
+	}
+
+	return notifs, nil
+}

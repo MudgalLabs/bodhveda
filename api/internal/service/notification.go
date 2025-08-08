@@ -143,3 +143,16 @@ func (s *NotificationService) Overview(ctx context.Context, projectID int) (*dto
 	}
 	return result, service.ErrNone, nil
 }
+
+func (s *NotificationService) ListForRecipient(ctx context.Context, projectID int, recipientExtID string, before string, limit int) ([]*dto.NotificationListItem, service.Error, error) {
+	if recipientExtID == "" {
+		return nil, service.ErrInvalidInput, fmt.Errorf("recipient id required")
+	}
+
+	notifs, err := s.repo.ListForRecipient(ctx, projectID, recipientExtID, before, limit)
+	if err != nil {
+		return nil, service.ErrInternalServerError, err
+	}
+
+	return dto.FromNotificationList(notifs), service.ErrNone, nil
+}
