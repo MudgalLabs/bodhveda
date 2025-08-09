@@ -14,7 +14,8 @@ type RecipientRepository interface {
 
 type RecipientReader interface {
 	List(ctx context.Context, projectID int) ([]*entity.RecipientListItem, error)
-	GetByProjectIDAndExternalID(ctx context.Context, projectID int, externalID string) (*entity.Recipient, error)
+	Get(ctx context.Context, projectID int, externalID string) (*entity.Recipient, error)
+	Exists(ctx context.Context, projectID int, externalID string) (bool, error)
 }
 
 type RecipientWriter interface {

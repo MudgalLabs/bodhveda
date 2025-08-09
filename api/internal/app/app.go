@@ -20,6 +20,9 @@ var APP *App
 var DB *pgxpool.Pool
 
 type App struct {
+	DB          *pgxpool.Pool
+	AsynqClient *asynq.Client
+
 	Service    services
 	Repository repositories
 }
@@ -90,11 +93,11 @@ func Init() {
 	userIdentityRepository := user_identity.NewRepository(db)
 
 	apikeyService := service.NewAPIKeyService(apikeyRepository, projectRepository)
-	notificationService := service.NewNotificationService(notificationRepository, recipientRepository,
-		preferenceRepository, broadcastRepository, broadcastBatchRepository, ASYNQCLIENT)
 	preferenceService := service.NewProjectPreferenceService(preferenceRepository, recipientRepository)
 	projectService := service.NewProjectService(projectRepository)
 	recipientService := service.NewRecipientService(recipientRepository)
+	notificationService := service.NewNotificationService(notificationRepository, recipientRepository,
+		preferenceRepository, broadcastRepository, broadcastBatchRepository, recipientService, ASYNQCLIENT)
 	userIdentityService := user_identity.NewService(userIdentityRepository, userProfileRepository)
 	userProfileService := user_profile.NewService(userProfileRepository)
 
@@ -121,8 +124,10 @@ func Init() {
 	}
 
 	APP = &App{
-		Service:    services,
-		Repository: repositories,
+		DB:          db,
+		AsynqClient: ASYNQCLIENT,
+		Service:     services,
+		Repository:  repositories,
 	}
 
 	// err = recipientService.CreateRandomRecipients(context.Background(), 1, 10000)

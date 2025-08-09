@@ -29,8 +29,6 @@ func (s *RecipientService) Create(ctx context.Context, payload dto.CreateRecipie
 		return nil, service.ErrInvalidInput, err
 	}
 
-	// TODO: Check if recipient already exists.
-
 	name := ""
 	if payload.Name != nil {
 		name = *payload.Name

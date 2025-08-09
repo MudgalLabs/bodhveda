@@ -85,7 +85,7 @@ func (r *RecipientRepo) List(ctx context.Context, projectID int) ([]*entity.Reci
 	return recipients, err
 }
 
-func (r *RecipientRepo) GetByProjectIDAndExternalID(ctx context.Context, projectID int, externalID string) (*entity.Recipient, error) {
+func (r *RecipientRepo) Get(ctx context.Context, projectID int, externalID string) (*entity.Recipient, error) {
 	payload := repository.SearchRecipientPayload{
 		Filters: repository.RecipientSearchFilter{
 			ProjectID:  &projectID,
@@ -194,4 +194,22 @@ func (r *RecipientRepo) findRecipients(ctx context.Context, payload repository.S
 	}
 
 	return recipients, total, nil
+}
+
+func (r *RecipientRepo) Exists(ctx context.Context, projectID int, externalID string) (bool, error) {
+	sql := `
+		SELECT EXISTS (
+			SELECT 1 FROM recipient
+			WHERE project_id = $1 AND external_id = $2
+		)
+	`
+
+	var exists bool
+
+	err := r.db.QueryRow(ctx, sql, projectID, externalID).Scan(&exists)
+	if err != nil {
+		return false, fmt.Errorf("query and scan: %w", err)
+	}
+
+	return exists, nil
 }

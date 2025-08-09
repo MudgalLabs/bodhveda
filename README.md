@@ -11,7 +11,7 @@
 
 ## 🧠 Who is Bodhveda for?
 
-Solo founders, indie hackers, and dev teams who want to deliver scalable, preference-aware notifications — without reinventing the wheel, so they can focus on what matters.
+Bodhveda is for indie devs, small teams, and product builders who need in-app notifications with preference management, analytics, and reliable, scalable delivery without reinventing the wheel, so they can focus on what matters.
 
 ### Whether you're building:
 

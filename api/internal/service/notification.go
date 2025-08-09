@@ -20,13 +20,15 @@ type NotificationService struct {
 	broadcastRepo      repository.BroadcastRepository
 	broadcastBatchRepo repository.BroadcastBatchRepository
 
+	recipientService *RecipientService
+
 	asynqClient *asynq.Client
 }
 
 func NewNotificationService(
 	repo repository.NotificationRepository, recipientRepo repository.RecipientRepository,
 	preferenceRepo repository.PreferenceRepository, broadcastRepo repository.BroadcastRepository,
-	broadcastBatchRepo repository.BroadcastBatchRepository,
+	broadcastBatchRepo repository.BroadcastBatchRepository, recipientService *RecipientService,
 	asynqClient *asynq.Client,
 ) *NotificationService {
 	return &NotificationService{
@@ -35,6 +37,7 @@ func NewNotificationService(
 		preferenceRepo:     preferenceRepo,
 		broadcastRepo:      broadcastRepo,
 		broadcastBatchRepo: broadcastBatchRepo,
+		recipientService:   recipientService,
 
 		asynqClient: asynqClient,
 	}
@@ -77,6 +80,24 @@ func (s *NotificationService) Send(ctx context.Context, payload dto.SendNotifica
 }
 
 func (s *NotificationService) sendDirectNotification(ctx context.Context, payload dto.SendNotificationPayload) (*dto.Notification, error) {
+	exists, err := s.recipientRepo.Exists(ctx, payload.ProjectID, *payload.To.RecipientExtID)
+	if err != nil {
+		return nil, fmt.Errorf("check recipient existence: %w", err)
+	}
+
+	// If recipient does not exist, create it.
+	// This is to ensure that we can send notifications to recipients that are not yet created.
+	if !exists {
+		_, _, err := s.recipientService.Create(ctx, dto.CreateRecipientPayload{
+			ProjectID:  payload.ProjectID,
+			ExternalID: *payload.To.RecipientExtID,
+		})
+
+		if err != nil {
+			return nil, fmt.Errorf("create recipient: %w", err)
+		}
+	}
+
 	notification := entity.NewNotification(
 		payload.ProjectID,
 		*payload.To.RecipientExtID,
