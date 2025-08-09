@@ -172,23 +172,69 @@ func FromProjectPreferenceList(list []*entity.ProjectPreferenceListItem) []*Proj
 	return DTOs
 }
 
-type RecipientGlobalPreferenceTarget struct {
-	Channel string `json:"channel"`
-	Topic   string `json:"topic"`
-	Event   string `json:"event"`
-	Label   string `json:"label"`
+type PreferenceTargetDTO struct {
+	Channel string  `json:"channel"`
+	Topic   string  `json:"topic"`
+	Event   string  `json:"event"`
+	Label   *string `json:"label,omitempty"`
 }
 
-type RecipientGlobalPreferenceState struct {
+type PreferenceStateDTO struct {
 	Subscribed bool `json:"subscribed"`
 	Inherited  bool `json:"inherited"`
 }
 
-type RecipientGlobalPreferenceItem struct {
-	Target RecipientGlobalPreferenceTarget `json:"target"`
-	State  RecipientGlobalPreferenceState  `json:"state"`
+type PreferenceTargetStateDTO struct {
+	Target PreferenceTargetDTO `json:"target"`
+	State  PreferenceStateDTO  `json:"state"`
 }
 
-type RecipientGlobalPreferencesResult struct {
-	GlobalPreferences []*RecipientGlobalPreferenceItem `json:"global_preferences"`
+type PreferenceTargetStatesResultDTO struct {
+	GlobalPreferences []*PreferenceTargetStateDTO `json:"global_preferences"`
+}
+
+type PatchRecipientPreferenceTargetPayload struct {
+	Target PreferenceTargetDTO `json:"target"`
+	State  struct {
+		Subscribed bool `json:"subscribed"`
+	} `json:"state"`
+}
+
+func (p *PatchRecipientPreferenceTargetPayload) Validate() error {
+	var errs service.InputValidationErrors
+
+	if p.Target.Channel == "" {
+		errs.Add(apires.NewApiError("Channel is required", "Channel cannot be empty", "channel", p.Target.Channel))
+	}
+	if p.Target.Topic == "" {
+		errs.Add(apires.NewApiError("Topic is required", "Topic cannot be empty", "topic", p.Target.Topic))
+	}
+	if p.Target.Event == "" {
+		errs.Add(apires.NewApiError("Event is required", "Event cannot be empty", "event", p.Target.Event))
+	}
+	if len(errs) > 0 {
+		return errs
+	}
+	return nil
+}
+
+type PatchRecipientPreferenceTargetResult = PreferenceTargetStateDTO
+
+func PreferenceTargetDTOFromPreference(e *entity.Preference) PreferenceTargetDTO {
+	return PreferenceTargetDTO{
+		Channel: e.Channel,
+		Topic:   e.Topic,
+		Event:   e.Event,
+		Label:   e.Label,
+	}
+}
+
+func PreferenceTargetStateDTOFromPreference(e *entity.Preference, inherited bool) *PreferenceTargetStateDTO {
+	return &PreferenceTargetStateDTO{
+		Target: PreferenceTargetDTOFromPreference(e),
+		State: PreferenceStateDTO{
+			Subscribed: e.Enabled,
+			Inherited:  inherited,
+		},
+	}
 }

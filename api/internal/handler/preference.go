@@ -134,3 +134,29 @@ func GetRecipientGlobalPreferences(s *service.PreferenceService) http.HandlerFun
 		httpx.SuccessResponse(w, r, http.StatusOK, "", result)
 	}
 }
+
+func PatchRecipientPreferenceTarget(s *service.PreferenceService) http.HandlerFunc {
+	return func(w http.ResponseWriter, r *http.Request) {
+		ctx := r.Context()
+		apiKey := middleware.GetAPIKeyFromContext(ctx)
+		recipientExtID := httpx.ParamStr(r, "recipient_external_id")
+		if recipientExtID == "" {
+			httpx.BadRequestResponse(w, r, errors.New("recipient_id required"))
+			return
+		}
+
+		var req dto.PatchRecipientPreferenceTargetPayload
+		if err := jsonx.DecodeJSONRequest(&req, r); err != nil {
+			httpx.MalformedJSONResponse(w, r, err)
+			return
+		}
+
+		result, errKind, err := s.PatchRecipientPreferenceTarget(ctx, apiKey.ProjectID, recipientExtID, req)
+		if err != nil {
+			httpx.ServiceErrResponse(w, r, errKind, err)
+			return
+		}
+
+		httpx.SuccessResponse(w, r, http.StatusOK, "", result)
+	}
+}

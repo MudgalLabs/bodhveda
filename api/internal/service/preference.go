@@ -117,7 +117,38 @@ func (s *PreferenceService) UpsertRecipientPreference(ctx context.Context, paylo
 	return dto.FromPreferenceForRecipient(newPref), service.ErrNone, nil
 }
 
-func (s *PreferenceService) GetRecipientGlobalPreferences(ctx context.Context, projectID int, recipientExtID string) (*dto.RecipientGlobalPreferencesResult, service.Error, error) {
+func (s *PreferenceService) PatchRecipientPreferenceTarget(ctx context.Context, projectID int, recipientExtID string, req dto.PatchRecipientPreferenceTargetPayload) (*dto.PreferenceTargetStateDTO, service.Error, error) {
+	if err := req.Validate(); err != nil {
+		return nil, service.ErrInvalidInput, err
+	}
+
+	// Upsert recipient-level preference for this target
+	pref := entity.NewPreference(
+		&projectID,
+		&recipientExtID,
+		req.Target.Channel,
+		req.Target.Topic,
+		req.Target.Event,
+		nil,
+		req.State.Subscribed,
+	)
+	pref.UpdatedAt = time.Now().UTC()
+
+	newPref, err := s.repo.Create(ctx, pref)
+	if err != nil {
+		if err == tantraRepo.ErrConflict {
+			// If already exists, treat as update (should not error)
+			// But repo.Create does upsert for recipient-level, so this is unexpected
+			return nil, service.ErrConflict, err
+		}
+		return nil, service.ErrInternalServerError, err
+	}
+
+	// Always inherited=false for explicit recipient-level preference
+	return dto.PreferenceTargetStateDTOFromPreference(newPref, false), service.ErrNone, nil
+}
+
+func (s *PreferenceService) GetRecipientGlobalPreferences(ctx context.Context, projectID int, recipientExtID string) (*dto.PreferenceTargetStatesResultDTO, service.Error, error) {
 	// 1. Fetch all project-level preferences (these are the defaults for all recipients)
 	projectPrefs, err := s.repo.ListPreferences(ctx, projectID, enum.PreferenceKindProject)
 	if err != nil {
@@ -140,26 +171,21 @@ func (s *PreferenceService) GetRecipientGlobalPreferences(ctx context.Context, p
 		}
 	}
 
-	result := []*dto.RecipientGlobalPreferenceItem{}
+	result := []*dto.PreferenceTargetStateDTO{}
 	// 4. For each project-level preference, check if there is a recipient-level override
 	for _, projPref := range projectPrefs {
 		key := prefKey{projPref.Channel, projPref.Topic, projPref.Event}
 
-		item := dto.RecipientGlobalPreferenceItem{
-			Target: dto.RecipientGlobalPreferenceTarget{
-				Channel: projPref.Channel,
-				Topic:   projPref.Topic,
-				Event:   projPref.Event,
-				Label:   "",
-			},
-			State: dto.RecipientGlobalPreferenceState{
-				Subscribed: projPref.Enabled, // default to project-level setting
-				Inherited:  true,             // assume inherited unless overridden
+		item := dto.PreferenceTargetStateDTO{
+			Target: dto.PreferenceTargetDTOFromPreference(projPref),
+			State: dto.PreferenceStateDTO{
+				Subscribed: projPref.Enabled,
+				Inherited:  true,
 			},
 		}
 
 		if projPref.Label != nil {
-			item.Target.Label = *projPref.Label
+			item.Target.Label = projPref.Label
 		}
 
 		// 5. If a recipient-level preference exists, override the project-level setting
@@ -172,7 +198,7 @@ func (s *PreferenceService) GetRecipientGlobalPreferences(ctx context.Context, p
 	}
 
 	// 6. Return the merged preferences (project-level, overridden by recipient-level where applicable)
-	return &dto.RecipientGlobalPreferencesResult{
+	return &dto.PreferenceTargetStatesResultDTO{
 		GlobalPreferences: result,
 	}, service.ErrNone, nil
 }
