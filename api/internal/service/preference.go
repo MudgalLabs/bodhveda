@@ -202,3 +202,48 @@ func (s *PreferenceService) GetRecipientGlobalPreferences(ctx context.Context, p
 		GlobalPreferences: result,
 	}, service.ErrNone, nil
 }
+
+func (s *PreferenceService) CheckRecipientTargetSubscription(ctx context.Context, projectID int, recipientExtID string, payload dto.CheckRecipientTargetPayload) (*dto.PreferenceTargetStateDTO, service.Error, error) {
+	if err := payload.Validate(); err != nil {
+		return nil, service.ErrInvalidInput, err
+	}
+
+	// 1. Try recipient-level preference for this target
+	recipientPrefs, err := s.repo.ListPreferencesForRecipient(ctx, projectID, recipientExtID)
+	if err != nil {
+		return nil, service.ErrInternalServerError, err
+	}
+	for _, pref := range recipientPrefs {
+		if pref.Channel == payload.Channel && pref.Topic == payload.Topic && pref.Event == payload.Event {
+			result := dto.PreferenceTargetStateDTOFromPreference(pref, false)
+			result.Target.Label = nil // Recipient-level preferences do not have labels.
+			return result, service.ErrNone, nil
+		}
+	}
+
+	// 2. Try project-level preference for this target
+	projectPrefs, err := s.repo.ListPreferences(ctx, projectID, enum.PreferenceKindProject)
+	if err != nil {
+		return nil, service.ErrInternalServerError, err
+	}
+	for _, pref := range projectPrefs {
+		if pref.Channel == payload.Channel && pref.Topic == payload.Topic && pref.Event == payload.Event {
+			result := dto.PreferenceTargetStateDTOFromPreference(pref, false)
+			result.Target.Label = nil // Recipient-level preferences do not have labels.
+			return result, service.ErrNone, nil
+		}
+	}
+
+	// 3. Not found, default to subscribed=false, inherited=true
+	return &dto.PreferenceTargetStateDTO{
+		Target: dto.PreferenceTargetDTO{
+			Channel: payload.Channel,
+			Topic:   payload.Topic,
+			Event:   payload.Event,
+		},
+		State: dto.PreferenceStateDTO{
+			Subscribed: false,
+			Inherited:  true,
+		},
+	}, service.ErrNone, nil
+}

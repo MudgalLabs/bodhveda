@@ -238,3 +238,27 @@ func PreferenceTargetStateDTOFromPreference(e *entity.Preference, inherited bool
 		},
 	}
 }
+
+type CheckRecipientTargetPayload struct {
+	Channel string `schema:"channel"`
+	Topic   string `schema:"topic"`
+	Event   string `schema:"event"`
+}
+
+func (q *CheckRecipientTargetPayload) Validate() error {
+	var errs service.InputValidationErrors
+
+	if q.Channel == "" {
+		errs.Add(apires.NewApiError("Channel is required", "Channel cannot be empty", "channel", q.Channel))
+	}
+	if q.Topic == "" {
+		errs.Add(apires.NewApiError("Topic is required", "Topic cannot be empty", "topic", q.Topic))
+	}
+	if q.Event == "" {
+		errs.Add(apires.NewApiError("Event is required", "Event cannot be empty", "event", q.Event))
+	}
+	if len(errs) > 0 {
+		return errs
+	}
+	return nil
+}

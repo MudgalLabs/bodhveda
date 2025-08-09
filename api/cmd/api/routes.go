@@ -74,6 +74,7 @@ func initRouter() http.Handler {
 			})
 			r.Route("/preferences", func(r chi.Router) {
 				r.Get("/global", handler.GetRecipientGlobalPreferences(app.APP.Service.Preference))
+				r.Get("/targets", handler.CheckRecipientTargetSubscription(app.APP.Service.Preference))
 				r.Patch("/targets", handler.PatchRecipientPreferenceTarget(app.APP.Service.Preference))
 			})
 		})

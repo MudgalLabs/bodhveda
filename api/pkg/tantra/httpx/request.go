@@ -11,7 +11,7 @@ import (
 var decoder = schema.NewDecoder()
 
 // DecodeQuery decodes query params into the given struct pointer.
-func DecodeQuery(r *http.Request, dst interface{}) error {
+func DecodeQuery(r *http.Request, dst any) error {
 	return decoder.Decode(dst, r.URL.Query())
 }
 

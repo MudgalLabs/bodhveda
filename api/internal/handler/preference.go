@@ -11,6 +11,12 @@ import (
 	"github.com/mudgallabs/tantra/jsonx"
 )
 
+type CheckRecipientTargetQuery struct {
+	Channel string `schema:"channel"`
+	Topic   string `schema:"topic"`
+	Event   string `schema:"event"`
+}
+
 func CreateProjectPreference(s *service.PreferenceService) http.HandlerFunc {
 	return func(w http.ResponseWriter, r *http.Request) {
 		ctx := r.Context()
@@ -152,6 +158,32 @@ func PatchRecipientPreferenceTarget(s *service.PreferenceService) http.HandlerFu
 		}
 
 		result, errKind, err := s.PatchRecipientPreferenceTarget(ctx, apiKey.ProjectID, recipientExtID, req)
+		if err != nil {
+			httpx.ServiceErrResponse(w, r, errKind, err)
+			return
+		}
+
+		httpx.SuccessResponse(w, r, http.StatusOK, "", result)
+	}
+}
+
+func CheckRecipientTargetSubscription(s *service.PreferenceService) http.HandlerFunc {
+	return func(w http.ResponseWriter, r *http.Request) {
+		ctx := r.Context()
+		apiKey := middleware.GetAPIKeyFromContext(ctx)
+		recipientExtID := httpx.ParamStr(r, "recipient_external_id")
+		if recipientExtID == "" {
+			httpx.BadRequestResponse(w, r, errors.New("recipient_id required"))
+			return
+		}
+
+		var payload dto.CheckRecipientTargetPayload
+		if err := httpx.DecodeQuery(r, &payload); err != nil {
+			httpx.BadRequestResponse(w, r, err)
+			return
+		}
+
+		result, errKind, err := s.CheckRecipientTargetSubscription(ctx, apiKey.ProjectID, recipientExtID, payload)
 		if err != nil {
 			httpx.ServiceErrResponse(w, r, errKind, err)
 			return
