@@ -3,9 +3,11 @@ package pg
 import (
 	"context"
 	"fmt"
+	"time"
 
 	"github.com/jackc/pgx/v5"
 	"github.com/jackc/pgx/v5/pgxpool"
+	"github.com/mudgallabs/bodhveda/internal/model/dto"
 	"github.com/mudgallabs/bodhveda/internal/model/entity"
 	"github.com/mudgallabs/bodhveda/internal/model/repository"
 	"github.com/mudgallabs/tantra/dbx"
@@ -46,14 +48,18 @@ func (r *RecipientRepo) Create(ctx context.Context, recipient *entity.Recipient)
 	return &newRecipient, nil
 }
 
-func (r *RecipientRepo) BatchCreate(ctx context.Context, recipients []*entity.Recipient) error {
+func (r *RecipientRepo) BatchCreate(ctx context.Context, recipients []*entity.Recipient) (created []string, updated []string, err error) {
 	if len(recipients) == 0 {
-		return nil
+		return nil, nil, nil
 	}
 
 	sql := `
 		INSERT INTO recipient (external_id, name, project_id, created_at, updated_at)
 		VALUES ($1, $2, $3, $4, $5)
+		ON CONFLICT (project_id, external_id) DO UPDATE
+		SET name = EXCLUDED.name,
+			updated_at = EXCLUDED.updated_at
+		RETURNING (xmax = 0) AS inserted, external_id
 	`
 
 	batch := &pgx.Batch{}
@@ -61,17 +67,26 @@ func (r *RecipientRepo) BatchCreate(ctx context.Context, recipients []*entity.Re
 		batch.Queue(sql, recipient.ExternalID, recipient.Name, recipient.ProjectID, recipient.CreatedAt, recipient.UpdatedAt)
 	}
 
-	br := r.pool.SendBatch(ctx, batch)
-	defer br.Close()
+	batchResult := r.pool.SendBatch(ctx, batch)
+	defer batchResult.Close()
 
+	created = []string{}
+	updated = []string{}
 	for i := range recipients {
-		_, err := br.Exec()
+		var inserted bool
+		var externalID string
+		err := batchResult.QueryRow().Scan(&inserted, &externalID)
 		if err != nil {
-			return fmt.Errorf("batch insert recipient %d: %w", i, err)
+			return created, updated, fmt.Errorf("batch upsert recipient %d: %w", i, err)
+		}
+		if inserted {
+			created = append(created, externalID)
+		} else {
+			updated = append(updated, externalID)
 		}
 	}
 
-	return nil
+	return created, updated, nil
 }
 
 func (r *RecipientRepo) List(ctx context.Context, projectID int) ([]*entity.RecipientListItem, error) {
@@ -104,6 +119,41 @@ func (r *RecipientRepo) Get(ctx context.Context, projectID int, externalID strin
 	}
 
 	return &recipients[0].Recipient, err
+}
+
+func (r *RecipientRepo) Update(ctx context.Context, projectID int, externalID string, payload *dto.UpdateRecipientPayload) (*entity.Recipient, error) {
+	sql := `
+		UPDATE recipient
+		SET name = $1, updated_at = $2
+		WHERE project_id = $3 AND external_id = $4
+		RETURNING id, external_id, name, project_id, created_at, updated_at
+	`
+	row := r.db.QueryRow(ctx, sql, payload.Name, time.Now().UTC(), projectID, externalID)
+	var updated entity.Recipient
+	err := row.Scan(&updated.ID, &updated.ExternalID, &updated.Name, &updated.ProjectID, &updated.CreatedAt, &updated.UpdatedAt)
+	if err != nil {
+		if err.Error() == "no rows in result set" {
+			return nil, tantraRepo.ErrNotFound
+		}
+		return nil, err
+	}
+
+	return &updated, nil
+}
+
+func (r *RecipientRepo) Delete(ctx context.Context, projectID int, externalID string) error {
+	sql := `
+		DELETE FROM recipient
+		WHERE project_id = $1 AND external_id = $2
+	`
+	res, err := r.db.Exec(ctx, sql, projectID, externalID)
+	if err != nil {
+		return err
+	}
+	if res.RowsAffected() == 0 {
+		return tantraRepo.ErrNotFound
+	}
+	return nil
 }
 
 func (r *RecipientRepo) findRecipients(ctx context.Context, payload repository.SearchRecipientPayload, includeNotificationsCount bool) ([]*entity.RecipientListItem, int, error) {
@@ -173,8 +223,14 @@ func (r *RecipientRepo) findRecipients(ctx context.Context, payload repository.S
 	recipients := []*entity.RecipientListItem{}
 	for rows.Next() {
 		var newRecipient entity.RecipientListItem
+		var err error
 
-		err := rows.Scan(&newRecipient.ID, &newRecipient.ExternalID, &newRecipient.Name, &newRecipient.ProjectID, &newRecipient.CreatedAt, &newRecipient.UpdatedAt, &newRecipient.DirectNotificationsCount, &newRecipient.BroadcastNotificationsCount)
+		if includeNotificationsCount {
+			err = rows.Scan(&newRecipient.ID, &newRecipient.ExternalID, &newRecipient.Name, &newRecipient.ProjectID, &newRecipient.CreatedAt, &newRecipient.UpdatedAt, &newRecipient.DirectNotificationsCount, &newRecipient.BroadcastNotificationsCount)
+		} else {
+			err = rows.Scan(&newRecipient.ID, &newRecipient.ExternalID, &newRecipient.Name, &newRecipient.ProjectID, &newRecipient.CreatedAt, &newRecipient.UpdatedAt)
+		}
+
 		if err != nil {
 			return nil, 0, fmt.Errorf("scan: %w", err)
 		}

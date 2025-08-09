@@ -60,22 +60,32 @@ func initRouter() http.Handler {
 
 		r.Post("/notifications/send", handler.SendNotification(app.APP.Service.Notification))
 
-		r.Route("/recipients/{recipient_external_id}", func(r chi.Router) {
-			r.Route("/notifications", func(r chi.Router) {
-				r.Get("/", handler.ListNotifications(app.APP.Service.Notification))
-				r.Get("/unread-count", handler.UnreadCountForRecipient(app.APP.Service.Notification))
-				r.Patch("/mark-read", handler.MarkNotificationsAsRead(app.APP.Service.Notification))
-				r.Patch("/mark-all-read", handler.MarkAllNotificationsAsRead(app.APP.Service.Notification))
-				r.Patch("/mark-unread", handler.MarkNotificationsAsUnread(app.APP.Service.Notification))
-				r.Patch("/mark-opened", handler.MarkNotificationsAsOpened(app.APP.Service.Notification))
-				r.Patch("/mark-all-opened", handler.MarkAllNotificationsAsOpened(app.APP.Service.Notification))
-				r.Delete("/delete", handler.DeleteNotifications(app.APP.Service.Notification))
-				r.Delete("/delete-all", handler.DeleteAllNotifications(app.APP.Service.Notification))
-			})
-			r.Route("/preferences", func(r chi.Router) {
-				r.Get("/global", handler.GetRecipientGlobalPreferences(app.APP.Service.Preference))
-				r.Get("/targets", handler.CheckRecipientTargetSubscription(app.APP.Service.Preference))
-				r.Patch("/targets", handler.PatchRecipientPreferenceTarget(app.APP.Service.Preference))
+		r.Route("/recipients", func(r chi.Router) {
+			r.Post("/", handler.CreateRecipientWithAPIKey(app.APP.Service.Recipient))
+			r.Post("/batch", handler.BatchCreateRecipients(app.APP.Service.Recipient))
+
+			r.Route("/{recipient_external_id}", func(r chi.Router) {
+				r.Get("/", handler.GetRecipient(app.APP.Service.Recipient))
+				r.Patch("/", handler.UpdateRecipient(app.APP.Service.Recipient))
+				r.Delete("/", handler.DeleteRecipient(app.APP.Service.Recipient))
+
+				r.Route("/notifications", func(r chi.Router) {
+					r.Get("/", handler.ListNotifications(app.APP.Service.Notification))
+					r.Get("/unread-count", handler.UnreadCountForRecipient(app.APP.Service.Notification))
+					r.Patch("/mark-read", handler.MarkNotificationsAsRead(app.APP.Service.Notification))
+					r.Patch("/mark-all-read", handler.MarkAllNotificationsAsRead(app.APP.Service.Notification))
+					r.Patch("/mark-unread", handler.MarkNotificationsAsUnread(app.APP.Service.Notification))
+					r.Patch("/mark-opened", handler.MarkNotificationsAsOpened(app.APP.Service.Notification))
+					r.Patch("/mark-all-opened", handler.MarkAllNotificationsAsOpened(app.APP.Service.Notification))
+					r.Delete("/delete", handler.DeleteNotifications(app.APP.Service.Notification))
+					r.Delete("/delete-all", handler.DeleteAllNotifications(app.APP.Service.Notification))
+				})
+
+				r.Route("/preferences", func(r chi.Router) {
+					r.Get("/global", handler.GetRecipientGlobalPreferences(app.APP.Service.Preference))
+					r.Get("/targets", handler.CheckRecipientTargetSubscription(app.APP.Service.Preference))
+					r.Patch("/targets", handler.PatchRecipientPreferenceTarget(app.APP.Service.Preference))
+				})
 			})
 		})
 	})

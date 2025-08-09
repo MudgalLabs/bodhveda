@@ -498,6 +498,22 @@ Get recipient's preference to project/app level defined preferences.
 
 Get recipient details.
 
+**Response Body:**
+
+```json
+{
+    "status": "success",
+    "status_code": 200,
+    "message": "",
+    "data": {
+        "recipient_id": "ceoshikhar@gmail.com",
+        "name": "Shikhar Sharma",
+        "created_at": "2025-08-04T15:45:15.342589+05:30",
+        "updated_at": "2025-08-04T15:45:15.342589+05:30"
+    }
+}
+```
+
 ---
 
 #### Create Recipient
@@ -509,7 +525,23 @@ Get recipient details.
 ```json
 {
     "recipient_id": "user@example.com",
-    "name": "User Name"
+    "name": "Recipient Name"
+}
+```
+
+**Response Body:**
+
+```json
+{
+    "status": "success",
+    "status_code": 201,
+    "message": "Recipient created",
+    "data": {
+        "recipient_id": "user@example.com",
+        "name": "Recipient Name",
+        "created_at": "2025-08-09T17:18:58.187014+05:30",
+        "updated_at": "2025-08-09T17:18:58.187014+05:30"
+    }
 }
 ```
 
@@ -524,9 +556,53 @@ Get recipient details.
 ```json
 {
     "recipients": [
-        { "recipient_id": "user1@example.com", "name": "User One" },
-        { "recipient_id": "user2@example.com", "name": "User Two" }
+        {
+            "recipient_id": "ceoshikhar@gmail.com",
+            "name": "Shikhar Sharma"
+        },
+        {
+            "recipient_id": "shikar.sharma@gmail.com",
+            "name": "Shikhar Sharma Fake"
+        },
+        {
+            "name": "Shikhar Sharma Fake"
+        }
     ]
+}
+```
+
+**Response Body:**
+
+```json
+{
+    "status": "success",
+    "status_code": 201,
+    "message": "",
+    "data": {
+        "created": [],
+        "updated": [
+            {
+                "recipient_id": "ceoshikhar@gmail.com"
+            },
+            {
+                "recipient_id": "shikar.sharma@gmail.com"
+            }
+        ],
+        "failed": [
+            {
+                "errors": [
+                    {
+                        "message": "Recipient ID is required",
+                        "description": "Recipient ID cannot be empty",
+                        "property_path": "recipient_id",
+                        "invalid_value": ""
+                    }
+                ],
+                "recipient_id": "",
+                "batch_index": 2
+            }
+        ]
+    }
 }
 ```
 
@@ -536,11 +612,33 @@ Get recipient details.
 
 **PATCH** `/v1/recipients/:recipient`
 
+Update the details of a recipient.
+
+**Path Parameter:**
+
+-   `:recipient` — recipient ID (e.g., user_id, email)
+
 **Request Body:**
 
 ```json
 {
     "name": "New Name"
+}
+```
+
+**Response Body:**
+
+```json
+{
+    "status": "success",
+    "status_code": 200,
+    "message": "Recipient updated",
+    "data": {
+        "recipient_id": "user@example.com",
+        "name": "New Name",
+        "created_at": "2025-08-09T17:18:58.187014+05:30",
+        "updated_at": "2025-08-10T12:34:56.123456+05:30"
+    }
 }
 ```
 
@@ -551,3 +649,17 @@ Get recipient details.
 **DELETE** `/v1/recipients/:recipient`
 
 Deletes a recipient.
+
+**Path Parameter:**
+
+-   `:recipient` — recipient ID (e.g., user_id, email)
+
+**Response Body:**
+
+```json
+{
+    "status": "success",
+    "status_code": 200,
+    "message": "Recipient deleted"
+}
+```

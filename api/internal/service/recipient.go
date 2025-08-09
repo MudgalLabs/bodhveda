@@ -55,6 +55,107 @@ func (s *RecipientService) List(ctx context.Context, projectID int) ([]*dto.Reci
 	return dto.FromRecipientList(recipients), service.ErrNone, nil
 }
 
+func (s *RecipientService) Get(ctx context.Context, projectID int, externalID string) (*dto.Recipient, service.Error, error) {
+	if projectID <= 0 || externalID == "" {
+		return nil, service.ErrInvalidInput, fmt.Errorf("projectID and externalID required")
+	}
+
+	recipient, err := s.repo.Get(ctx, projectID, externalID)
+	if err != nil {
+		return nil, service.ErrNotFound, err
+	}
+
+	return dto.FromRecipient(recipient), service.ErrNone, nil
+}
+
+func (s *RecipientService) Update(ctx context.Context, projectID int, externalID string, payload *dto.UpdateRecipientPayload) (*dto.Recipient, service.Error, error) {
+	if externalID == "" {
+		return nil, service.ErrInvalidInput, fmt.Errorf("recipient id required")
+	}
+
+	if err := payload.Validate(); err != nil {
+		return nil, service.ErrInvalidInput, err
+	}
+
+	recipient, err := s.repo.Update(ctx, projectID, externalID, payload)
+	if err != nil {
+		if err == tantraRepo.ErrNotFound {
+			return nil, service.ErrNotFound, err
+		}
+
+		return nil, service.ErrInternalServerError, err
+	}
+
+	return dto.FromRecipient(recipient), service.ErrNone, nil
+}
+
+func (s *RecipientService) Delete(ctx context.Context, projectID int, externalID string) (service.Error, error) {
+	if externalID == "" {
+		return service.ErrInvalidInput, fmt.Errorf("recipient id required")
+	}
+	err := s.repo.Delete(ctx, projectID, externalID)
+	if err != nil {
+		if err == tantraRepo.ErrNotFound {
+			return service.ErrNotFound, err
+		}
+		return service.ErrInternalServerError, err
+	}
+	return service.ErrNone, nil
+}
+
+func (s *RecipientService) BatchCreate(ctx context.Context, payloads []dto.CreateRecipientPayload) (*dto.BatchCreateRecipientsResult, service.Error, error) {
+	if len(payloads) == 0 {
+		return nil, service.ErrInvalidInput, fmt.Errorf("no recipients provided")
+	}
+
+	var (
+		recipients = []*entity.Recipient{}
+		created    = []dto.BatchCreateRecipientCreated{}
+		updated    = []dto.BatchCreateRecipientUpdated{}
+		failed     = []dto.BatchCreateRecipientFailed{}
+	)
+
+	for i, p := range payloads {
+		if err := p.Validate(); err != nil {
+			failed = append(failed, dto.BatchCreateRecipientFailed{
+				Errors:      err.(service.InputValidationErrors),
+				RecipientID: p.ExternalID,
+				BatchIndex:  i,
+			})
+			continue
+		}
+		name := ""
+		if p.Name != nil {
+			name = *p.Name
+		}
+		recipients = append(recipients, entity.NewRecipient(p.ProjectID, p.ExternalID, name))
+	}
+
+	createdIDs, updatedIDs, err := s.repo.BatchCreate(ctx, recipients)
+	if err != nil {
+		return nil, service.ErrInternalServerError, err
+	}
+
+	for _, id := range createdIDs {
+		created = append(created, dto.BatchCreateRecipientCreated{
+			RecipientID: id,
+		})
+	}
+	for _, id := range updatedIDs {
+		updated = append(updated, dto.BatchCreateRecipientUpdated{
+			RecipientID: id,
+		})
+	}
+
+	result := &dto.BatchCreateRecipientsResult{
+		Created: created,
+		Updated: updated,
+		Failed:  failed,
+	}
+
+	return result, service.ErrNone, nil
+}
+
 func (s *RecipientService) CreateRandomRecipients(ctx context.Context, projectID int, count int) error {
 	names := []string{
 		"Alice Johnson", "Bob Smith", "Charlie Brown", "Diana Prince", "Edward Norton",
@@ -80,5 +181,6 @@ func (s *RecipientService) CreateRandomRecipients(ctx context.Context, projectID
 		}
 	}
 
-	return s.repo.BatchCreate(ctx, recipients)
+	_, _, err := s.repo.BatchCreate(ctx, recipients)
+	return err
 }

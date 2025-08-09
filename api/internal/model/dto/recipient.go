@@ -44,6 +44,48 @@ func (p *CreateRecipientPayload) Validate() error {
 	return nil
 }
 
+type UpdateRecipientPayload struct {
+	Name *string `json:"name"`
+}
+
+func (p *UpdateRecipientPayload) Validate() error {
+	var errs service.InputValidationErrors
+
+	if p.Name != nil && *p.Name == "" {
+		errs.Add(apires.NewApiError("Name is required", "Name cannot be empty", "name", p.Name))
+	}
+
+	if len(errs) > 0 {
+		return errs
+	}
+
+	return nil
+}
+
+type BatchCreateRecipientsPayload struct {
+	Recipients []CreateRecipientPayload `json:"recipients"`
+}
+
+type BatchCreateRecipientCreated struct {
+	RecipientID string `json:"recipient_id"`
+}
+
+type BatchCreateRecipientUpdated struct {
+	RecipientID string `json:"recipient_id"`
+}
+
+type BatchCreateRecipientFailed struct {
+	Errors      service.InputValidationErrors `json:"errors"`
+	RecipientID string                        `json:"recipient_id"`
+	BatchIndex  int                           `json:"batch_index"`
+}
+
+type BatchCreateRecipientsResult struct {
+	Created []BatchCreateRecipientCreated `json:"created"`
+	Updated []BatchCreateRecipientUpdated `json:"updated"`
+	Failed  []BatchCreateRecipientFailed  `json:"failed"`
+}
+
 func FromRecipient(r *entity.Recipient) *Recipient {
 	if r == nil {
 		return nil
@@ -55,6 +97,19 @@ func FromRecipient(r *entity.Recipient) *Recipient {
 		CreatedAt:  r.CreatedAt,
 		UpdatedAt:  r.UpdatedAt,
 	}
+}
+
+func FromRecipients(recipient []*entity.Recipient) []*Recipient {
+	if recipient == nil {
+		return nil
+	}
+
+	list := make([]*Recipient, len(recipient))
+	for i, r := range recipient {
+		list[i] = FromRecipient(r)
+	}
+
+	return list
 }
 
 type RecipientListItem struct {

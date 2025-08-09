@@ -3,6 +3,7 @@ package repository
 import (
 	"context"
 
+	"github.com/mudgallabs/bodhveda/internal/model/dto"
 	"github.com/mudgallabs/bodhveda/internal/model/entity"
 	"github.com/mudgallabs/tantra/query"
 )
@@ -20,7 +21,9 @@ type RecipientReader interface {
 
 type RecipientWriter interface {
 	Create(ctx context.Context, recipient *entity.Recipient) (*entity.Recipient, error)
-	BatchCreate(ctx context.Context, recipients []*entity.Recipient) error
+	BatchCreate(ctx context.Context, recipients []*entity.Recipient) (created []string, updated []string, err error)
+	Update(ctx context.Context, projectID int, externalID string, payload *dto.UpdateRecipientPayload) (*entity.Recipient, error)
+	Delete(ctx context.Context, projectID int, externalID string) error
 }
 
 type RecipientSearchFilter struct {
