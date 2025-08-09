@@ -95,7 +95,7 @@ func Init() {
 	apikeyService := service.NewAPIKeyService(apikeyRepository, projectRepository)
 	preferenceService := service.NewProjectPreferenceService(preferenceRepository, recipientRepository)
 	projectService := service.NewProjectService(projectRepository)
-	recipientService := service.NewRecipientService(recipientRepository)
+	recipientService := service.NewRecipientService(recipientRepository, ASYNQCLIENT)
 	notificationService := service.NewNotificationService(notificationRepository, recipientRepository,
 		preferenceRepository, broadcastRepository, broadcastBatchRepository, recipientService, ASYNQCLIENT)
 	userIdentityService := user_identity.NewService(userIdentityRepository, userProfileRepository)

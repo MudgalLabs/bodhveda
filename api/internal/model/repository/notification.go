@@ -27,6 +27,6 @@ type NotificationWriter interface {
 	MarkAsUnreadForRecipient(ctx context.Context, projectID int, recipientExtID string, notificationIDs []int) (int, error)
 	// Pass nil for notificationIDs to mark all as read for the recipient.
 	MarkAsOpenedForRecipient(ctx context.Context, projectID int, recipientExtID string, notificationIDs []int) (int, error)
-	// Pass nil for notificationIDs to mark all as read for the recipient.
+	// Pass nil for notificationIDs to delete all notifications for the recipient.
 	DeleteForRecipient(ctx context.Context, projectID int, recipientExtID string, notificationIDs []int) (int, error)
 }

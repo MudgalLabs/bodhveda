@@ -291,3 +291,17 @@ func (r *PreferenceRepo) ListEligibleRecipientExtIDsForBroadcast(ctx context.Con
 
 	return extIDs, nil
 }
+
+func (r *PreferenceRepo) DeleteForRecipient(ctx context.Context, projectID int, recipientExtID string) error {
+	sql := `
+		DELETE FROM preference
+		WHERE project_id = $1 AND recipient_external_id = $2;
+	`
+
+	_, err := r.db.Exec(ctx, sql, projectID, recipientExtID)
+	if err != nil {
+		return fmt.Errorf("delete: %w", err)
+	}
+
+	return nil
+}

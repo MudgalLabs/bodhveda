@@ -2,10 +2,13 @@ package service
 
 import (
 	"context"
+	"encoding/json"
 	"fmt"
 	"math/rand"
 	"time"
 
+	"github.com/hibiken/asynq"
+	"github.com/mudgallabs/bodhveda/internal/job"
 	"github.com/mudgallabs/bodhveda/internal/model/dto"
 	"github.com/mudgallabs/bodhveda/internal/model/entity"
 	"github.com/mudgallabs/bodhveda/internal/model/repository"
@@ -14,12 +17,14 @@ import (
 )
 
 type RecipientService struct {
-	repo repository.RecipientRepository
+	repo        repository.RecipientRepository
+	asynqClient *asynq.Client
 }
 
-func NewRecipientService(repo repository.RecipientRepository) *RecipientService {
+func NewRecipientService(repo repository.RecipientRepository, asynqClient *asynq.Client) *RecipientService {
 	return &RecipientService{
-		repo,
+		repo:        repo,
+		asynqClient: asynqClient,
 	}
 }
 
@@ -93,13 +98,32 @@ func (s *RecipientService) Delete(ctx context.Context, projectID int, externalID
 	if externalID == "" {
 		return service.ErrInvalidInput, fmt.Errorf("recipient id required")
 	}
+
 	err := s.repo.Delete(ctx, projectID, externalID)
 	if err != nil {
 		if err == tantraRepo.ErrNotFound {
-			return service.ErrNotFound, err
+			return service.ErrNotFound, fmt.Errorf("Recipient not found")
 		}
 		return service.ErrInternalServerError, err
 	}
+
+	// Trigger async task to delete recipient data
+	taskPayload := entity.DeleteRecipientDataPayload{
+		ProjectID:      projectID,
+		RecipientExtID: externalID,
+	}
+
+	payload, err := json.Marshal(taskPayload)
+	if err != nil {
+		return service.ErrInternalServerError, fmt.Errorf("marshal delete recipient data payload: %w", err)
+	}
+
+	task := asynq.NewTask(job.TaskTypeDeleteRecipientData, payload)
+	_, err = s.asynqClient.Enqueue(task, asynq.MaxRetry(3))
+	if err != nil {
+		return service.ErrInternalServerError, fmt.Errorf("enqueue delete recipient data task: %w", err)
+	}
+
 	return service.ErrNone, nil
 }
 

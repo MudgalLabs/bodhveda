@@ -31,3 +31,8 @@ type RecipientListItem struct {
 	DirectNotificationsCount    int `json:"direct_notifications_count"`
 	BroadcastNotificationsCount int `json:"broadcast_notifications_count"`
 }
+
+type DeleteRecipientDataPayload struct {
+	ProjectID      int    `json:"project_id"`
+	RecipientExtID string `json:"recipient_ext_id"`
+}

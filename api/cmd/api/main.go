@@ -12,7 +12,7 @@ import (
 	"github.com/hibiken/asynq"
 	"github.com/mudgallabs/bodhveda/internal/app"
 	"github.com/mudgallabs/bodhveda/internal/env"
-	jobs "github.com/mudgallabs/bodhveda/internal/job"
+	"github.com/mudgallabs/bodhveda/internal/job"
 	"github.com/mudgallabs/tantra/logger"
 )
 
@@ -20,19 +20,22 @@ func main() {
 	app.Init()
 	defer app.Close()
 
-	asynqServer, err := jobs.NewAsynqServer()
+	asynqServer, err := job.NewAsynqServer()
 	if err != nil {
 		logger.Get().Errorf("failed to create asynq server: %v", err)
 		panic(err)
 	}
 
 	asynqMux := asynq.NewServeMux()
-	asynqMux.Handle(jobs.TaskTypePrepareBroadcastBatches, jobs.NewPrepareBroadcastBatchesProcessor(
+	asynqMux.Handle(job.TaskTypePrepareBroadcastBatches, job.NewPrepareBroadcastBatchesProcessor(
 		app.DB, app.ASYNQCLIENT, app.APP.Repository.Preference, app.APP.Repository.Broadcast,
 		app.APP.Repository.BroadcastBatch,
 	))
-	asynqMux.Handle(jobs.TaskTypeBroadcastDelivery, jobs.NewBroadcastDeliveryProcessor(
+	asynqMux.Handle(job.TaskTypeBroadcastDelivery, job.NewBroadcastDeliveryProcessor(
 		app.DB, app.APP.Repository.Notification, app.APP.Repository.Broadcast, app.APP.Repository.BroadcastBatch,
+	))
+	asynqMux.Handle(job.TaskTypeDeleteRecipientData, job.NewDeleteRecipientDataProcessor(
+		app.APP.Repository.Preference, app.APP.Repository.Notification,
 	))
 
 	router := initRouter()

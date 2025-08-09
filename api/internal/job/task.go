@@ -1,4 +1,4 @@
-package jobs
+package job
 
 import (
 	"context"
@@ -20,6 +20,7 @@ import (
 const (
 	TaskTypePrepareBroadcastBatches = "broadcast:prepare_batches"
 	TaskTypeBroadcastDelivery       = "broadcast:delivery"
+	TaskTypeDeleteRecipientData     = "recipient:delete_data"
 )
 
 type BroadcastDeliveryProcessor struct {
@@ -208,6 +209,46 @@ func (processor *PrepareBroadcastBatchesProcessor) ProcessTask(ctx context.Conte
 			logger.Get().Error(err)
 			return err
 		}
+	}
+
+	return nil
+}
+
+type DeleteRecipientDataProcessor struct {
+	db               *pgxpool.Pool
+	preferenceRepo   repository.PreferenceRepository
+	notificationRepo repository.NotificationRepository
+}
+
+func NewDeleteRecipientDataProcessor(
+	preferenceRepo repository.PreferenceRepository, notificationRepo repository.NotificationRepository,
+) *DeleteRecipientDataProcessor {
+	return &DeleteRecipientDataProcessor{
+		preferenceRepo:   preferenceRepo,
+		notificationRepo: notificationRepo,
+	}
+}
+
+func (processor *DeleteRecipientDataProcessor) ProcessTask(ctx context.Context, t *asynq.Task) error {
+	var payload entity.DeleteRecipientDataPayload
+	if err := json.Unmarshal(t.Payload(), &payload); err != nil {
+		err = fmt.Errorf("json.Unmarshal failed: %v: %w", err, asynq.SkipRetry)
+		logger.Get().Error(err)
+		return err
+	}
+
+	err := processor.preferenceRepo.DeleteForRecipient(ctx, payload.ProjectID, payload.RecipientExtID)
+	if err != nil {
+		err = fmt.Errorf("delete preferences for recipient: %w", err)
+		logger.Get().Error(err)
+		return err
+	}
+
+	_, err = processor.notificationRepo.DeleteForRecipient(ctx, payload.ProjectID, payload.RecipientExtID, nil)
+	if err != nil {
+		err = fmt.Errorf("delete notifications for recipient: %w", err)
+		logger.Get().Error(err)
+		return err
 	}
 
 	return nil

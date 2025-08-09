@@ -23,6 +23,7 @@ type PreferenceReader interface {
 
 type PreferenceWriter interface {
 	Create(ctx context.Context, pref *entity.Preference) (*entity.Preference, error)
+	DeleteForRecipient(ctx context.Context, projectID int, recipientExtID string) error
 }
 
 type PreferenceSearchFilter struct {
