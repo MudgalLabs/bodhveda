@@ -63,11 +63,21 @@ func (r *PreferenceRepo) ListPreferences(ctx context.Context, projectID int, kin
 	return prefs, err
 }
 
+func (r *PreferenceRepo) ListPreferencesForRecipient(ctx context.Context, projectID int, recipientExtID string) ([]*entity.Preference, error) {
+	returned, _, err := r.findPreferences(ctx, repository.SearchPreferencePayload{
+		Filters: repository.PreferenceSearchFilter{
+			ProjectOrRecipient: enum.PreferenceKindRecipient,
+			ProjectID:          projectID,
+			RecipientExtID:     &recipientExtID,
+		},
+	})
+	return returned, err
+}
+
 func (r *PreferenceRepo) findPreferences(ctx context.Context, payload repository.SearchPreferencePayload) ([]*entity.Preference, int, error) {
 	baseSQL := `
 		SELECT 
 			p.id, p.project_id, p.recipient_external_id, p.channel, p.topic, p.event, p.label, p.enabled, p.created_at, p.updated_at
-			
 		FROM preference p
 	`
 
@@ -82,6 +92,11 @@ func (r *PreferenceRepo) findPreferences(ctx context.Context, payload repository
 		builder.AppendWhere("p.recipient_external_id IS NOT NULL")
 	case enum.PreferenceKindProject:
 		builder.AppendWhere("p.recipient_external_id IS NULL")
+	}
+
+	// Add recipient_ext_id filter if set
+	if payload.Filters.RecipientExtID != nil {
+		builder.AddCompareFilter("p.recipient_external_id", "=", *payload.Filters.RecipientExtID)
 	}
 
 	// Apply default sorting if not provided.

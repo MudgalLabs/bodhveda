@@ -116,3 +116,63 @@ func (s *PreferenceService) UpsertRecipientPreference(ctx context.Context, paylo
 
 	return dto.FromPreferenceForRecipient(newPref), service.ErrNone, nil
 }
+
+func (s *PreferenceService) GetRecipientGlobalPreferences(ctx context.Context, projectID int, recipientExtID string) (*dto.RecipientGlobalPreferencesResult, service.Error, error) {
+	// 1. Fetch all project-level preferences (these are the defaults for all recipients)
+	projectPrefs, err := s.repo.ListPreferences(ctx, projectID, enum.PreferenceKindProject)
+	if err != nil {
+		return nil, service.ErrInternalServerError, fmt.Errorf("repo list project preferences: %w", err)
+	}
+
+	// 2. Fetch all recipient-level preferences for this recipient (these override project-level preferences)
+	recipientPrefs, err := s.repo.ListPreferencesForRecipient(ctx, projectID, recipientExtID)
+	if err != nil {
+		return nil, service.ErrInternalServerError, fmt.Errorf("repo list recipient preferences: %w", err)
+	}
+
+	// 3. Build a map for quick lookup of recipient-level preferences by (channel, topic, event)
+	type prefKey struct{ Channel, Topic, Event string }
+	recipientPrefMap := make(map[prefKey]*entity.Preference)
+	for _, pref := range recipientPrefs {
+		// Only consider preferences for the given recipient
+		if pref.RecipientExtID != nil && *pref.RecipientExtID == recipientExtID {
+			recipientPrefMap[prefKey{pref.Channel, pref.Topic, pref.Event}] = pref
+		}
+	}
+
+	result := []*dto.RecipientGlobalPreferenceItem{}
+	// 4. For each project-level preference, check if there is a recipient-level override
+	for _, projPref := range projectPrefs {
+		key := prefKey{projPref.Channel, projPref.Topic, projPref.Event}
+
+		item := dto.RecipientGlobalPreferenceItem{
+			Target: dto.RecipientGlobalPreferenceTarget{
+				Channel: projPref.Channel,
+				Topic:   projPref.Topic,
+				Event:   projPref.Event,
+				Label:   "",
+			},
+			State: dto.RecipientGlobalPreferenceState{
+				Subscribed: projPref.Enabled, // default to project-level setting
+				Inherited:  true,             // assume inherited unless overridden
+			},
+		}
+
+		if projPref.Label != nil {
+			item.Target.Label = *projPref.Label
+		}
+
+		// 5. If a recipient-level preference exists, override the project-level setting
+		if rp, ok := recipientPrefMap[key]; ok {
+			item.State.Subscribed = rp.Enabled
+			item.State.Inherited = false
+		}
+
+		result = append(result, &item)
+	}
+
+	// 6. Return the merged preferences (project-level, overridden by recipient-level where applicable)
+	return &dto.RecipientGlobalPreferencesResult{
+		GlobalPreferences: result,
+	}, service.ErrNone, nil
+}

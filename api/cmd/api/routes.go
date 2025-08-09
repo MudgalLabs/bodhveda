@@ -72,6 +72,9 @@ func initRouter() http.Handler {
 				r.Delete("/delete", handler.DeleteNotifications(app.APP.Service.Notification))
 				r.Delete("/delete-all", handler.DeleteAllNotifications(app.APP.Service.Notification))
 			})
+			r.Route("/preferences", func(r chi.Router) {
+				r.Get("/global", handler.GetRecipientGlobalPreferences(app.APP.Service.Preference))
+			})
 		})
 	})
 

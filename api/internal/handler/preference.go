@@ -4,6 +4,7 @@ import (
 	"errors"
 	"net/http"
 
+	"github.com/mudgallabs/bodhveda/internal/middleware"
 	"github.com/mudgallabs/bodhveda/internal/model/dto"
 	"github.com/mudgallabs/bodhveda/internal/service"
 	"github.com/mudgallabs/tantra/httpx"
@@ -110,5 +111,26 @@ func UpsertRecipientPreferences(s *service.PreferenceService) http.HandlerFunc {
 		}
 
 		httpx.SuccessResponse(w, r, http.StatusCreated, "Recipient preference updated", result)
+	}
+}
+
+func GetRecipientGlobalPreferences(s *service.PreferenceService) http.HandlerFunc {
+	return func(w http.ResponseWriter, r *http.Request) {
+		ctx := r.Context()
+		apiKey := middleware.GetAPIKeyFromContext(ctx)
+
+		recipientExtID := httpx.ParamStr(r, "recipient_external_id")
+		if recipientExtID == "" {
+			httpx.BadRequestResponse(w, r, errors.New("recipient_id required"))
+			return
+		}
+
+		result, errKind, err := s.GetRecipientGlobalPreferences(ctx, apiKey.ProjectID, recipientExtID)
+		if err != nil {
+			httpx.ServiceErrResponse(w, r, errKind, err)
+			return
+		}
+
+		httpx.SuccessResponse(w, r, http.StatusOK, "", result)
 	}
 }

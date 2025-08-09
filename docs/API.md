@@ -37,8 +37,9 @@ https://api.bodhveda.com/v1
         -   [Delete All Notifications](#delete-all-notifications)
     -   [Recipient Preferences (Recipient or Full Scope)](#recipient-preferences-recipient-or-full-scope)
         -   [Get Global Preferences](#get-global-preferences)
-        -   [Subscribe](#subscribe-to-notifications)
-        -   [Unsubscribe](#unsubscribe-from-notifications)
+        -   [Subscribe](#subscribe-a-target)
+        -   [Unsubscribe](#unsubscribe-a-target)
+        -   [Check subscription to a target](#check-subscription-to-a-target)
     -   [Recipient Management (Full Scope)](#recipient-management-full-scope)
         -   [Get Recipient](#get-recipient)
         -   [Create Recipient](#create-recipient)
@@ -190,7 +191,7 @@ will match:
 -   `marketing:pricing:update`
 -   `marketing:feature:update`
 
-However, when sending a notification, `"any"` makes no sense. You must specify a concrete `channel`, `topic`, and `event`.
+However, when sending a notification, `"any"` makes no sense, although `"none"` topic is allowed. You must specify a concrete `channel`, `topic`, and `event`.
 
 ## Recipients
 
@@ -377,42 +378,110 @@ Deletes all notifications for the recipient.
 
 #### Get Global Preferences
 
-**GET** `/v1/recipients/:recipient/preferences`
+**GET** `/v1/recipients/:recipient/preferences/global`
 
-Get global notification preferences for a recipient.
+Get recipient's preference to project/app level defined preferences.
+
+**Response Body:**
+
+```json
+{
+    "global_preferences": [
+        {
+            "target": {
+                "channel": "announcements",
+                "topic": "none",
+                "event": "new_feature",
+                "label": "New feature release"
+            },
+            "state": {
+                "subscribed": true,
+                "inherited": true
+            }
+        },
+        {
+            "target": {
+                "channel": "posts",
+                "topic": "any",
+                "event": "new_comment",
+                "label": "Comment on your post"
+            },
+            "state": {
+                "subscribed": true,
+                "inherited": true
+            }
+        },
+        {
+            "target": {
+                "channel": "posts",
+                "topic": "any",
+                "event": "new_like",
+                "label": "Like on your post"
+            },
+            "state": {
+                "subscribed": false,
+                "inherited": false
+            }
+        }
+    ]
+}
+```
 
 ---
 
-#### Subscribe to Notifications
+#### Subscribe or Unsubscribe a target
 
-**PATCH** `/v1/recipients/:recipient/preferences/subscribe`
+**PATCH** `/v1/recipients/:recipient/preferences/targets`
 
 **Request Body:**
 
 ```json
 {
-    "to": {
+    "target": {
         "channel": "announcements",
         "topic": "none",
         "event": "new_feature"
+    },
+    "state": {
+        "subscribed": true // or `false` for unsubscribing
+    }
+}
+```
+
+**Response Body:**
+
+```json
+{
+    "target": {
+        "channel": "announcements",
+        "topic": "none",
+        "event": "new_feature"
+    },
+    "state": {
+        "subscribed": true,
+        "inherited": false // `true` means it was derived from project's global default and not explicitly set by the recipient.
     }
 }
 ```
 
 ---
 
-#### Unsubscribe from Notifications
+#### Check subscription to a target
 
-**PATCH** `/v1/recipients/:recipient/preferences/unsubscribe`
+**GET** `/v1/recipients/:recipient/preferences/targets?channel=posts&topic=post_id_123&event=new_comment`
 
-**Request Body:**
+**Response Body:**
 
 ```json
 {
-    "from": {
-        "channel": "announcements",
-        "topic": "none",
-        "event": "new_feature"
+    "target": {
+        "channel": "posts",
+        "topic": "post_id_123",
+        "event": "new_comment"
+    },
+    "state": {
+        "subscribed": true,
+        "inherited": false
     }
 }
 ```

@@ -171,3 +171,24 @@ func FromProjectPreferenceList(list []*entity.ProjectPreferenceListItem) []*Proj
 
 	return DTOs
 }
+
+type RecipientGlobalPreferenceTarget struct {
+	Channel string `json:"channel"`
+	Topic   string `json:"topic"`
+	Event   string `json:"event"`
+	Label   string `json:"label"`
+}
+
+type RecipientGlobalPreferenceState struct {
+	Subscribed bool `json:"subscribed"`
+	Inherited  bool `json:"inherited"`
+}
+
+type RecipientGlobalPreferenceItem struct {
+	Target RecipientGlobalPreferenceTarget `json:"target"`
+	State  RecipientGlobalPreferenceState  `json:"state"`
+}
+
+type RecipientGlobalPreferencesResult struct {
+	GlobalPreferences []*RecipientGlobalPreferenceItem `json:"global_preferences"`
+}
