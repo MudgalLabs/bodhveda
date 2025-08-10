@@ -59,3 +59,30 @@ func ListAPIKeys(s *service.APIKeyService) http.HandlerFunc {
 		httpx.SuccessResponse(w, r, http.StatusOK, "", result)
 	}
 }
+
+func DeleteAPIKey(s *service.APIKeyService) http.HandlerFunc {
+	return func(w http.ResponseWriter, r *http.Request) {
+		ctx := r.Context()
+		userID := middleware.GetUserIDFromContext(ctx)
+
+		projectID, err := httpx.ParamInt(r, "project_id")
+		if err != nil {
+			httpx.BadRequestResponse(w, r, errors.New("Invalid project ID"))
+			return
+		}
+
+		apiKeyID, err := httpx.ParamInt(r, "api_key_id")
+		if err != nil {
+			httpx.BadRequestResponse(w, r, errors.New("Invalid project ID"))
+			return
+		}
+
+		errKind, err := s.Delete(ctx, userID, projectID, apiKeyID)
+		if err != nil {
+			httpx.ServiceErrResponse(w, r, errKind, err)
+			return
+		}
+
+		httpx.SuccessResponse(w, r, http.StatusOK, "API key delete", nil)
+	}
+}

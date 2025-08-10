@@ -29,4 +29,5 @@ type NotificationWriter interface {
 	MarkAsOpenedForRecipient(ctx context.Context, projectID int, recipientExtID string, notificationIDs []int) (int, error)
 	// Pass nil for notificationIDs to delete all notifications for the recipient.
 	DeleteForRecipient(ctx context.Context, projectID int, recipientExtID string, notificationIDs []int) (int, error)
+	DeleteForProject(ctx context.Context, projectID int) (int, error)
 }

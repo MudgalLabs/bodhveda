@@ -92,12 +92,13 @@ func Init() {
 	userProfileRepository := user_profile.NewRepository(db)
 	userIdentityRepository := user_identity.NewRepository(db)
 
+	// REFACTOR: Why not we define handlers as methods on the `app` struct?
 	apikeyService := service.NewAPIKeyService(apikeyRepository, projectRepository)
 	preferenceService := service.NewProjectPreferenceService(preferenceRepository, recipientRepository)
-	projectService := service.NewProjectService(projectRepository)
 	recipientService := service.NewRecipientService(recipientRepository, ASYNQCLIENT)
 	notificationService := service.NewNotificationService(notificationRepository, recipientRepository,
 		preferenceRepository, broadcastRepository, broadcastBatchRepository, recipientService, ASYNQCLIENT)
+	projectService := service.NewProjectService(projectRepository, notificationService, recipientService, ASYNQCLIENT)
 	userIdentityService := user_identity.NewService(userIdentityRepository, userProfileRepository)
 	userProfileService := user_profile.NewService(userProfileRepository)
 
@@ -130,7 +131,7 @@ func Init() {
 		Repository:  repositories,
 	}
 
-	// err = recipientService.CreateRandomRecipients(context.Background(), 1, 10000)
+	// err = recipientService.CreateRandomRecipients(context.Background(), 6, 100_000)
 	// if err != nil {
 	// 	logger.Get().Errorf("failed to create random recipients: %v", err)
 	// } else {

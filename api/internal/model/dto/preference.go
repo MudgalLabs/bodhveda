@@ -262,3 +262,26 @@ func (q *CheckRecipientTargetPayload) Validate() error {
 	}
 	return nil
 }
+
+type DeletePreferencePayload struct {
+	ProjectID    int `json:"project_id"`
+	PreferenceID int `json:"preference_id"`
+}
+
+func (p *DeletePreferencePayload) Validate() error {
+	var errs service.InputValidationErrors
+
+	if p.ProjectID <= 0 {
+		errs.Add(apires.NewApiError("Project is required", "Project ID must be a positive integer", "project_id", p.ProjectID))
+	}
+
+	if p.PreferenceID <= 0 {
+		errs.Add(apires.NewApiError("Preference ID is required", "Preference ID must be a positive integer", "preference_id", p.PreferenceID))
+	}
+
+	if len(errs) > 0 {
+		return errs
+	}
+
+	return nil
+}

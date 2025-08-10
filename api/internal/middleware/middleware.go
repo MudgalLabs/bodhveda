@@ -207,7 +207,7 @@ func APIKeyBasedAuthMiddleware(next http.Handler) http.Handler {
 	})
 }
 
-func MakeSureUserOwnsProjectMiddleware(next http.Handler) http.Handler {
+func MakeSureUserOwnsThisProject(next http.Handler) http.Handler {
 	return http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 		ctx := r.Context()
 		userID := GetUserIDFromContext(ctx)

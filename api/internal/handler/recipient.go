@@ -11,7 +11,7 @@ import (
 	"github.com/mudgallabs/tantra/jsonx"
 )
 
-func CreateRecipient(s *service.RecipientService) http.HandlerFunc {
+func CreateRecipientConsole(s *service.RecipientService) http.HandlerFunc {
 	return func(w http.ResponseWriter, r *http.Request) {
 		ctx := r.Context()
 		projectID, err := httpx.ParamInt(r, "project_id")
@@ -57,7 +57,7 @@ func ListRecipients(s *service.RecipientService) http.HandlerFunc {
 	}
 }
 
-func CreateRecipientWithAPIKey(s *service.RecipientService) http.HandlerFunc {
+func CreateRecipient(s *service.RecipientService) http.HandlerFunc {
 	return func(w http.ResponseWriter, r *http.Request) {
 		ctx := r.Context()
 		apiKey := middleware.GetAPIKeyFromContext(ctx)
@@ -168,6 +168,37 @@ func UpdateRecipient(s *service.RecipientService) http.HandlerFunc {
 	}
 }
 
+func UpdateRecipientConsole(s *service.RecipientService) http.HandlerFunc {
+	return func(w http.ResponseWriter, r *http.Request) {
+		ctx := r.Context()
+		projectID, err := httpx.ParamInt(r, "project_id")
+		if err != nil {
+			httpx.BadRequestResponse(w, r, errors.New("Invalid project ID"))
+			return
+		}
+
+		recipientExtID := httpx.ParamStr(r, "recipient_external_id")
+		if recipientExtID == "" {
+			httpx.BadRequestResponse(w, r, errors.New("recipient_external_id required"))
+			return
+		}
+
+		var payload dto.UpdateRecipientPayload
+		if err := jsonx.DecodeJSONRequest(&payload, r); err != nil {
+			httpx.MalformedJSONResponse(w, r, err)
+			return
+		}
+
+		result, errKind, err := s.Update(ctx, projectID, recipientExtID, &payload)
+		if err != nil {
+			httpx.ServiceErrResponse(w, r, errKind, err)
+			return
+		}
+
+		httpx.SuccessResponse(w, r, http.StatusOK, "Recipient updated", result)
+	}
+}
+
 func DeleteRecipient(s *service.RecipientService) http.HandlerFunc {
 	return func(w http.ResponseWriter, r *http.Request) {
 		ctx := r.Context()
@@ -186,6 +217,31 @@ func DeleteRecipient(s *service.RecipientService) http.HandlerFunc {
 			httpx.ServiceErrResponse(w, r, errKind, err)
 			return
 		}
+		httpx.SuccessResponse(w, r, http.StatusOK, "Recipient deleted", nil)
+	}
+}
+
+func DeleteRecipientConsole(s *service.RecipientService) http.HandlerFunc {
+	return func(w http.ResponseWriter, r *http.Request) {
+		ctx := r.Context()
+		projectID, err := httpx.ParamInt(r, "project_id")
+		if err != nil {
+			httpx.BadRequestResponse(w, r, errors.New("Invalid project ID"))
+			return
+		}
+
+		recipientExtID := httpx.ParamStr(r, "recipient_external_id")
+		if recipientExtID == "" {
+			httpx.BadRequestResponse(w, r, errors.New("recipient_external_id required"))
+			return
+		}
+
+		errKind, err := s.Delete(ctx, projectID, recipientExtID)
+		if err != nil {
+			httpx.ServiceErrResponse(w, r, errKind, err)
+			return
+		}
+
 		httpx.SuccessResponse(w, r, http.StatusOK, "Recipient deleted", nil)
 	}
 }

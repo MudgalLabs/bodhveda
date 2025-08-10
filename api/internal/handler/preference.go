@@ -99,7 +99,7 @@ func UpsertRecipientPreferences(s *service.PreferenceService) http.HandlerFunc {
 			return
 		}
 
-		recipientExtID := httpx.ParamStr(r, "recipient_id")
+		recipientExtID := httpx.ParamStr(r, "recipient_external_id")
 
 		var payload dto.UpsertRecipientPreferencePayload
 		if err := jsonx.DecodeJSONRequest(&payload, r); err != nil {
@@ -141,7 +141,7 @@ func GetRecipientGlobalPreferences(s *service.PreferenceService) http.HandlerFun
 	}
 }
 
-func PatchRecipientPreferenceTarget(s *service.PreferenceService) http.HandlerFunc {
+func UpdateRecipientPreferenceTarget(s *service.PreferenceService) http.HandlerFunc {
 	return func(w http.ResponseWriter, r *http.Request) {
 		ctx := r.Context()
 		apiKey := middleware.GetAPIKeyFromContext(ctx)
@@ -157,7 +157,7 @@ func PatchRecipientPreferenceTarget(s *service.PreferenceService) http.HandlerFu
 			return
 		}
 
-		result, errKind, err := s.PatchRecipientPreferenceTarget(ctx, apiKey.ProjectID, recipientExtID, req)
+		result, errKind, err := s.UpdateRecipientPreferenceTarget(ctx, apiKey.ProjectID, recipientExtID, req)
 		if err != nil {
 			httpx.ServiceErrResponse(w, r, errKind, err)
 			return
@@ -190,5 +190,35 @@ func CheckRecipientTargetSubscription(s *service.PreferenceService) http.Handler
 		}
 
 		httpx.SuccessResponse(w, r, http.StatusOK, "", result)
+	}
+}
+
+func DeletePreference(s *service.PreferenceService) http.HandlerFunc {
+	return func(w http.ResponseWriter, r *http.Request) {
+		ctx := r.Context()
+		projectID, err := httpx.ParamInt(r, "project_id")
+		if err != nil {
+			httpx.BadRequestResponse(w, r, errors.New("Invalid project ID"))
+			return
+		}
+
+		preferenceID, err := httpx.ParamInt(r, "preference_id")
+		if err != nil {
+			httpx.BadRequestResponse(w, r, errors.New("Invalid preference ID"))
+			return
+		}
+
+		payload := &dto.DeletePreferencePayload{
+			ProjectID:    projectID,
+			PreferenceID: preferenceID,
+		}
+
+		errKind, err := s.Delete(ctx, payload)
+		if err != nil {
+			httpx.ServiceErrResponse(w, r, errKind, err)
+			return
+		}
+
+		httpx.SuccessResponse(w, r, http.StatusOK, "", nil)
 	}
 }

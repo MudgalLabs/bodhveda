@@ -1,14 +1,15 @@
 import { FC, ReactNode, useEffect, useMemo, useState } from "react";
 import { useGetProjectIDFromParams } from "@/features/project/project_hooks";
 import {
+    Alert,
     Button,
     Dialog,
     DialogContent,
-    DialogDescription,
     DialogFooter,
     DialogHeader,
     DialogTitle,
     DialogTrigger,
+    IconBadgeInfo,
     Input,
     Label,
     toast,
@@ -85,12 +86,23 @@ export const CreateProjectPreferenceModal: FC<
             <DialogTrigger asChild>{renderTrigger()}</DialogTrigger>
             <DialogContent>
                 <DialogHeader>
-                    <DialogTitle>Create Project Preference</DialogTitle>
-                    <DialogDescription>
-                        Create a preference that will be available to all the
-                        recipients in this project.
-                    </DialogDescription>
+                    <DialogTitle>Create Preference</DialogTitle>
                 </DialogHeader>
+
+                <p>
+                    Create a project level preference that will be applied to
+                    all recipients in this project. You should allow recipients
+                    to override project level preferences in their notification
+                    settings.
+                </p>
+
+                <Alert>
+                    <IconBadgeInfo />
+                    <p className="text-text-muted">
+                        Recipient preferences are accessible via the Developer
+                        API.
+                    </p>
+                </Alert>
                 <form className="flex flex-col gap-4" onSubmit={handleSubmit}>
                     <WithLabel Label={<Label>Label</Label>}>
                         <Input

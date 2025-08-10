@@ -18,4 +18,6 @@ type ProjectReader interface {
 
 type ProjectWriter interface {
 	Create(ctx context.Context, project *entity.Project) (*entity.Project, error)
+	SoftDelete(ctx context.Context, userID, projectID int) error
+	Delete(ctx context.Context, projectID int) error
 }

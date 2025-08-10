@@ -34,6 +34,7 @@ CREATE TABLE IF NOT EXISTS project (
         user_id      INT NOT NULL REFERENCES user_identity(id),
         created_at   TIMESTAMPTZ NOT NULL,
         updated_at   TIMESTAMPTZ NOT NULL
+        deleted_at   TIMESTAMPTZ,
 );
 
 CREATE TABLE IF NOT EXISTS api_key (

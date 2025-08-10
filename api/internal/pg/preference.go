@@ -292,15 +292,47 @@ func (r *PreferenceRepo) ListEligibleRecipientExtIDsForBroadcast(ctx context.Con
 	return extIDs, nil
 }
 
-func (r *PreferenceRepo) DeleteForRecipient(ctx context.Context, projectID int, recipientExtID string) error {
+func (r *PreferenceRepo) DeleteForRecipient(ctx context.Context, projectID int, recipientExtID string) (int, error) {
 	sql := `
 		DELETE FROM preference
 		WHERE project_id = $1 AND recipient_external_id = $2;
 	`
 
-	_, err := r.db.Exec(ctx, sql, projectID, recipientExtID)
+	tag, err := r.db.Exec(ctx, sql, projectID, recipientExtID)
+	if err != nil {
+		return 0, fmt.Errorf("delete: %w", err)
+	}
+
+	return int(tag.RowsAffected()), nil
+}
+
+func (r *PreferenceRepo) DeleteForProject(ctx context.Context, projectID int) (int, error) {
+	sql := `
+		DELETE FROM preference
+		WHERE project_id = $1;
+	`
+
+	tag, err := r.db.Exec(ctx, sql, projectID)
+	if err != nil {
+		return 0, fmt.Errorf("delete: %w", err)
+	}
+
+	return int(tag.RowsAffected()), nil
+}
+
+func (r *PreferenceRepo) Delete(ctx context.Context, projectID int, preferenceID int) error {
+	sql := `
+		DELETE FROM preference
+		WHERE project_id = $1 AND id = $2;
+	`
+
+	tag, err := r.db.Exec(ctx, sql, projectID, preferenceID)
 	if err != nil {
 		return fmt.Errorf("delete: %w", err)
+	}
+
+	if tag.RowsAffected() == 0 {
+		return tantraRepo.ErrNotFound
 	}
 
 	return nil

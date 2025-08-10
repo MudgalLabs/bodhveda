@@ -18,4 +18,5 @@ type BroadcastReader interface {
 type BroadcastWriter interface {
 	Create(ctx context.Context, notification *entity.Broadcast) (*entity.Broadcast, error)
 	Update(ctx context.Context, notification *entity.Broadcast) error
+	DeleteForProject(ctx context.Context, projectID int) (int, error)
 }

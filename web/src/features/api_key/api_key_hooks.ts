@@ -38,3 +38,24 @@ export function useCreateAPIKey(options: AnyUseMutationOptions = {}) {
         ...rest,
     });
 }
+
+export function useDeleteAPIKey(
+    projectID: string,
+    options: AnyUseMutationOptions = {}
+) {
+    const { onSuccess, ...rest } = options;
+    const queryClient = useQueryClient();
+
+    return useMutation<APIRes<string>, unknown, { apiKeyID: number }>({
+        mutationFn: ({ apiKeyID }) => {
+            return client.delete(
+                API_ROUTES.project.api_keys.delete(projectID, apiKeyID)
+            );
+        },
+        onSuccess: (...args) => {
+            queryClient.invalidateQueries({ queryKey: ["useGetAPIKeys"] });
+            onSuccess?.(...args);
+        },
+        ...rest,
+    });
+}

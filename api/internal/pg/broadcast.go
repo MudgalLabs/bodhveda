@@ -78,3 +78,16 @@ func (r *BroadcastRepo) Update(ctx context.Context, broadcast *entity.Broadcast)
 	)
 	return err
 }
+
+func (r *BroadcastRepo) DeleteForProject(ctx context.Context, projectID int) (int, error) {
+	sql := `
+		DELETE FROM broadcast
+		WHERE project_id = $1
+	`
+	tag, err := r.db.Exec(ctx, sql, projectID)
+	if err != nil {
+		return 0, fmt.Errorf("delete broadcasts for project: %w", err)
+	}
+
+	return int(tag.RowsAffected()), nil
+}

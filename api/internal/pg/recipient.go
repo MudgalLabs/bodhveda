@@ -141,12 +141,13 @@ func (r *RecipientRepo) Update(ctx context.Context, projectID int, externalID st
 	return &updated, nil
 }
 
-func (r *RecipientRepo) Delete(ctx context.Context, projectID int, externalID string) error {
+func (r *RecipientRepo) SoftDelete(ctx context.Context, projectID int, externalID string) error {
 	sql := `
-		DELETE FROM recipient
-		WHERE project_id = $1 AND external_id = $2
+		UPDATE recipient
+		SET deleted_at = $1
+		WHERE project_id = $2 AND external_id = $3
 	`
-	res, err := r.db.Exec(ctx, sql, projectID, externalID)
+	res, err := r.db.Exec(ctx, sql, time.Now().UTC(), projectID, externalID)
 	if err != nil {
 		return err
 	}
@@ -154,6 +155,15 @@ func (r *RecipientRepo) Delete(ctx context.Context, projectID int, externalID st
 		return tantraRepo.ErrNotFound
 	}
 	return nil
+}
+
+func (r *RecipientRepo) Delete(ctx context.Context, projectID int, externalID string) error {
+	sql := `
+		DELETE FROM recipient
+		WHERE project_id = $1 AND external_id = $2
+	`
+	_, err := r.db.Exec(ctx, sql, projectID, externalID)
+	return err
 }
 
 func (r *RecipientRepo) findRecipients(ctx context.Context, payload repository.SearchRecipientPayload, includeNotificationsCount bool) ([]*entity.RecipientListItem, int, error) {
@@ -178,6 +188,9 @@ func (r *RecipientRepo) findRecipients(ctx context.Context, payload repository.S
 	}
 
 	builder := dbx.NewSQLBuilder(baseSQL)
+
+	// Never include soft-deleted recipients in the results.
+	builder.AppendWhere("r.deleted_at IS NULL")
 
 	if payload.Filters.ProjectID != nil {
 		builder.AddCompareFilter("r.project_id", "=", *payload.Filters.ProjectID)
@@ -268,4 +281,34 @@ func (r *RecipientRepo) Exists(ctx context.Context, projectID int, externalID st
 	}
 
 	return exists, nil
+}
+
+func (r *RecipientRepo) TotalCount(ctx context.Context, projectID int) (int, error) {
+	sql := `
+		SELECT COUNT(*)
+		FROM recipient
+		WHERE project_id = $1
+	`
+
+	var count int
+	err := r.db.QueryRow(ctx, sql, projectID).Scan(&count)
+	if err != nil {
+		return 0, fmt.Errorf("query and scan: %w", err)
+	}
+
+	return count, nil
+}
+
+func (r *RecipientRepo) DeleteForProject(ctx context.Context, projectID int) (int, error) {
+	sql := `
+		DELETE FROM recipient
+		WHERE project_id = $1
+	`
+
+	tag, err := r.db.Exec(ctx, sql, projectID)
+	if err != nil {
+		return 0, fmt.Errorf("delete: %w", err)
+	}
+
+	return int(tag.RowsAffected()), nil
 }

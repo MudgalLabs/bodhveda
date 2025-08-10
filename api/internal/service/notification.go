@@ -142,7 +142,7 @@ func (s *NotificationService) sendBroadcastNotification(ctx context.Context, pay
 		return nil, fmt.Errorf("create broadcast: %w", err)
 	}
 
-	taskPayload, err := json.Marshal(entity.NewPrepareBroadcastBatchesPayload(broadcast))
+	taskPayload, err := json.Marshal(dto.PrepareBroadcastBatchesPayload{Broadcast: broadcast})
 	if err != nil {
 		return nil, fmt.Errorf("marshal prepare broadcast batches payload: %w", err)
 	}

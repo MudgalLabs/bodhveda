@@ -2,6 +2,7 @@ package pg
 
 import (
 	"context"
+	"fmt"
 	"time"
 
 	"github.com/jackc/pgx/v5/pgxpool"
@@ -65,4 +66,20 @@ func (r *BroadcastBatchRepo) PendingCount(ctx context.Context, broadcastID int) 
 	var count int
 	err := r.db.QueryRow(ctx, sql, broadcastID, enum.BroadcastBatchStatusPending).Scan(&count)
 	return count, err
+}
+
+func (r *BroadcastBatchRepo) DeleteForProject(ctx context.Context, projectID int) (int, error) {
+	sql := `
+		DELETE FROM broadcast_batch bb
+		USING broadcast b
+		WHERE bb.broadcast_id = b.id AND b.project_id = $1
+
+	`
+
+	tag, err := r.db.Exec(ctx, sql, projectID)
+	if err != nil {
+		return 0, fmt.Errorf("delete broadcast batches for project: %w", err)
+	}
+
+	return int(tag.RowsAffected()), nil
 }

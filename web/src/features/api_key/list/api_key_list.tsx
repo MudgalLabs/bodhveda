@@ -1,5 +1,5 @@
 import { ColumnDef } from "@tanstack/react-table";
-import { useMemo } from "react";
+import { useMemo, useState } from "react";
 
 import {
     Button,
@@ -20,8 +20,9 @@ import {
 
 import { useGetProjectIDFromParams } from "@/features/project/project_hooks";
 import { useGetAPIKeys } from "@/features/api_key/api_key_hooks";
-import { CreateAPIKeyModal } from "@/features/api_key/list/create_api_key_modal";
+import { CreateAPIKeyModal } from "@/features/api_key/components/create_api_key_modal";
 import { APIKey, apiKeyScopeToString } from "@/features/api_key/api_key_types";
+import { DeleteAPIKeyModal } from "../components/delete_api_key_modal";
 
 export function APIKeyList() {
     const id = useGetProjectIDFromParams();
@@ -58,6 +59,51 @@ export function APIKeyList() {
     );
 }
 
+function ActionCell({ apiKey }: { apiKey: APIKey }) {
+    const projectID = useGetProjectIDFromParams();
+
+    const [dropdownOpen, setDropdownOpen] = useState(false);
+    const [deleteOpen, setDeleteOpen] = useState(false);
+
+    const handleOpenDeleteConfirm = () => {
+        setDropdownOpen(false);
+        setDeleteOpen(true);
+    };
+
+    return (
+        <>
+            <DropdownMenu open={dropdownOpen} onOpenChange={setDropdownOpen}>
+                <DropdownMenuTrigger asChild>
+                    <Button variant="ghost" size="icon">
+                        <IconEllipsis />
+                    </Button>
+                </DropdownMenuTrigger>
+
+                <DropdownMenuContent>
+                    <DropdownMenuItem asChild>
+                        <Button
+                            variant="destructive"
+                            onClick={handleOpenDeleteConfirm}
+                        >
+                            <IconTrash size={16} />
+                            Delete
+                        </Button>
+                    </DropdownMenuItem>
+                </DropdownMenuContent>
+            </DropdownMenu>
+
+            {deleteOpen && (
+                <DeleteAPIKeyModal
+                    open={deleteOpen}
+                    setOpen={setDeleteOpen}
+                    projectID={projectID}
+                    apiKey={apiKey}
+                />
+            )}
+        </>
+    );
+}
+
 const columns: ColumnDef<APIKey>[] = [
     {
         accessorKey: "name",
@@ -66,7 +112,9 @@ const columns: ColumnDef<APIKey>[] = [
     {
         accessorKey: "token_partial",
         header: () => <DataTableColumnHeader title="Token" />,
-        cell: ({ row }) => <pre>{row.original.token_partial}</pre>,
+        cell: ({ row }) => (
+            <pre className="select-text!">{row.original.token_partial}</pre>
+        ),
     },
     {
         accessorKey: "scope",
@@ -80,22 +128,7 @@ const columns: ColumnDef<APIKey>[] = [
     },
     {
         id: "actions",
-        cell: () => (
-            <DropdownMenu>
-                <DropdownMenuTrigger asChild>
-                    <Button variant="ghost" size="icon">
-                        <IconEllipsis />
-                    </Button>
-                </DropdownMenuTrigger>
-
-                <DropdownMenuContent>
-                    <DropdownMenuItem>
-                        <IconTrash size={16} />
-                        Delete
-                    </DropdownMenuItem>
-                </DropdownMenuContent>
-            </DropdownMenu>
-        ),
+        cell: ({ row }) => <ActionCell apiKey={row.original} />,
     },
 ];
 

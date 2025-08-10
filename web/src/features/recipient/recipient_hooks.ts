@@ -9,6 +9,7 @@ import {
     Recipient,
     CreateRecipientPayload,
     RecipientListItem,
+    EditRecipientPayload,
 } from "./recipient_types";
 
 export function useGetRecipients(projectID: string) {
@@ -20,16 +21,19 @@ export function useGetRecipients(projectID: string) {
     });
 }
 
-export function useCreateRecipient(options: AnyUseMutationOptions = {}) {
+export function useCreateRecipient(
+    projectID: string,
+    options: AnyUseMutationOptions = {}
+) {
     const { onSuccess, ...rest } = options;
     const queryClient = useQueryClient();
 
     return useMutation<
         APIRes<Recipient>,
         unknown,
-        { projectID: string; payload: CreateRecipientPayload }
+        { payload: CreateRecipientPayload }
     >({
-        mutationFn: ({ projectID, payload }) => {
+        mutationFn: ({ payload }) => {
             return client.post(
                 API_ROUTES.project.recipients.create(projectID),
                 payload
@@ -40,6 +44,58 @@ export function useCreateRecipient(options: AnyUseMutationOptions = {}) {
                 predicate: (query) =>
                     Array.isArray(query.queryKey) &&
                     query.queryKey[0] === getRecipientsKey()[0],
+            });
+            onSuccess?.(...args);
+        },
+        ...rest,
+    });
+}
+
+export function useDeleteRecipient(
+    projectID: string,
+    options: AnyUseMutationOptions = {}
+) {
+    const { onSuccess, ...rest } = options;
+    const queryClient = useQueryClient();
+
+    return useMutation<APIRes<Recipient>, unknown, { recipientID: string }>({
+        mutationFn: ({ recipientID }) => {
+            return client.delete(
+                API_ROUTES.project.recipients.delete(projectID, recipientID)
+            );
+        },
+        onSuccess: (...args) => {
+            queryClient.invalidateQueries({
+                queryKey: getRecipientsKey(projectID),
+            });
+            onSuccess?.(...args);
+        },
+        ...rest,
+    });
+}
+
+export function useEditRecipient(
+    projectID: string,
+    recipientID: string,
+    options: AnyUseMutationOptions = {}
+) {
+    const { onSuccess, ...rest } = options;
+    const queryClient = useQueryClient();
+
+    return useMutation<
+        APIRes<Recipient>,
+        unknown,
+        { payload: EditRecipientPayload }
+    >({
+        mutationFn: ({ payload }) => {
+            return client.patch(
+                API_ROUTES.project.recipients.edit(projectID, recipientID),
+                payload
+            );
+        },
+        onSuccess: (...args) => {
+            queryClient.invalidateQueries({
+                queryKey: getRecipientsKey(projectID),
             });
             onSuccess?.(...args);
         },

@@ -29,7 +29,7 @@ export const CreateRecipientModal: FC<CreateRecipientModalProps> = ({
     const [recipientID, setRecipientID] = useState("");
     const [name, setName] = useState("");
 
-    const { mutate: create, isPending } = useCreateRecipient({
+    const { mutate: create, isPending } = useCreateRecipient(projectID, {
         onSuccess: () => {
             toast.success(`Recipient ${recipientID} created successfully`);
             setOpen(false);
@@ -43,7 +43,6 @@ export const CreateRecipientModal: FC<CreateRecipientModalProps> = ({
         if (!recipientID.trim()) return;
 
         create({
-            projectID,
             payload: {
                 recipient_id: recipientID,
                 name: name.trim() || null,

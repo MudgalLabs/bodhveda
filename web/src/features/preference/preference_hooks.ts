@@ -58,6 +58,33 @@ export function useCreateProjectPreference(
     });
 }
 
+export function useDeleteProjectPreference(
+    projectID: string,
+    options: AnyUseMutationOptions = {}
+) {
+    const { onSuccess, ...rest } = options;
+    const queryClient = useQueryClient();
+
+    return useMutation<
+        APIRes<ProjectPreference>,
+        unknown,
+        { preferenceID: number }
+    >({
+        mutationFn: ({ preferenceID }) => {
+            return client.delete(
+                API_ROUTES.project.preferences.delete(projectID, preferenceID)
+            );
+        },
+        onSuccess: (...args) => {
+            queryClient.invalidateQueries({
+                queryKey: getProjectPreferencesKey(projectID),
+            });
+            onSuccess?.(...args);
+        },
+        ...rest,
+    });
+}
+
 function getProjectPreferencesKey(projectID?: string, kind?: PreferenceKind) {
     if (projectID && kind) {
         return ["useGetProjectPreferences", projectID, kind];

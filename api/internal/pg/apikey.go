@@ -7,6 +7,7 @@ import (
 	"github.com/mudgallabs/bodhveda/internal/model/entity"
 	"github.com/mudgallabs/bodhveda/internal/model/repository"
 	"github.com/mudgallabs/tantra/dbx"
+	tantraRepo "github.com/mudgallabs/tantra/repository"
 )
 
 type APIKeyRepo struct {
@@ -111,4 +112,36 @@ func (r *APIKeyRepo) GetByTokenHash(ctx context.Context, tokenHash string) (*ent
 	}
 
 	return &apiKey, nil
+}
+
+func (r *APIKeyRepo) DeleteForProject(ctx context.Context, projectID int) (int, error) {
+	sql := `
+		DELETE FROM api_key
+		WHERE project_id = $1
+	`
+
+	tag, err := r.db.Exec(ctx, sql, projectID)
+	if err != nil {
+		return 0, err
+	}
+
+	return int(tag.RowsAffected()), nil
+}
+
+func (r *APIKeyRepo) Delete(ctx context.Context, userID, projectID, apiKeyID int) error {
+	sql := `
+		DELETE FROM api_key
+		WHERE id = $1 AND user_id = $2 AND project_id = $3
+	`
+
+	tag, err := r.db.Exec(ctx, sql, apiKeyID, userID, projectID)
+	if err != nil {
+		return err
+	}
+
+	if tag.RowsAffected() == 0 {
+		return tantraRepo.ErrNotFound
+	}
+
+	return nil
 }

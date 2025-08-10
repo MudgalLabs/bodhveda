@@ -9,6 +9,7 @@ import (
 	"github.com/mudgallabs/bodhveda/internal/model/entity"
 	"github.com/mudgallabs/bodhveda/internal/model/repository"
 	"github.com/mudgallabs/tantra/cipher"
+	tantraRepo "github.com/mudgallabs/tantra/repository"
 	"github.com/mudgallabs/tantra/service"
 )
 
@@ -61,4 +62,17 @@ func (s *APIKeyService) List(ctx context.Context, userID, projectID int) ([]*dto
 	}
 
 	return apiKeysDTOs, service.ErrNone, nil
+}
+
+func (s *APIKeyService) Delete(ctx context.Context, userID, projectID, apiKeyID int) (service.Error, error) {
+	err := s.repo.Delete(ctx, userID, projectID, apiKeyID)
+	if err != nil {
+		if err == tantraRepo.ErrNotFound {
+			return service.ErrNotFound, err
+		}
+
+		return service.ErrInternalServerError, err
+	}
+
+	return service.ErrNone, nil
 }

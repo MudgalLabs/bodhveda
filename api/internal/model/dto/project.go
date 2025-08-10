@@ -57,3 +57,14 @@ func FromProjects(p []*entity.Project) []*Project {
 
 	return dtos
 }
+
+type ProjectListItem struct {
+	*Project
+	*NotificationsOverviewResult
+
+	TotalRecipientsCount int `json:"total_recipients"`
+}
+
+type DeleteProjectDataPayload struct {
+	ProjectID int `json:"project_id"`
+}

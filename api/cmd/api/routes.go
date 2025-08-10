@@ -55,13 +55,14 @@ func initRouter() http.Handler {
 		httpx.SuccessResponse(w, r, http.StatusOK, "Pong", nil)
 	})
 
+	// These are the Bodhveda Developer API routes.
 	r.Route("/v1", func(r chi.Router) {
 		r.Use(middleware.APIKeyBasedAuthMiddleware)
 
 		r.Post("/notifications/send", handler.SendNotification(app.APP.Service.Notification))
 
 		r.Route("/recipients", func(r chi.Router) {
-			r.Post("/", handler.CreateRecipientWithAPIKey(app.APP.Service.Recipient))
+			r.Post("/", handler.CreateRecipient(app.APP.Service.Recipient))
 			r.Post("/batch", handler.BatchCreateRecipients(app.APP.Service.Recipient))
 
 			r.Route("/{recipient_external_id}", func(r chi.Router) {
@@ -84,14 +85,14 @@ func initRouter() http.Handler {
 				r.Route("/preferences", func(r chi.Router) {
 					r.Get("/global", handler.GetRecipientGlobalPreferences(app.APP.Service.Preference))
 					r.Get("/targets", handler.CheckRecipientTargetSubscription(app.APP.Service.Preference))
-					r.Patch("/targets", handler.PatchRecipientPreferenceTarget(app.APP.Service.Preference))
+					r.Patch("/targets", handler.UpdateRecipientPreferenceTarget(app.APP.Service.Preference))
 				})
 			})
 		})
 	})
 
-	// Platform routes that power the web app.
-	r.Route("/v1/platform", func(r chi.Router) {
+	// These are the APIs that power the Bodhveda Console.
+	r.Route("/v1/console", func(r chi.Router) {
 		r.Route("/auth", func(r chi.Router) {
 			r.Get("/oauth/google", handler.GoogleSignInHandler(app.APP.Service.UserIdentity))
 			r.Get("/oauth/google/callback", handler.GoogleCallbackHandler(app.APP.Service.UserIdentity))
@@ -99,17 +100,22 @@ func initRouter() http.Handler {
 		})
 
 		r.Route("/projects", func(r chi.Router) {
+			// Ensure that the user is authenticated before allowing access to the routes.
 			r.Use(middleware.AuthMiddleware)
 
 			r.Get("/", handler.ListProjects(app.APP.Service.Project))
 			r.Post("/", handler.CreateProject(app.APP.Service.Project))
 
 			r.Route("/{project_id}", func(r chi.Router) {
-				r.Use(middleware.MakeSureUserOwnsProjectMiddleware)
+				// Ensure that the user owns the project before allowing access to the routes.
+				r.Use(middleware.MakeSureUserOwnsThisProject)
+
+				r.Delete("/", handler.DeleteProject(app.APP.Service.Project))
 
 				r.Route("/api-keys", func(r chi.Router) {
 					r.Get("/", handler.ListAPIKeys(app.APP.Service.APIKey))
 					r.Post("/", handler.CreateAPIKey(app.APP.Service.APIKey))
+					r.Delete("/{api_key_id}", handler.DeleteAPIKey(app.APP.Service.APIKey))
 				})
 
 				r.Route("/notifications", func(r chi.Router) {
@@ -119,12 +125,21 @@ func initRouter() http.Handler {
 				r.Route("/preferences", func(r chi.Router) {
 					r.Get("/", handler.ListProjectPreferences(app.APP.Service.Preference))
 					r.Post("/", handler.CreateProjectPreference(app.APP.Service.Preference))
+
+					r.Route("/{preference_id}", func(r chi.Router) {
+						r.Delete("/", handler.DeletePreference(app.APP.Service.Preference))
+					})
 				})
 
 				r.Route("/recipients", func(r chi.Router) {
 					r.Get("/", handler.ListRecipients(app.APP.Service.Recipient))
-					r.Post("/", handler.CreateRecipient(app.APP.Service.Recipient))
-					r.Put("/{recipient_id}/preferences", handler.UpsertRecipientPreferences(app.APP.Service.Preference))
+					r.Post("/", handler.CreateRecipientConsole(app.APP.Service.Recipient))
+
+					r.Route("/{recipient_external_id}", func(r chi.Router) {
+						r.Patch("/", handler.UpdateRecipientConsole(app.APP.Service.Recipient))
+						r.Delete("/", handler.DeleteRecipientConsole(app.APP.Service.Recipient))
+						r.Put("/preferences", handler.UpsertRecipientPreferences(app.APP.Service.Preference))
+					})
 				})
 			})
 		})

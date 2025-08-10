@@ -1,26 +1,15 @@
 # Bodhveda Developer API Reference
 
-Welcome to the Bodhveda Developer API documentation.
-
-Bodhveda is a modern notification infrastructure built for product teams who value thoughtful delivery, user preferences, and a clean developer experience. With just a few API calls, you can:
-
--   Send direct or broadcast notifications
--   Create and manage recipients (your users)
--   Allow recipients to subscribe or unsubscribe from specific notification types
--   Fetch, mark as read/open/unread, or delete recipient’s notifications
--   Automatically respect recipient's preferences and collect delivery analytics
-
-This guide covers the versioned REST API (v1), designed for both server and client integrations. Whether you're using our SDKs or calling APIs directly, this documentation will walk you through every API, clearly and efficiently.
-
-Base URL:
-
-```
-https://api.bodhveda.com/v1
-```
+Welcome to the **Bodhveda Developer API** documentation.
 
 ## Index
 
 -   [Authentication](#authentication)
+-   [Response Structure](#response-structure)
+-   [Pagination](#pagination)
+-   [Rate Limiting](#rate-limiting)
+-   [HTTP Status Codes](#http-status-codes)
+-   [Support & Contact](#support--contact)
 -   [Notifications (Full Scope)](#notifications-full-scope)
     -   [Send Notification](#send-notification)
     -   [Targeting Rules](#targeting-rules)
@@ -37,8 +26,7 @@ https://api.bodhveda.com/v1
         -   [Delete All Notifications](#delete-all-notifications)
     -   [Recipient Preferences (Recipient or Full Scope)](#recipient-preferences-recipient-or-full-scope)
         -   [Get Global Preferences](#get-global-preferences)
-        -   [Subscribe](#subscribe-a-target)
-        -   [Unsubscribe](#unsubscribe-a-target)
+        -   [Subscribe or Unsubscribe a target](#subscribe-or-unsubscribe-a-target)
         -   [Check subscription to a target](#check-subscription-to-a-target)
     -   [Recipient Management (Full Scope)](#recipient-management-full-scope)
         -   [Get Recipient](#get-recipient)
@@ -46,6 +34,15 @@ https://api.bodhveda.com/v1
         -   [Create Recipients Batch](#create-recipients-batch)
         -   [Update Recipient](#update-recipient)
         -   [Delete Recipient](#delete-recipient)
+
+## Base URL
+
+```
+https://api.bodhveda.com/v1
+```
+
+-   All endpoints in this documentation are relative to the `/v1` path.
+-   For testing, a sandbox or staging environment may be available upon request.
 
 ## Authentication
 
@@ -57,7 +54,9 @@ Authorization: Bearer YOUR_API_KEY
 
 Replace `YOUR_API_KEY` with your actual API key.
 
-There are 2 scopes for an API KEY :
+### API Key Scopes
+
+There are 2 scopes for an API KEY:
 
 -   **full** – Full access to all project-level APIs. Use only on the **server side**.
 -   **recipient** – Limited-scope API keys intended for **client-side/browser** use. These allow a recipient to **fetch and manage only their own notifications and preferences**.
@@ -66,7 +65,77 @@ There are 2 scopes for an API KEY :
 > If your `recipient_id` values are predictable (e.g., auto-incrementing integers), you **should not** expose `recipient`-scoped API keys on the frontend.  
 > Instead, route requests through your own backend to ensure recipient access is properly scoped and protected.
 
+### Authentication Errors
+
+-   If the API key is missing or invalid, you will receive a `401 Unauthorized` response.
+-   If the API key does not have sufficient permissions, you will receive a `403 Forbidden` response.
+
+## Response Structure
+
+All responses follow this structure:
+
+```json
+{
+    "status": "success" | "error",
+    "status_code": 200,
+    "message": "Human readable message",
+    "errors": [ /* array of error objects, if any */ ],
+    "data": { /* response data, if any */ }
+}
+```
+
+#### Error Object
+
+```json
+{
+    "message": "Short error message",
+    "description": "Detailed technical description",
+    "property_path": "field_name",
+    "invalid_value": "the value that caused the error"
+}
+```
+
+#### Example Error Response
+
+```json
+{
+    "status": "error",
+    "status_code": 400,
+    "message": "Invalid request payload",
+    "errors": [
+        {
+            "message": "Recipient ID is required",
+            "description": "Recipient ID cannot be empty",
+            "property_path": "recipient_id",
+            "invalid_value": ""
+        }
+    ]
+}
+```
+
+## Rate Limiting
+
+-   The API enforces rate limits to prevent abuse.
+-   If you exceed the allowed rate, you will receive a `429 Too Many Requests` response.
+-   Standard limit: 100 requests per minute for a project (subject to change).
+
 ---
+
+## HTTP Status Codes
+
+-   `200 OK` – Successful GET/PUT/PATCH/DELETE
+-   `201 Created` – Successful POST (resource created)
+-   `400 Bad Request` – Invalid input or malformed request
+-   `401 Unauthorized` – Missing or invalid API key
+-   `403 Forbidden` – Insufficient permissions
+-   `404 Not Found` – Resource does not exist
+-   `409 Conflict` – Resource already exists
+-   `429 Too Many Requests` – Rate limit exceeded
+-   `500 Internal Server Error` – Unexpected server error
+
+## Support & Contact
+
+-   For help, bug reports, or feature requests, contact [support@bodhveda.com](mailto:support@bodhveda.com).
 
 ## Notifications (Full Scope)
 
@@ -192,6 +261,8 @@ will match:
 -   `marketing:feature:update`
 
 However, when sending a notification, `"any"` makes no sense, although `"none"` topic is allowed. You must specify a concrete `channel`, `topic`, and `event`.
+
+---
 
 ## Recipients
 

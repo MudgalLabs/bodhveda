@@ -36,6 +36,12 @@ func main() {
 	))
 	asynqMux.Handle(job.TaskTypeDeleteRecipientData, job.NewDeleteRecipientDataProcessor(
 		app.APP.Repository.Preference, app.APP.Repository.Notification,
+		app.APP.Repository.Recipient,
+	))
+	asynqMux.Handle(job.TaskTypeDeleteProjectData, job.NewDeleteProjectDataProcessor(
+		app.APP.Repository.APIKey, app.APP.Repository.Broadcast, app.APP.Repository.BroadcastBatch,
+		app.APP.Repository.Notification, app.APP.Repository.Preference, app.APP.Repository.Project,
+		app.APP.Repository.Recipient,
 	))
 
 	router := initRouter()

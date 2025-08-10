@@ -283,3 +283,15 @@ func (r *NotificationRepo) DeleteForRecipient(ctx context.Context, projectID int
 	}
 	return int(res.RowsAffected()), nil
 }
+
+func (r *NotificationRepo) DeleteForProject(ctx context.Context, projectID int) (int, error) {
+	sql := `
+		DELETE FROM notification
+		WHERE project_id = $1
+	`
+	res, err := r.db.Exec(ctx, sql, projectID)
+	if err != nil {
+		return 0, fmt.Errorf("delete notifications for project: %w", err)
+	}
+	return int(res.RowsAffected()), nil
+}

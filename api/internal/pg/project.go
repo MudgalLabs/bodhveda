@@ -2,11 +2,13 @@ package pg
 
 import (
 	"context"
+	"time"
 
 	"github.com/jackc/pgx/v5/pgxpool"
 	"github.com/mudgallabs/bodhveda/internal/model/entity"
 	"github.com/mudgallabs/bodhveda/internal/model/repository"
 	"github.com/mudgallabs/tantra/dbx"
+	tantraRepo "github.com/mudgallabs/tantra/repository"
 )
 
 type ProjectRepo struct {
@@ -43,7 +45,7 @@ func (r *ProjectRepo) List(ctx context.Context, userID int) ([]*entity.Project, 
 	sql := `
 		SELECT id, user_id, name, created_at, updated_at
 		FROM project
-		WHERE user_id = $1
+		WHERE user_id = $1 AND deleted_at IS NULL
 		ORDER BY created_at DESC
 	`
 	rows, err := r.db.Query(ctx, sql, userID)
@@ -74,7 +76,7 @@ func (r *ProjectRepo) UserOwns(ctx context.Context, userID, projectID int) (bool
 	sql := `
 		SELECT EXISTS (
 			SELECT 1 FROM project
-			WHERE user_id = $1 AND id = $2
+			WHERE user_id = $1 AND id = $2 AND deleted_at IS NULL
 		)
 	`
 
@@ -86,4 +88,29 @@ func (r *ProjectRepo) UserOwns(ctx context.Context, userID, projectID int) (bool
 	}
 
 	return exists, nil
+}
+
+func (r *ProjectRepo) SoftDelete(ctx context.Context, userID, projectID int) error {
+	sql := `
+		UPDATE project SET deleted_at = $1
+		WHERE user_id = $2 AND id = $3
+	`
+	tag, err := r.db.Exec(ctx, sql, time.Now().UTC(), userID, projectID)
+	if err != nil {
+		return err
+	}
+
+	if tag.RowsAffected() == 0 {
+		return tantraRepo.ErrNotFound
+	}
+
+	return err
+}
+
+func (r *ProjectRepo) Delete(ctx context.Context, projectID int) error {
+	sql := `
+		DELETE FROM project WHERE id = $1
+	`
+	_, err := r.db.Exec(ctx, sql, projectID)
+	return err
 }

@@ -4,7 +4,6 @@ import {
     Alert,
     Button,
     Dialog,
-    DialogClose,
     DialogContent,
     DialogFooter,
     DialogHeader,
@@ -67,6 +66,8 @@ export const CreateAPIKeyModal: FC<CreateprojectModalProps> = ({
     useEffect(() => {
         if (open) {
             setName("");
+            setScope("recipient");
+            setToken("");
         }
     }, [open]);
 
@@ -96,12 +97,14 @@ export const CreateAPIKeyModal: FC<CreateprojectModalProps> = ({
 
                         <PasswordInput className="w-full!" value={token} />
 
-                        <DialogClose
-                            className="w-full flex justify-end"
-                            asChild
-                        >
-                            <Button>Done</Button>
-                        </DialogClose>
+                        <DialogFooter>
+                            <Button
+                                className="ml-auto"
+                                onClick={() => setOpen(false)}
+                            >
+                                Done
+                            </Button>
+                        </DialogFooter>
                     </div>
                 ) : (
                     <form

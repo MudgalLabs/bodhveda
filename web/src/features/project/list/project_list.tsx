@@ -6,16 +6,24 @@ import {
     DropdownMenuItem,
     DropdownMenuTrigger,
     ErrorMessage,
+    formatNumber,
+    IconBell,
     IconEllipsis,
     IconPlus,
     IconTrash,
+    IconUsers,
     LoadingScreen,
     PageHeading,
+    toast,
+    Tooltip,
 } from "netra";
 import { Link } from "@tanstack/react-router";
 
 import { CreateProjectModal } from "@/features/project/list/create_project_modal";
-import { useGetProjects } from "@/features/project/project_hooks";
+import {
+    useDeleteProject,
+    useGetProjects,
+} from "@/features/project/project_hooks";
 
 export function ProjectList() {
     const { data, isLoading, isError } = useGetProjects();
@@ -58,11 +66,45 @@ export function ProjectList() {
                             key={project.id}
                             className="hover:border-border-hover w-full sm:w-72 h-36 flex-center smooth-colors relative"
                         >
-                            <ProjectOptionsDropdownMenu />
+                            <ProjectOptionsDropdownMenu
+                                projectID={project.id}
+                            />
 
-                            <h2 className="text-lg font-semibold">
-                                {project.name}
-                            </h2>
+                            <div className="flex flex-col items-center gap-y-4">
+                                <h2 className="text-lg font-semibold">
+                                    {project.name}
+                                </h2>
+
+                                <div className="flex-x gap-x-4">
+                                    <Tooltip
+                                        content="Total Notifications"
+                                        contentProps={{
+                                            side: "left",
+                                        }}
+                                    >
+                                        <div className="flex-x gap-x-1!">
+                                            <IconBell />
+                                            {formatNumber(
+                                                project.total_notifications
+                                            )}
+                                        </div>
+                                    </Tooltip>
+
+                                    <Tooltip
+                                        content="Total Recipients"
+                                        contentProps={{
+                                            side: "right",
+                                        }}
+                                    >
+                                        <div className="flex-x gap-x-1!">
+                                            <IconUsers />
+                                            {formatNumber(
+                                                project.total_recipients
+                                            )}
+                                        </div>
+                                    </Tooltip>
+                                </div>
+                            </div>
                         </Card>
                     </Link>
                 ))}
@@ -71,7 +113,14 @@ export function ProjectList() {
     );
 }
 
-function ProjectOptionsDropdownMenu() {
+function ProjectOptionsDropdownMenu(props: { projectID: number }) {
+    const { projectID } = props;
+    const { mutate, isPending } = useDeleteProject({
+        onSuccess: () => {
+            toast.success("Project deleted successfully");
+        },
+    });
+
     return (
         <DropdownMenu>
             <DropdownMenuTrigger className="absolute top-2 right-2" asChild>
@@ -81,7 +130,13 @@ function ProjectOptionsDropdownMenu() {
             </DropdownMenuTrigger>
 
             <DropdownMenuContent>
-                <DropdownMenuItem>
+                <DropdownMenuItem
+                    onClick={(e) => {
+                        e.stopPropagation();
+                        mutate(projectID);
+                    }}
+                    disabled={isPending}
+                >
                     <IconTrash size={16} />
                     Delete
                 </DropdownMenuItem>

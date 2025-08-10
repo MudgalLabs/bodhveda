@@ -21,12 +21,13 @@ import {
 } from "netra";
 import { useGetProjectIDFromParams } from "@/features/project/project_hooks";
 import { useGetPreferences } from "@/features/preference/preference_hooks";
-import { CreateProjectPreferenceModal } from "@/features/preference/list/create_project_preference_modal";
+import { CreateProjectPreferenceModal } from "@/features/preference/components/create_project_preference_modal";
 import {
     PreferenceKind,
     ProjectPreference,
     RecipientPreference,
 } from "@/features/preference/preference_type";
+import { DeleteProjectPreferenceModal } from "../components/delete_project_preference_modal";
 
 export function ProjectPreferenceList() {
     const id = useGetProjectIDFromParams();
@@ -79,18 +80,65 @@ export function ProjectPreferenceList() {
                     </ToggleGroupItem>
                 </ToggleGroup>
 
-                <CreateProjectPreferenceModal
-                    renderTrigger={() => (
-                        <Button>
-                            <IconPlus size={16} />
-                            Create Preference
-                        </Button>
-                    )}
-                />
+                {isProject && (
+                    <CreateProjectPreferenceModal
+                        renderTrigger={() => (
+                            <Button>
+                                <IconPlus size={16} />
+                                Create Preference
+                            </Button>
+                        )}
+                    />
+                )}
             </div>
 
             {content}
         </div>
+    );
+}
+
+function ActionCell({ preference }: { preference: ProjectPreference }) {
+    const projectID = useGetProjectIDFromParams();
+
+    const [dropdownOpen, setDropdownOpen] = useState(false);
+    const [deleteOpen, setDeleteOpen] = useState(false);
+
+    const handleOpenDeleteConfirm = () => {
+        setDropdownOpen(false);
+        setDeleteOpen(true);
+    };
+
+    return (
+        <>
+            <DropdownMenu open={dropdownOpen} onOpenChange={setDropdownOpen}>
+                <DropdownMenuTrigger asChild>
+                    <Button variant="ghost" size="icon">
+                        <IconEllipsis />
+                    </Button>
+                </DropdownMenuTrigger>
+
+                <DropdownMenuContent>
+                    <DropdownMenuItem asChild>
+                        <Button
+                            variant="destructive"
+                            onClick={handleOpenDeleteConfirm}
+                        >
+                            <IconTrash size={16} />
+                            Delete
+                        </Button>
+                    </DropdownMenuItem>
+                </DropdownMenuContent>
+            </DropdownMenu>
+
+            {deleteOpen && (
+                <DeleteProjectPreferenceModal
+                    open={deleteOpen}
+                    setOpen={setDeleteOpen}
+                    projectID={projectID}
+                    preference={preference}
+                />
+            )}
+        </>
     );
 }
 
@@ -129,22 +177,7 @@ const projectPreferenceColumns: ColumnDef<ProjectPreference>[] = [
     },
     {
         id: "actions",
-        cell: () => (
-            <DropdownMenu>
-                <DropdownMenuTrigger asChild>
-                    <Button variant="ghost" size="icon">
-                        <IconEllipsis />
-                    </Button>
-                </DropdownMenuTrigger>
-
-                <DropdownMenuContent>
-                    <DropdownMenuItem>
-                        <IconTrash size={16} />
-                        Delete
-                    </DropdownMenuItem>
-                </DropdownMenuContent>
-            </DropdownMenu>
-        ),
+        cell: ({ row }) => <ActionCell preference={row.original} />,
     },
 ];
 
@@ -191,25 +224,6 @@ const recipientPreferenceColumns: ColumnDef<RecipientPreference>[] = [
         accessorKey: "updated_at",
         header: () => <DataTableColumnHeader title="Updated At" />,
         cell: ({ row }) => formatTimeAgo(new Date(row.original.updated_at)),
-    },
-    {
-        id: "actions",
-        cell: () => (
-            <DropdownMenu>
-                <DropdownMenuTrigger asChild>
-                    <Button variant="ghost" size="icon">
-                        <IconEllipsis />
-                    </Button>
-                </DropdownMenuTrigger>
-
-                <DropdownMenuContent>
-                    <DropdownMenuItem>
-                        <IconTrash size={16} />
-                        Delete
-                    </DropdownMenuItem>
-                </DropdownMenuContent>
-            </DropdownMenu>
-        ),
     },
 ];
 

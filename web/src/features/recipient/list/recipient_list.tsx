@@ -1,5 +1,5 @@
 import { ColumnDef } from "@tanstack/react-table";
-import { useMemo } from "react";
+import { useMemo, useState } from "react";
 import {
     Button,
     DataTable,
@@ -11,17 +11,23 @@ import {
     DropdownMenuTrigger,
     ErrorMessage,
     formatTimeAgo,
+    IconEdit,
     IconEllipsis,
     IconInfo,
     IconPlus,
     IconTrash,
     PageHeading,
+    toast,
     Tooltip,
 } from "netra";
 import { useGetProjectIDFromParams } from "@/features/project/project_hooks";
-import { useGetRecipients } from "@/features/recipient/recipient_hooks";
+import {
+    useDeleteRecipient,
+    useGetRecipients,
+} from "@/features/recipient/recipient_hooks";
 import { CreateRecipientModal } from "@/features/recipient/list/create_recipient_modal";
 import { RecipientListItem } from "@/features/recipient/recipient_types";
+import { EditRecipientModal } from "./edit_recipient_modal";
 
 export function RecipientList() {
     const id = useGetProjectIDFromParams();
@@ -57,10 +63,79 @@ export function RecipientList() {
     );
 }
 
+function ActionCell({ recipient }: { recipient: RecipientListItem }) {
+    const [dropdownOpen, setDropdownOpen] = useState(false);
+    const [editOpen, setEditOpen] = useState(false);
+
+    const handleEditOpen = () => {
+        setDropdownOpen(false);
+        setEditOpen(true);
+    };
+
+    const projectID = useGetProjectIDFromParams();
+
+    const { mutate: deleteRecipient, isPending: isDeleting } =
+        useDeleteRecipient(projectID, {
+            onSuccess: () => {
+                toast.success("Recipient deleted successfully");
+            },
+        });
+
+    return (
+        <>
+            <DropdownMenu open={dropdownOpen} onOpenChange={setDropdownOpen}>
+                <DropdownMenuTrigger asChild>
+                    <Button variant="ghost" size="icon">
+                        <IconEllipsis />
+                    </Button>
+                </DropdownMenuTrigger>
+
+                <DropdownMenuContent>
+                    <DropdownMenuItem asChild>
+                        <Button
+                            variant="ghost"
+                            className="w-full!"
+                            onClick={handleEditOpen}
+                        >
+                            <IconEdit size={16} />
+                            Edit
+                        </Button>
+                    </DropdownMenuItem>
+
+                    <DropdownMenuItem asChild>
+                        <Button
+                            variant="destructive"
+                            className="w-full!"
+                            onClick={() =>
+                                deleteRecipient({
+                                    recipientID: recipient.recipient_id,
+                                })
+                            }
+                            disabled={isDeleting}
+                        >
+                            <IconTrash size={16} />
+                            Delete
+                        </Button>
+                    </DropdownMenuItem>
+                </DropdownMenuContent>
+            </DropdownMenu>
+
+            <EditRecipientModal
+                recipient={recipient}
+                open={editOpen}
+                setOpen={setEditOpen}
+            />
+        </>
+    );
+}
+
 const columns: ColumnDef<RecipientListItem>[] = [
     {
         accessorKey: "recipient_id",
         header: () => <DataTableColumnHeader title="Recipient ID" />,
+        cell: ({ row }) => (
+            <span className="select-text!">{row.original.recipient_id}</span>
+        ),
     },
     {
         accessorKey: "name",
@@ -108,22 +183,7 @@ const columns: ColumnDef<RecipientListItem>[] = [
     },
     {
         id: "actions",
-        cell: () => (
-            <DropdownMenu>
-                <DropdownMenuTrigger asChild>
-                    <Button variant="ghost" size="icon">
-                        <IconEllipsis />
-                    </Button>
-                </DropdownMenuTrigger>
-
-                <DropdownMenuContent>
-                    <DropdownMenuItem>
-                        <IconTrash size={16} />
-                        Delete
-                    </DropdownMenuItem>
-                </DropdownMenuContent>
-            </DropdownMenu>
-        ),
+        cell: ({ row }) => <ActionCell recipient={row.original} />,
     },
 ];
 

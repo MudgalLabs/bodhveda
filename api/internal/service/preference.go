@@ -2,6 +2,7 @@ package service
 
 import (
 	"context"
+	"errors"
 	"fmt"
 	"time"
 
@@ -94,6 +95,15 @@ func (s *PreferenceService) UpsertRecipientPreference(ctx context.Context, paylo
 		return nil, service.ErrInvalidInput, err
 	}
 
+	exists, err := s.recipientRepo.Exists(ctx, payload.ProjectID, payload.RecipientExtID)
+	if err != nil {
+		return nil, service.ErrInternalServerError, fmt.Errorf("repo check recipient exists: %w", err)
+	}
+
+	if !exists {
+		return nil, service.ErrNotFound, errors.New("Recipient not found")
+	}
+
 	pref := entity.NewPreference(
 		&payload.ProjectID,
 		&payload.RecipientExtID,
@@ -108,16 +118,13 @@ func (s *PreferenceService) UpsertRecipientPreference(ctx context.Context, paylo
 
 	newPref, err := s.repo.Create(ctx, pref)
 	if err != nil {
-		if err == tantraRepo.ErrConflict {
-			return nil, service.ErrConflict, fmt.Errorf("Preference already exists")
-		}
 		return nil, service.ErrInternalServerError, fmt.Errorf("repo create preference: %w", err)
 	}
 
 	return dto.FromPreferenceForRecipient(newPref), service.ErrNone, nil
 }
 
-func (s *PreferenceService) PatchRecipientPreferenceTarget(ctx context.Context, projectID int, recipientExtID string, req dto.PatchRecipientPreferenceTargetPayload) (*dto.PreferenceTargetStateDTO, service.Error, error) {
+func (s *PreferenceService) UpdateRecipientPreferenceTarget(ctx context.Context, projectID int, recipientExtID string, req dto.PatchRecipientPreferenceTargetPayload) (*dto.PreferenceTargetStateDTO, service.Error, error) {
 	if err := req.Validate(); err != nil {
 		return nil, service.ErrInvalidInput, err
 	}
@@ -246,4 +253,21 @@ func (s *PreferenceService) CheckRecipientTargetSubscription(ctx context.Context
 			Inherited:  true,
 		},
 	}, service.ErrNone, nil
+}
+
+func (s *PreferenceService) Delete(ctx context.Context, payload *dto.DeletePreferencePayload) (service.Error, error) {
+	err := payload.Validate()
+	if err != nil {
+		return service.ErrInvalidInput, err
+	}
+
+	err = s.repo.Delete(ctx, payload.ProjectID, payload.PreferenceID)
+	if err != nil {
+		if err == tantraRepo.ErrNotFound {
+			return service.ErrNotFound, fmt.Errorf("Preference not found")
+		}
+		return service.ErrInternalServerError, fmt.Errorf("repo delete preference: %w", err)
+	}
+
+	return service.ErrNone, nil
 }

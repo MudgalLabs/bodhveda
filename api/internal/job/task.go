@@ -21,6 +21,7 @@ const (
 	TaskTypePrepareBroadcastBatches = "broadcast:prepare_batches"
 	TaskTypeBroadcastDelivery       = "broadcast:delivery"
 	TaskTypeDeleteRecipientData     = "recipient:delete_data"
+	TaskTypeDeleteProjectData       = "project:delete_data"
 )
 
 type BroadcastDeliveryProcessor struct {
@@ -45,7 +46,7 @@ func NewBroadcastDeliveryProcessor(
 func (processor *BroadcastDeliveryProcessor) ProcessTask(ctx context.Context, t *asynq.Task) error {
 	start := time.Now()
 
-	var payload entity.BroadcastDeliveryTaskPayload
+	var payload dto.BroadcastDeliveryTaskPayload
 	if err := json.Unmarshal(t.Payload(), &payload); err != nil {
 		err = fmt.Errorf("json.Unmarshal failed: %v: %w", err, asynq.SkipRetry)
 		logger.Get().Error(err)
@@ -148,7 +149,7 @@ func NewPrepareBroadcastBatchesProcessor(
 }
 
 func (processor *PrepareBroadcastBatchesProcessor) ProcessTask(ctx context.Context, t *asynq.Task) error {
-	var payload entity.PrepareBroadcastBatchesPayload
+	var payload dto.PrepareBroadcastBatchesPayload
 	if err := json.Unmarshal(t.Payload(), &payload); err != nil {
 		err = fmt.Errorf("json.Unmarshal failed: %v: %w", err, asynq.SkipRetry)
 		logger.Get().Error(err)
@@ -185,16 +186,16 @@ func (processor *PrepareBroadcastBatchesProcessor) ProcessTask(ctx context.Conte
 			return err
 		}
 
-		payload, err := json.Marshal(entity.NewBroadcastDeliveryTaskPayload(
-			broadcast.ProjectID,
-			broadcast.ID,
-			broadcastBatch.ID,
-			recipientsBatch,
-			broadcast.Payload,
-			broadcast.Channel,
-			broadcast.Topic,
-			broadcast.Event,
-		))
+		payload, err := json.Marshal(dto.BroadcastDeliveryTaskPayload{
+			ProjectID:       broadcast.ProjectID,
+			BroadcastID:     broadcast.ID,
+			BatchID:         broadcastBatch.ID,
+			RecipientExtIDs: recipientsBatch,
+			Payload:         broadcast.Payload,
+			Channel:         broadcast.Channel,
+			Topic:           broadcast.Topic,
+			Event:           broadcast.Event,
+		})
 		if err != nil {
 			err = fmt.Errorf("marshal notification batch payload: %w", err)
 			logger.Get().Error(err)
@@ -216,40 +217,164 @@ func (processor *PrepareBroadcastBatchesProcessor) ProcessTask(ctx context.Conte
 
 type DeleteRecipientDataProcessor struct {
 	db               *pgxpool.Pool
-	preferenceRepo   repository.PreferenceRepository
 	notificationRepo repository.NotificationRepository
+	preferenceRepo   repository.PreferenceRepository
+	recipientRepo    repository.RecipientRepository
 }
 
 func NewDeleteRecipientDataProcessor(
 	preferenceRepo repository.PreferenceRepository, notificationRepo repository.NotificationRepository,
+	recipientRepo repository.RecipientRepository,
 ) *DeleteRecipientDataProcessor {
 	return &DeleteRecipientDataProcessor{
-		preferenceRepo:   preferenceRepo,
 		notificationRepo: notificationRepo,
+		preferenceRepo:   preferenceRepo,
+		recipientRepo:    recipientRepo,
 	}
 }
 
 func (processor *DeleteRecipientDataProcessor) ProcessTask(ctx context.Context, t *asynq.Task) error {
-	var payload entity.DeleteRecipientDataPayload
+	l := logger.Get()
+
+	var payload dto.DeleteRecipientDataPayload
 	if err := json.Unmarshal(t.Payload(), &payload); err != nil {
 		err = fmt.Errorf("json.Unmarshal failed: %v: %w", err, asynq.SkipRetry)
 		logger.Get().Error(err)
 		return err
 	}
 
-	err := processor.preferenceRepo.DeleteForRecipient(ctx, payload.ProjectID, payload.RecipientExtID)
+	// 1. Delete preferences for the recipient.
+	count, err := processor.preferenceRepo.DeleteForRecipient(ctx, payload.ProjectID, payload.RecipientExtID)
 	if err != nil {
 		err = fmt.Errorf("delete preferences for recipient: %w", err)
+		l.Error(err)
+		return err
+	}
+	l.Infof("Deleted %d preferences for recipient %s in project %d", count, payload.RecipientExtID, payload.ProjectID)
+
+	// 2. Delete notifications for the recipient.
+	count, err = processor.notificationRepo.DeleteForRecipient(ctx, payload.ProjectID, payload.RecipientExtID, nil)
+	if err != nil {
+		err = fmt.Errorf("delete notifications for recipient: %w", err)
+		l.Error(err)
+		return err
+	}
+	l.Infof("Deleted %d notifications for recipient %s in project %d", count, payload.RecipientExtID, payload.ProjectID)
+
+	// 3. Finally, delete the recipient itself.
+	err = processor.recipientRepo.Delete(ctx, payload.ProjectID, payload.RecipientExtID)
+	if err != nil {
+		err = fmt.Errorf("delete recipient: %w", err)
+		l.Error(err)
+		return err
+	}
+	l.Infof("Deleted recipient %s in project %d", payload.RecipientExtID, payload.ProjectID)
+
+	return nil
+}
+
+type DeleteProjectDataProcessor struct {
+	apikeyRepo         repository.APIKeyRepository
+	broadcastRepo      repository.BroadcastRepository
+	broadcastBatchRepo repository.BroadcastBatchRepository
+	notificationRepo   repository.NotificationRepository
+	preferenceRepo     repository.PreferenceRepository
+	projectRepo        repository.ProjectRepository
+	recipientRepo      repository.RecipientRepository
+}
+
+func NewDeleteProjectDataProcessor(
+	apikeyRepo repository.APIKeyRepository,
+	broadcastRepo repository.BroadcastRepository,
+	broadcastBatchRepo repository.BroadcastBatchRepository,
+	notificationRepo repository.NotificationRepository,
+	preferenceRepo repository.PreferenceRepository,
+	projectRepo repository.ProjectRepository,
+	recipientRepo repository.RecipientRepository,
+) *DeleteProjectDataProcessor {
+	return &DeleteProjectDataProcessor{
+		apikeyRepo:         apikeyRepo,
+		broadcastRepo:      broadcastRepo,
+		broadcastBatchRepo: broadcastBatchRepo,
+		notificationRepo:   notificationRepo,
+		preferenceRepo:     preferenceRepo,
+		projectRepo:        projectRepo,
+		recipientRepo:      recipientRepo,
+	}
+}
+
+func (processor *DeleteProjectDataProcessor) ProcessTask(ctx context.Context, t *asynq.Task) error {
+	l := logger.Get()
+
+	var payload dto.DeleteProjectDataPayload
+	if err := json.Unmarshal(t.Payload(), &payload); err != nil {
+		err = fmt.Errorf("json.Unmarshal failed: %v: %w", err, asynq.SkipRetry)
 		logger.Get().Error(err)
 		return err
 	}
 
-	_, err = processor.notificationRepo.DeleteForRecipient(ctx, payload.ProjectID, payload.RecipientExtID, nil)
+	// 1. Delete API keys for the project.
+	count, err := processor.apikeyRepo.DeleteForProject(ctx, payload.ProjectID)
 	if err != nil {
-		err = fmt.Errorf("delete notifications for recipient: %w", err)
-		logger.Get().Error(err)
+		err = fmt.Errorf("delete API keys for project: %w", err)
+		l.Error(err)
 		return err
 	}
+	l.Infof("Deleted %d API keys for project %d", count, payload.ProjectID)
+
+	// 2. Delete notifications for the project.
+	count, err = processor.notificationRepo.DeleteForProject(ctx, payload.ProjectID)
+	if err != nil {
+		err = fmt.Errorf("delete notifications for project: %w", err)
+		l.Error(err)
+		return err
+	}
+	l.Infof("Deleted %d notifications for project %d", count, payload.ProjectID)
+
+	// 3. Delete preferences for the project.
+	count, err = processor.preferenceRepo.DeleteForProject(ctx, payload.ProjectID)
+	if err != nil {
+		err = fmt.Errorf("delete preferences for project: %w", err)
+		l.Error(err)
+		return err
+	}
+	l.Infof("Deleted %d preferences for project %d", count, payload.ProjectID)
+
+	// 4. Delete recipients for the project.
+	count, err = processor.recipientRepo.DeleteForProject(ctx, payload.ProjectID)
+	if err != nil {
+		err = fmt.Errorf("delete recipients for project: %w", err)
+		l.Error(err)
+		return err
+	}
+	l.Infof("Deleted %d recipients for project %d", count, payload.ProjectID)
+
+	// 5. Delete broadcast batches for the project.
+	count, err = processor.broadcastBatchRepo.DeleteForProject(ctx, payload.ProjectID)
+	if err != nil {
+		err = fmt.Errorf("delete broadcast batches for project: %w", err)
+		l.Error(err)
+		return err
+	}
+	l.Infof("Deleted %d broadcast batches for project %d", count, payload.ProjectID)
+
+	// 6. Delete broadcasts for the project.
+	count, err = processor.broadcastRepo.DeleteForProject(ctx, payload.ProjectID)
+	if err != nil {
+		err = fmt.Errorf("delete broadcasts for project: %w", err)
+		l.Error(err)
+		return err
+	}
+	l.Infof("Deleted %d broadcasts for project %d", count, payload.ProjectID)
+
+	// 7. Finally, delete the project itself.
+	err = processor.projectRepo.Delete(ctx, payload.ProjectID)
+	if err != nil {
+		err = fmt.Errorf("delete project: %w", err)
+		l.Error(err)
+		return err
+	}
+	l.Infof("Deleted project %d", payload.ProjectID)
 
 	return nil
 }

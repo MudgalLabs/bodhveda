@@ -18,4 +18,5 @@ type BroadcastBatchReader interface {
 type BroadcastBatchWriter interface {
 	Create(ctx context.Context, broadcastBatch *entity.BroadcastBatch) (*entity.BroadcastBatch, error)
 	Update(ctx context.Context, batchID int, paylaod *entity.BroadcastBatchUpdatePayload) error
+	DeleteForProject(ctx context.Context, projectID int) (int, error)
 }

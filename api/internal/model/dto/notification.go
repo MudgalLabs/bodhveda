@@ -184,3 +184,18 @@ type ListRecipientNotificationsRequest struct {
 type NotificationIDsPayload struct {
 	NotificationIDs []int `json:"notification_ids"`
 }
+
+type PrepareBroadcastBatchesPayload struct {
+	Broadcast *entity.Broadcast
+}
+
+type BroadcastDeliveryTaskPayload struct {
+	ProjectID       int
+	BroadcastID     int
+	BatchID         int
+	RecipientExtIDs []string
+	Payload         json.RawMessage
+	Channel         string
+	Topic           string
+	Event           string
+}

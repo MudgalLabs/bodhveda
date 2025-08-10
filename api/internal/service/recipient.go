@@ -99,7 +99,7 @@ func (s *RecipientService) Delete(ctx context.Context, projectID int, externalID
 		return service.ErrInvalidInput, fmt.Errorf("recipient id required")
 	}
 
-	err := s.repo.Delete(ctx, projectID, externalID)
+	err := s.repo.SoftDelete(ctx, projectID, externalID)
 	if err != nil {
 		if err == tantraRepo.ErrNotFound {
 			return service.ErrNotFound, fmt.Errorf("Recipient not found")
@@ -107,8 +107,7 @@ func (s *RecipientService) Delete(ctx context.Context, projectID int, externalID
 		return service.ErrInternalServerError, err
 	}
 
-	// Trigger async task to delete recipient data
-	taskPayload := entity.DeleteRecipientDataPayload{
+	taskPayload := dto.DeleteRecipientDataPayload{
 		ProjectID:      projectID,
 		RecipientExtID: externalID,
 	}
@@ -207,4 +206,17 @@ func (s *RecipientService) CreateRandomRecipients(ctx context.Context, projectID
 
 	_, _, err := s.repo.BatchCreate(ctx, recipients)
 	return err
+}
+
+func (s *RecipientService) TotalCount(ctx context.Context, projectID int) (int, service.Error, error) {
+	if projectID <= 0 {
+		return 0, service.ErrInvalidInput, fmt.Errorf("projectID required")
+	}
+
+	count, err := s.repo.TotalCount(ctx, projectID)
+	if err != nil {
+		return 0, service.ErrInternalServerError, fmt.Errorf("recipient repo total count: %w", err)
+	}
+
+	return count, service.ErrNone, nil
 }

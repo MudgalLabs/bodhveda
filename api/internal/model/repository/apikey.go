@@ -14,6 +14,8 @@ type APIKeyRepository interface {
 type APIKeyReader interface {
 	List(ctx context.Context, userID, projectID int) ([]*entity.APIKey, error)
 	GetByTokenHash(ctx context.Context, tokenHash string) (*entity.APIKey, error)
+	DeleteForProject(ctx context.Context, projectID int) (int, error)
+	Delete(ctx context.Context, userID, projectID, apiKeyID int) error
 }
 
 type APIKeyWriter interface {

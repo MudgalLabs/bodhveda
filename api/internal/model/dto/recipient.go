@@ -137,3 +137,8 @@ func FromRecipientList(r []*entity.RecipientListItem) []*RecipientListItem {
 
 	return DTOs
 }
+
+type DeleteRecipientDataPayload struct {
+	ProjectID      int    `json:"project_id"`
+	RecipientExtID string `json:"recipient_ext_id"`
+}
