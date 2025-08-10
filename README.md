@@ -8,7 +8,7 @@
 
 [Bodhveda](https://bodhveda.com) is the open source notification backend that helps you add rich, scalable in-app notifications in minutes. Whether you are shipping your first product or scaling to millions, Bodhveda handles preferences, analytics, and delivery so you can focus on what matters most.
 
-## 🌟 Why Bodhveda?
+## Why Bodhveda?
 
 -   **Plug-and-play:** Add notifications to your app with a simple [REST API](docs/api-reference.md) or SDK.
 -   **Recipient-first:** Built-in support for recipient preferences to let them opt in/out of notifications.
@@ -16,7 +16,7 @@
 -   **Observable:** Track delivery, seen, and clicked events out of the box.
 -   **Self-hosted or Managed:** Run it yourself or use [Bodhveda Cloud](https://bodhveda.com/).
 
-## 🧠 Who is Bodhveda for?
+## Who is Bodhveda for?
 
 Bodhveda is for indie devs, product teams, and anyone who needs robust in-app notifications—**without reinventing the wheel**.
 
@@ -26,7 +26,7 @@ Bodhveda is for indie devs, product teams, and anyone who needs robust in-app no
 
 **Bodhveda is your notification backend.**
 
-## 🚀 How does it work?
+## How does it work?
 
 ### 1. **Send a Direct Notification**
 
@@ -90,7 +90,7 @@ curl -X POST https://api.bodhveda.com/v1/notifications/send \
 -   **Broadcasts** reach all recipients subscribed to a [target](docs/core-concepts.md#notification-targeting).
 -   **Preferences** are respected. No more spamming recipients who opted out.
 
-## 🧩 Features at a Glance
+## Features
 
 -   **Direct & Broadcast Notifications**
     Send 1:1 or broadcast to hundreds of thousands of recipients in seconds, with full preference awareness.
@@ -119,7 +119,7 @@ curl -X POST https://api.bodhveda.com/v1/notifications/send \
 -   **Self-hostable or Managed**
     Use our cloud or run on your own infra.
 
-## 🗯 Learn More
+## Learn More
 
 -   [Quickstart Guide](docs/quickstart.md) — Send your first notification in 3 minutes.
 -   [Overview](docs/overview.md) — How Bodhveda fits into your stack.
@@ -128,7 +128,7 @@ curl -X POST https://api.bodhveda.com/v1/notifications/send \
 -   [Console](https://console.bodhveda.com) — Managed cloud dashboard.
 -   [Self-hosting Guide](docs/self-host.md) (coming soon)
 
-## 📜 License
+## License
 
 [AGPL v3](LICENSE) — Notifications should be free to own, run, and customize.
 
