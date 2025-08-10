@@ -20,7 +20,7 @@ curl -X POST https://api.bodhveda.com/v1/notifications/send \
   -H "Authorization: Bearer YOUR_API_KEY" \
   -H "Content-Type: application/json" \
   -d '{
-    "to": { "recipient_id": "user@example.com" },
+    "to": { "recipient_id": "recipient_123" },
     "payload": { "title": "Welcome!", "message": "Thanks for joining." }
   }'
 ```
@@ -30,7 +30,7 @@ curl -X POST https://api.bodhveda.com/v1/notifications/send \
 Fetch notifications for a recipient:
 
 ```bash
-curl -X GET "https://api.bodhveda.com/v1/recipients/user@example.com/notifications" \
+curl -X GET "https://api.bodhveda.com/v1/recipients/recipient_123/notifications" \
   -H "Authorization: Bearer YOUR_API_KEY"
 ```
 
@@ -38,7 +38,7 @@ curl -X GET "https://api.bodhveda.com/v1/recipients/user@example.com/notificatio
 [
     {
         "id": 42069,
-        "recipient_id": "user@example.com",
+        "recipient_id": "recipient_123",
         "payload": {
             "title": "Welcome!",
             "message": "Thanks for joining."

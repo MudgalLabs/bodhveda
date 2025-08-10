@@ -2,8 +2,6 @@
   <img src="./.github/screenshots/banner.png" alt="Bodhveda banner" />
 </p>
 
-<p align="center"><strong>Backend for your in-app notifications. You send. We deliver.</strong></p>
-
 # Bodhveda
 
 [Bodhveda](https://bodhveda.com) is the open source notification backend that helps you add rich, scalable in-app notifications in minutes. Whether you are shipping your first product or scaling to millions, Bodhveda handles preferences, analytics, and delivery so you can focus on what matters most.
@@ -18,15 +16,15 @@
 
 ## Who is Bodhveda for?
 
-Bodhveda is for indie devs, product teams, and anyone who needs robust in-app notifications—**without reinventing the wheel**.
+Bodhveda is for indie devs, product teams, and anyone who needs in-app notifications **without reinventing the wheel**.
 
--   **Building a dev.to-style blog?** Get mentions, comments, and alerts.
+-   **Building a dev.to-style blog?** Send notifications about mentions, comments, or likes.
 -   **Running a SaaS dashboard?** Send usage, billing, or system notifications.
 -   **Launching a large platform?** Scale to millions, with analytics and preferences.
 
 **Bodhveda is your notification backend.**
 
-## How does it work?
+## How does it work? It's just a [REST API](docs/api-reference.md)
 
 ### 1. **Send a Direct Notification**
 
@@ -40,8 +38,8 @@ curl -X POST https://api.bodhveda.com/v1/notifications/send \
   }'
 ```
 
--   **Direct notifications** are delivered instantly to a recipient.
--   **Channel, topic, and event** let you organize and respect recipient preferences.
+-   **Direct notifications** are delivered instantly to a recipient by providing their `recipient_id`.
+-   **Channel, topic, and event** allows you to respect recipient preferences and get analytics.
 
 ### 2. **Fetch the Recipient’s Inbox**
 
@@ -77,6 +75,8 @@ curl https://api.bodhveda.com/v1/recipients/recipient_123/notifications \
 
 ### 3. **Send a Broadcast Notification**
 
+> 💡 No `recipient_id`, makes this notification turn into a broadcast.
+
 ```bash
 curl -X POST https://api.bodhveda.com/v1/notifications/send \
   -H "Authorization: Bearer YOUR_API_KEY" \
@@ -90,47 +90,41 @@ curl -X POST https://api.bodhveda.com/v1/notifications/send \
 -   **Broadcasts** reach all recipients subscribed to a [target](docs/core-concepts.md#notification-targeting).
 -   **Preferences** are respected. No more spamming recipients who opted out.
 
-## Features
+## **Features**
 
--   **Direct & Broadcast Notifications**
-    Send 1:1 or broadcast to hundreds of thousands of recipients in seconds, with full preference awareness.
+### 🚀 **Notification Delivery**
 
--   **Channel / Topic / Event Targeting**
-    Organize notifications for preferences, targeting and analytics.
+-   **Direct & Broadcast** — Send 1:1 or broadcast to hundreds of thousands of recipients in seconds.
+-   **Channel / Topic / Event Targeting** — Organize notifications for respecting preferences, targeting recipients, and analytics.
+-   **Recipient Preferences** — Respect recipient's opt-in/opt-out choices automatically.
 
--   **Recipient Preferences**
-    Let recipients opt in/out of notification.
+### 📬 **Inbox Experience**
 
--   **Inbox-like API**
-    Fetch, mark as seen/unseen, delete, just like a modern inbox.
+-   **Inbox-like API** — Fetch, mark as seen/unseen, delete, just like a modern inbox.
 
--   **Analytics & Observability**
-    See who received, saw, and clicked every notification.
+### 📊 **Insights & Control**
 
-<!-- -   **Logs Explorer**
-    Inspect delivery attempts, failures, and system logs. -->
+-   **Analytics & Observability** — See who received, saw, and opened a notification.
+-   **Bodhveda Console** — Manage recipients, preferences, and API keys; send broadcasts or direct notifications; and monitor delivery stats from one dashboard.
 
--   **Bodhveda Console**
-    Your all-in-one dashboard to manage recipients, preferences, and API keys; send broadcasts or direct notifications; and monitor detailed logs, analytics, and delivery stats in real time.
+### 🛠 **Integration & Deployment**
 
--   **REST-first, SDK-friendly**
-    Integrate with any stack. [SDKs](docs/api-reference.md#sdk) available.
-
--   **Self-hostable or Managed**
-    Use our cloud or run on your own infra.
+-   **REST-first, SDK-friendly** — Integrate using our [REST API](docs/api-reference.md#) with any stack. SDKs coming soon for seamless integration.
+-   **Self-hostable or Managed** — Run on our cloud or on your own infra.
 
 ## Learn More
 
--   [Quickstart Guide](docs/quickstart.md) — Send your first notification in 3 minutes.
--   [Overview](docs/overview.md) — How Bodhveda fits into your stack.
+<!-- -   [Overview](docs/overview.md) — How Bodhveda fits into your stack. -->
+<!-- -   [Core Concepts](docs/core-concepts.md) — Understand recipients, targets, preferences, and analytics. -->
+
+-   [Quickstart Guide](docs/quickstart.md) — Send your first notification in 5 minutes.
 -   [API Reference](docs/api-reference.md) — Full REST API docs.
--   [Core Concepts](docs/core-concepts.md) — Understand recipients, targets, preferences, and analytics.
 -   [Console](https://console.bodhveda.com) — Managed cloud dashboard.
 -   [Self-hosting Guide](docs/self-host.md) (coming soon)
 
 ## License
 
-[AGPL v3](LICENSE) — Notifications should be free to own, run, and customize.
+[AGPL v3](LICENSE) because notifications should be free to own, run, and customize.
 
 <p align="center">
   Built with 💙 by <a href="https://mudgallabs.com" target="_blank">Mudgal Labs</a>
