@@ -62,8 +62,6 @@ You can do everything above via the [Bodhveda Console](https://console.bodhveda.
 1. After creating the project, go to **Notifications**.
 2. Send a Direct Notification by clicking on **Send Notification**.
 
----
-
 ## Broadcast Notification
 
 Broadcast to multiple recipients. This requires some setup:
@@ -107,13 +105,9 @@ curl -X POST https://api.bodhveda.com/v1/notifications/send \
 
 > See [Core Concepts](./core-concepts.md#notification-targeting) for details on channels, topics, events, and preferences.
 
----
-
 ## Next Steps
 
 -   [Explore the API Reference](./api-reference.md)
 -   [Learn about Core Concepts](./core-concepts.md)
-
----
 
 > **Tip:** Prefer using the [SDK](./api-reference.md#sdk) if available for your language for easier integration.

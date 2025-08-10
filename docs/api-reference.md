@@ -9,7 +9,6 @@ Welcome to the **Bodhveda Developer API** documentation.
 -   [Pagination](#pagination)
 -   [Rate Limiting](#rate-limiting)
 -   [HTTP Status Codes](#http-status-codes)
--   [Support & Contact](#support--contact)
 -   [Notifications (Full Scope)](#notifications-full-scope)
     -   [Send Notification](#send-notification)
     -   [Targeting Rules](#targeting-rules)
@@ -34,6 +33,7 @@ Welcome to the **Bodhveda Developer API** documentation.
         -   [Create Recipients Batch](#create-recipients-batch)
         -   [Update Recipient](#update-recipient)
         -   [Delete Recipient](#delete-recipient)
+-   [Support & Contact](#support--contact)
 
 ## Base URL
 
@@ -76,11 +76,11 @@ All responses follow this structure:
 
 ```json
 {
-    "status": "success" | "error",
+    "status": "success" // or "error"
     "status_code": 200,
     "message": "Human readable message",
-    "errors": [ /* array of error objects, if any */ ],
-    "data": { /* response data, if any */ }
+    "errors": [ ], // array of error objects, if any
+    "data": { }, // or [ ] response data, if any
 }
 ```
 
@@ -119,8 +119,6 @@ All responses follow this structure:
 -   If you exceed the allowed rate, you will receive a `429 Too Many Requests` response.
 -   Standard limit: 100 requests per minute for a project (subject to change).
 
----
-
 ## HTTP Status Codes
 
 -   `200 OK` – Successful GET/PUT/PATCH/DELETE
@@ -133,10 +131,6 @@ All responses follow this structure:
 -   `429 Too Many Requests` – Rate limit exceeded
 -   `500 Internal Server Error` – Unexpected server error
 
-## Support & Contact
-
--   For help, bug reports, or feature requests, contact [support@bodhveda.com](mailto:support@bodhveda.com).
-
 ## Notifications (Full Scope)
 
 > **Requires API key with scope `"full"`**
@@ -147,7 +141,7 @@ All responses follow this structure:
 
 Send a direction notification to a recipient or broadcast it to multiple recipients.
 
-💡 See [Targeting Rules](#targeting-rules) for how to construct the `to` object and how preferences/analytics behave.
+💡 See [Targeting Rules](#targeting-rules) for how to construct the `to` object and how preferences and analytics work.
 
 **Request Body Example:**
 
@@ -194,8 +188,6 @@ You can send a notification to a single recipient **without any target**:
 
 ⚠️ Preferences and analytics will not apply.
 
----
-
 ### Direct Notification (With Target)
 
 ```json
@@ -216,8 +208,6 @@ You can send a notification to a single recipient **without any target**:
 -   ✅ Preferences will be respected.
 -   ✅ Analytics will track this event.
 -   ⚠️ If any of channel, topic, or event is provided, then **all three must be provided**.
-
----
 
 ### Broadcast Notification
 
@@ -240,8 +230,6 @@ You can send a notification to a single recipient **without any target**:
 
 This sends the notification to **all recipients** who have **subscribed** to the given `channel:topic:event`.
 
----
-
 ### `any` and `none` in Preferences
 
 When subscribing/unsubscribing preferences:
@@ -261,8 +249,6 @@ will match:
 -   `marketing:feature:update`
 
 However, when sending a notification, `"any"` makes no sense, although `"none"` topic is allowed. You must specify a concrete `channel`, `topic`, and `event`.
-
----
 
 ## Recipients
 
@@ -285,8 +271,6 @@ Get notifications for a recipient with pagination.
 -   `before` cursor (default: '')
 -   `limit` (default: 20)
 
----
-
 #### Unread Count
 
 **GET** `/v1/recipients/:recipient/notifications/unread-count`
@@ -304,8 +288,6 @@ Get the count of unread notifications for a recipient.
     "unread_count": 5
 }
 ```
-
----
 
 #### Mark Notifications as Read
 
@@ -327,8 +309,6 @@ Get the count of unread notifications for a recipient.
 }
 ```
 
----
-
 #### Mark All as Read
 
 **PATCH** `/v1/recipients/:recipient/notifications/mark-all-read`
@@ -342,8 +322,6 @@ Marks all notifications as read for the recipient.
     "updated": 42
 }
 ```
-
----
 
 #### Mark Notifications as Unread
 
@@ -365,8 +343,6 @@ Marks all notifications as read for the recipient.
 }
 ```
 
----
-
 #### Mark Notifications as Opened
 
 **PATCH** `/v1/recipients/:recipient/notifications/mark-opened`
@@ -387,8 +363,6 @@ Marks all notifications as read for the recipient.
 }
 ```
 
----
-
 #### Mark All as Opened
 
 **PATCH** `/v1/recipients/:recipient/notifications/mark-all-opened`
@@ -402,8 +376,6 @@ Marks all notifications as opened for the recipient.
     "updated": 69
 }
 ```
-
----
 
 #### Delete Notifications
 
@@ -425,8 +397,6 @@ Marks all notifications as opened for the recipient.
 }
 ```
 
----
-
 #### Delete All Notifications
 
 **DELETE** `/v1/recipients/:recipient/notifications/delete-all`
@@ -440,8 +410,6 @@ Deletes all notifications for the recipient.
     "updated": 13
 }
 ```
-
----
 
 ### Recipient Preferences (Recipient or Full Scope)
 
@@ -498,8 +466,6 @@ Get recipient's preference to project/app level defined preferences.
 }
 ```
 
----
-
 #### Subscribe or Unsubscribe a target
 
 **PATCH** `/v1/recipients/:recipient/preferences/targets`
@@ -535,8 +501,6 @@ Get recipient's preference to project/app level defined preferences.
 }
 ```
 
----
-
 #### Check subscription to a target
 
 **GET** `/v1/recipients/:recipient/preferences/targets?channel=posts&topic=post_id_123&event=new_comment`
@@ -556,8 +520,6 @@ Get recipient's preference to project/app level defined preferences.
     }
 }
 ```
-
----
 
 ### Recipient Management (Full Scope)
 
@@ -584,8 +546,6 @@ Get recipient details.
     }
 }
 ```
-
----
 
 #### Create Recipient
 
@@ -615,8 +575,6 @@ Get recipient details.
     }
 }
 ```
-
----
 
 #### Create Recipients Batch
 
@@ -677,8 +635,6 @@ Get recipient details.
 }
 ```
 
----
-
 #### Update Recipient
 
 **PATCH** `/v1/recipients/:recipient`
@@ -713,8 +669,6 @@ Update the details of a recipient.
 }
 ```
 
----
-
 #### Delete Recipient
 
 **DELETE** `/v1/recipients/:recipient`
@@ -734,3 +688,7 @@ Deletes a recipient.
     "message": "Recipient deleted"
 }
 ```
+
+## Support & Contact
+
+-   For help, bug reports, or feature requests, contact [support@bodhveda.com](mailto:support@bodhveda.com).
