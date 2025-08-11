@@ -130,7 +130,7 @@ curl -X POST https://api.bodhveda.com/v1/notifications/send \
 
 ## 📜 License
 
-[AGPL v3](LICENSE) — Notifications should be free to own, run, and customize.
+[AGPL v3](LICENSE) — because control over your notifications belongs to you, not a vendor.
 
 <p align="center">
   Built with 💙 by <a href="https://mudgallabs.com" target="_blank">Mudgal Labs</a>

@@ -11,6 +11,7 @@ import (
 	"github.com/mudgallabs/bodhveda/internal/model/entity"
 	"github.com/mudgallabs/bodhveda/internal/model/repository"
 	"github.com/mudgallabs/tantra/dbx"
+	"github.com/mudgallabs/tantra/query"
 )
 
 type NotificationRepo struct {
@@ -107,53 +108,64 @@ CREATE INDEX CONCURRENTLY IF NOT EXISTS idx_notification_id_project_recipient
 ON notification (id DESC, project_id, recipient_external_id);
 */
 
-func (r *NotificationRepo) ListForRecipient(ctx context.Context, projectID int, recipientExtID string, before string, limit int) ([]*entity.Notification, error) {
-	sb := dbx.NewSQLBuilder(`
+func (r *NotificationRepo) ListForRecipient(ctx context.Context, projectID int, recipientExtID string, cursor *query.Cursor) ([]*entity.Notification, *query.Cursor, error) {
+	returnedCursor := &query.Cursor{
+		After:  nil,
+		Before: nil,
+	}
+
+	b := dbx.NewSQLBuilder(`
 		SELECT id, project_id, recipient_external_id, payload, broadcast_id, channel, topic, event, read_at, opened_at, created_at, updated_at
 		FROM notification
 	`)
-	sb.AddCompareFilter("project_id", dbx.OperatorEQ, projectID)
-	sb.AddCompareFilter("recipient_external_id", dbx.OperatorEQ, recipientExtID)
+	b.AddCompareFilter("project_id", dbx.OperatorEQ, projectID)
+	b.AddCompareFilter("recipient_external_id", dbx.OperatorEQ, recipientExtID)
 
-	if before != "" {
-		// For simplicity, treat before as notification id (string, but should be int)
-		sb.AddCompareFilter("id", dbx.OperatorLT, before)
+	if cursor.Before != nil && *cursor.Before != "" && cursor.After == nil {
+		b.AddCompareFilter("id", dbx.OperatorLT, cursor.Before)
 	}
 
-	sb.AddSorting("id", "DESC")
-
-	if limit <= 0 {
-		limit = 20 // Default limit
-	} else if limit > 100 {
-		limit = 100 // Cap limit to 100
+	if cursor.After != nil && *cursor.After != "" && cursor.Before == nil {
+		b.AddCompareFilter("id", dbx.OperatorGT, cursor.After)
 	}
 
-	sb.AddPagination(limit, 0)
+	b.AddSorting("id", "DESC")
+	b.AddPagination(*cursor.Limit, 0)
 
-	sql, args := sb.Build()
+	sql, args := b.Build()
 
 	rows, err := r.db.Query(ctx, sql, args...)
 	if err != nil {
-		return nil, fmt.Errorf("query: %w", err)
+		return nil, nil, fmt.Errorf("query: %w", err)
 	}
 
 	defer rows.Close()
 
-	notifs := []*entity.Notification{}
+	notifications := []*entity.Notification{}
 	for rows.Next() {
-		var n entity.Notification
-		err := rows.Scan(&n.ID, &n.ProjectID, &n.RecipientExtID, &n.Payload, &n.BroadcastID, &n.Channel, &n.Topic, &n.Event, &n.ReadAt, &n.OpenedAt, &n.CreatedAt, &n.UpdatedAt)
+		var notification entity.Notification
+
+		err := rows.Scan(&notification.ID, &notification.ProjectID, &notification.RecipientExtID, &notification.Payload, &notification.BroadcastID, &notification.Channel, &notification.Topic, &notification.Event, &notification.ReadAt, &notification.OpenedAt, &notification.CreatedAt, &notification.UpdatedAt)
 		if err != nil {
-			return nil, fmt.Errorf("scan: %w", err)
+			return nil, nil, fmt.Errorf("scan: %w", err)
 		}
-		notifs = append(notifs, &n)
+
+		notifications = append(notifications, &notification)
 	}
 
 	if err := rows.Err(); err != nil {
-		return nil, fmt.Errorf("rows error: %w", err)
+		return nil, nil, fmt.Errorf("rows error: %w", err)
 	}
 
-	return notifs, nil
+	if len(notifications) > 0 {
+		lastNotification := notifications[len(notifications)-1]
+		before := fmt.Sprintf("%d", lastNotification.ID)
+		after := fmt.Sprintf("%d", notifications[0].ID)
+		returnedCursor.Before = &before
+		returnedCursor.After = &after
+	}
+
+	return notifications, returnedCursor, nil
 }
 
 func (r *NotificationRepo) UnreadCountForRecipient(ctx context.Context, projectID int, recipientExtID string) (int, error) {

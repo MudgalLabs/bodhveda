@@ -153,7 +153,7 @@ func (r *PreferenceRepo) findPreferences(ctx context.Context, payload repository
 	return prefs, total, nil
 }
 
-func (r *PreferenceRepo) ShouldDirectNotificationBeDelivered(ctx context.Context, projectID int, target dto.NotificationTarget) (bool, error) {
+func (r *PreferenceRepo) ShouldDirectNotificationBeDelivered(ctx context.Context, projectID int, recipientExtID string, target dto.Target) (bool, error) {
 	shouldDeliver := true
 
 	shouldDeliverSQL := `
@@ -228,7 +228,7 @@ func (r *PreferenceRepo) ShouldDirectNotificationBeDelivered(ctx context.Context
 
 	err := r.db.QueryRow(ctx, shouldDeliverSQL,
 		projectID,
-		target.RecipientExtID,
+		recipientExtID,
 		target.Channel,
 		target.Topic,
 		target.Event,
@@ -240,7 +240,7 @@ func (r *PreferenceRepo) ShouldDirectNotificationBeDelivered(ctx context.Context
 	return shouldDeliver, err
 }
 
-func (r *PreferenceRepo) ListEligibleRecipientExtIDsForBroadcast(ctx context.Context, projectID int, target dto.NotificationTarget) ([]string, error) {
+func (r *PreferenceRepo) ListEligibleRecipientExtIDsForBroadcast(ctx context.Context, projectID int, target dto.Target) ([]string, error) {
 	sql := `
 		-- INPUTS:
 		-- $1 = project_id

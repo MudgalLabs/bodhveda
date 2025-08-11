@@ -10,6 +10,7 @@ import (
 	"github.com/mudgallabs/bodhveda/internal/model/dto"
 	"github.com/mudgallabs/bodhveda/internal/model/entity"
 	"github.com/mudgallabs/bodhveda/internal/model/repository"
+	"github.com/mudgallabs/tantra/query"
 	"github.com/mudgallabs/tantra/service"
 )
 
@@ -80,7 +81,7 @@ func (s *NotificationService) Send(ctx context.Context, payload dto.SendNotifica
 }
 
 func (s *NotificationService) sendDirectNotification(ctx context.Context, payload dto.SendNotificationPayload) (*dto.Notification, error) {
-	exists, err := s.recipientRepo.Exists(ctx, payload.ProjectID, *payload.To.RecipientExtID)
+	exists, err := s.recipientRepo.Exists(ctx, payload.ProjectID, *payload.RecipientExtID)
 	if err != nil {
 		return nil, fmt.Errorf("check recipient existence: %w", err)
 	}
@@ -90,7 +91,7 @@ func (s *NotificationService) sendDirectNotification(ctx context.Context, payloa
 	if !exists {
 		_, _, err := s.recipientService.Create(ctx, dto.CreateRecipientPayload{
 			ProjectID:  payload.ProjectID,
-			ExternalID: *payload.To.RecipientExtID,
+			ExternalID: *payload.RecipientExtID,
 		})
 
 		if err != nil {
@@ -100,15 +101,15 @@ func (s *NotificationService) sendDirectNotification(ctx context.Context, payloa
 
 	notification := entity.NewNotification(
 		payload.ProjectID,
-		*payload.To.RecipientExtID,
+		*payload.RecipientExtID,
 		payload.Payload,
 		nil,
-		payload.To.Channel,
-		payload.To.Topic,
-		payload.To.Event,
+		payload.Target.Channel,
+		payload.Target.Topic,
+		payload.Target.Event,
 	)
 
-	shouldDeliver, err := s.preferenceRepo.ShouldDirectNotificationBeDelivered(ctx, notification.ProjectID, dto.TargetFromNotification(notification))
+	shouldDeliver, err := s.preferenceRepo.ShouldDirectNotificationBeDelivered(ctx, notification.ProjectID, notification.RecipientExtID, dto.TargetFromNotification(notification))
 	if err != nil {
 		return nil, err
 	}
@@ -132,9 +133,9 @@ func (s *NotificationService) sendBroadcastNotification(ctx context.Context, pay
 	broadcast := entity.NewBroadcast(
 		payload.ProjectID,
 		payload.Payload,
-		payload.To.Channel,
-		payload.To.Topic,
-		payload.To.Event,
+		payload.Target.Channel,
+		payload.Target.Topic,
+		payload.Target.Event,
 	)
 
 	broadcast, err := s.broadcastRepo.Create(ctx, broadcast)
@@ -165,17 +166,24 @@ func (s *NotificationService) Overview(ctx context.Context, projectID int) (*dto
 	return result, service.ErrNone, nil
 }
 
-func (s *NotificationService) ListForRecipient(ctx context.Context, projectID int, recipientExtID string, before string, limit int) ([]*dto.NotificationListItem, service.Error, error) {
+func (s *NotificationService) ListForRecipient(ctx context.Context, projectID int, recipientExtID string, cursor *query.Cursor) ([]*dto.NotificationListItem, *query.Cursor, service.Error, error) {
 	if recipientExtID == "" {
-		return nil, service.ErrInvalidInput, fmt.Errorf("recipient id required")
+		return nil, nil, service.ErrInvalidInput, fmt.Errorf("recipient id required")
 	}
 
-	notifs, err := s.repo.ListForRecipient(ctx, projectID, recipientExtID, before, limit)
+	err := cursor.Validate(100, 10)
 	if err != nil {
-		return nil, service.ErrInternalServerError, err
+		return nil, nil, service.ErrInvalidInput, err
 	}
 
-	return dto.FromNotificationList(notifs), service.ErrNone, nil
+	fmt.Println("Cusor in service:", cursor)
+
+	notifs, returnedCursor, err := s.repo.ListForRecipient(ctx, projectID, recipientExtID, cursor)
+	if err != nil {
+		return nil, nil, service.ErrInternalServerError, err
+	}
+
+	return dto.FromNotificationList(notifs), returnedCursor, service.ErrNone, nil
 }
 
 func (s *NotificationService) UnreadCountForRecipient(ctx context.Context, projectID int, recipientExtID string) (int, service.Error, error) {

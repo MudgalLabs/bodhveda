@@ -6,6 +6,7 @@ import (
 	"github.com/jackc/pgx/v5"
 	"github.com/mudgallabs/bodhveda/internal/model/dto"
 	"github.com/mudgallabs/bodhveda/internal/model/entity"
+	"github.com/mudgallabs/tantra/query"
 )
 
 type NotificationRepository interface {
@@ -15,7 +16,7 @@ type NotificationRepository interface {
 
 type NotificationReader interface {
 	Overview(ctx context.Context, projectID int) (*dto.NotificationsOverviewResult, error)
-	ListForRecipient(ctx context.Context, projectID int, recipientExtID string, before string, limit int) ([]*entity.Notification, error)
+	ListForRecipient(ctx context.Context, projectID int, recipientExtID string, cursor *query.Cursor) ([]*entity.Notification, *query.Cursor, error)
 	UnreadCountForRecipient(ctx context.Context, projectID int, recipientExtID string) (int, error)
 }
 

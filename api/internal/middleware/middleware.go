@@ -12,6 +12,7 @@ import (
 	"github.com/mudgallabs/bodhveda/internal/app"
 	"github.com/mudgallabs/bodhveda/internal/env"
 	"github.com/mudgallabs/bodhveda/internal/model/entity"
+	"github.com/mudgallabs/bodhveda/internal/model/enum"
 	"github.com/mudgallabs/tantra/auth/session"
 	"github.com/mudgallabs/tantra/cipher"
 	"github.com/mudgallabs/tantra/httpx"
@@ -178,19 +179,19 @@ func APIKeyBasedAuthMiddleware(next http.Handler) http.Handler {
 		authHeader := r.Header.Get("Authorization")
 		if authHeader == "" {
 			http.Error(w, "missing Authorization header", http.StatusUnauthorized)
-			httpx.UnauthorizedErrorResponse(w, r, "missing Authorization header", errors.New("missing Authorization header"))
+			httpx.UnauthorizedErrorResponse(w, r, "Missing Authorization header", errors.New("Missing Authorization header"))
 			return
 		}
 
 		parts := strings.Fields(authHeader)
 		if len(parts) != 2 || parts[0] != "Bearer" {
-			httpx.UnauthorizedErrorResponse(w, r, "invalid Authorization header format", errors.New("invalid Authorization header format"))
+			httpx.UnauthorizedErrorResponse(w, r, "Invalid Authorization header format", errors.New("Invalid Authorization header format"))
 			return
 		}
 
 		tokenPlain := parts[1]
 		if tokenPlain == "" {
-			httpx.UnauthorizedErrorResponse(w, r, "Missing API Key in Authorization header", errors.New("missing API Key in Authorization header"))
+			httpx.UnauthorizedErrorResponse(w, r, "Missing API Key in Authorization header", errors.New("Missing API Key in Authorization header"))
 			return
 		}
 
@@ -227,6 +228,20 @@ func MakeSureUserOwnsThisProject(next http.Handler) http.Handler {
 			// NOTE: Not leaking whether the project exists or not.
 			// That's why it's a NotFound error instead of Unauthorized or Forbidden.
 			httpx.NotFoundResponse(w, r, errors.New("Project not found"))
+			return
+		}
+
+		next.ServeHTTP(w, r.WithContext(ctx))
+	})
+}
+
+func MakeSureAPIKeyHasFullScope(next http.Handler) http.Handler {
+	return http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		ctx := r.Context()
+		apiKey := GetAPIKeyFromContext(ctx)
+
+		if apiKey.Scope != enum.APIKeyScopeFull {
+			httpx.UnauthorizedErrorResponse(w, r, "API key does not have sufficient permissions.", errors.New("API key does not have sufficient permissions."))
 			return
 		}
 

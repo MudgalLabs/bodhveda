@@ -10,6 +10,7 @@ import (
 	"github.com/mudgallabs/bodhveda/internal/service"
 	"github.com/mudgallabs/tantra/httpx"
 	"github.com/mudgallabs/tantra/jsonx"
+	"github.com/mudgallabs/tantra/query"
 )
 
 func SendNotification(s *service.NotificationService) http.HandlerFunc {
@@ -65,16 +66,23 @@ func ListNotifications(s *service.NotificationService) http.HandlerFunc {
 			return
 		}
 
-		before := httpx.QueryStr(r, "before")
-		limit, err := httpx.QueryInt(r, "limit")
+		var cursor query.Cursor
+		err := httpx.DecodeQuery(r, &cursor)
 		if err != nil {
-			limit = 20 // Default limit
+			httpx.BadRequestResponse(w, r, err)
+			return
 		}
 
-		result, errKind, err := s.ListForRecipient(ctx, apiKey.ProjectID, recipientExtID, before, limit)
+		notifications, returnedCursor, errKind, err := s.ListForRecipient(
+			ctx, apiKey.ProjectID, recipientExtID, &cursor)
 		if err != nil {
 			httpx.ServiceErrResponse(w, r, errKind, err)
 			return
+		}
+
+		result := map[string]interface{}{
+			"notifications": notifications,
+			"cursor":        returnedCursor,
 		}
 
 		httpx.SuccessResponse(w, r, http.StatusOK, "", result)

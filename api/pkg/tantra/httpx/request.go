@@ -10,6 +10,11 @@ import (
 
 var decoder = schema.NewDecoder()
 
+func init() {
+	decoder.IgnoreUnknownKeys(true)
+	decoder.SetAliasTag("schema")
+}
+
 // DecodeQuery decodes query params into the given struct pointer.
 func DecodeQuery(r *http.Request, dst any) error {
 	return decoder.Decode(dst, r.URL.Query())
