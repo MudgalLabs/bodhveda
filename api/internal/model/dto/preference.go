@@ -190,7 +190,7 @@ type PreferenceTargetStateDTO struct {
 }
 
 type PreferenceTargetStatesResultDTO struct {
-	GlobalPreferences []*PreferenceTargetStateDTO `json:"global_preferences"`
+	Preferences []*PreferenceTargetStateDTO `json:"preferences"`
 }
 
 type PatchRecipientPreferenceTargetPayload struct {

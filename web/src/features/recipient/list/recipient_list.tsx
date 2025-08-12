@@ -108,7 +108,7 @@ function ActionCell({ recipient }: { recipient: RecipientListItem }) {
                             className="w-full!"
                             onClick={() =>
                                 deleteRecipient({
-                                    recipientID: recipient.recipient_id,
+                                    recipientID: recipient.id,
                                 })
                             }
                             disabled={isDeleting}
@@ -131,10 +131,10 @@ function ActionCell({ recipient }: { recipient: RecipientListItem }) {
 
 const columns: ColumnDef<RecipientListItem>[] = [
     {
-        accessorKey: "recipient_id",
+        accessorKey: "id",
         header: () => <DataTableColumnHeader title="Recipient ID" />,
         cell: ({ row }) => (
-            <span className="select-text!">{row.original.recipient_id}</span>
+            <span className="select-text!">{row.original.id}</span>
         ),
     },
     {

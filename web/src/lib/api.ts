@@ -5,49 +5,49 @@ import { toast } from "netra";
 
 export const API_ROUTES = {
     auth: {
-        signout: "/v1/console/auth/sign-out",
+        signout: "/console/auth/sign-out",
     },
     project: {
-        list: "/v1/console/projects",
-        create: "/v1/console/projects",
-        delete: (id: string | number) => `/v1/console/projects/${id}`,
+        list: "/console/projects",
+        create: "/console/projects",
+        delete: (id: string | number) => `/console/projects/${id}`,
 
         api_keys: {
             list: (projectId: string | number) =>
-                `/v1/console/projects/${projectId}/api-keys`,
+                `/console/projects/${projectId}/api-keys`,
             create: (projectId: string | number) =>
-                `/v1/console/projects/${projectId}/api-keys`,
+                `/console/projects/${projectId}/api-keys`,
             delete: (projectId: string | number, apiKeyID: number) =>
-                `/v1/console/projects/${projectId}/api-keys/${apiKeyID}`,
+                `/console/projects/${projectId}/api-keys/${apiKeyID}`,
         },
 
         notifications: {
             overview: (projectId: string | number) =>
-                `/v1/console/projects/${projectId}/notifications/overview`,
+                `/console/projects/${projectId}/notifications/overview`,
         },
 
         recipients: {
             list: (projectId: string | number) =>
-                `/v1/console/projects/${projectId}/recipients`,
+                `/console/projects/${projectId}/recipients`,
             create: (projectId: string | number) =>
-                `/v1/console/projects/${projectId}/recipients`,
+                `/console/projects/${projectId}/recipients`,
             edit: (projectId: string | number, recipientId: string) =>
-                `/v1/console/projects/${projectId}/recipients/${recipientId}`,
+                `/console/projects/${projectId}/recipients/${recipientId}`,
             delete: (projectId: string | number, recipientId: string) =>
-                `/v1/console/projects/${projectId}/recipients/${recipientId}`,
+                `/console/projects/${projectId}/recipients/${recipientId}`,
         },
 
         preferences: {
             list: (projectId: string | number) =>
-                `/v1/console/projects/${projectId}/preferences`,
+                `/console/projects/${projectId}/preferences`,
             create: (projectId: string | number) =>
-                `/v1/console/projects/${projectId}/preferences`,
+                `/console/projects/${projectId}/preferences`,
             delete: (projectId: string | number, prefenceID: number) =>
-                `/v1/console/projects/${projectId}/preferences/${prefenceID}`,
+                `/console/projects/${projectId}/preferences/${prefenceID}`,
         },
     },
     user: {
-        me: "/v1/console/users/me",
+        me: "/console/users/me",
     },
 };
 

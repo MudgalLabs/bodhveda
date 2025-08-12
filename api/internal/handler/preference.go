@@ -120,7 +120,7 @@ func UpsertRecipientPreferences(s *service.PreferenceService) http.HandlerFunc {
 	}
 }
 
-func GetRecipientGlobalPreferences(s *service.PreferenceService) http.HandlerFunc {
+func GetRecipientProjectPreferences(s *service.PreferenceService) http.HandlerFunc {
 	return func(w http.ResponseWriter, r *http.Request) {
 		ctx := r.Context()
 		apiKey := middleware.GetAPIKeyFromContext(ctx)
@@ -131,7 +131,7 @@ func GetRecipientGlobalPreferences(s *service.PreferenceService) http.HandlerFun
 			return
 		}
 
-		result, errKind, err := s.GetRecipientGlobalPreferences(ctx, apiKey.ProjectID, recipientExtID)
+		result, errKind, err := s.GetRecipientProjectPreferences(ctx, apiKey.ProjectID, recipientExtID)
 		if err != nil {
 			httpx.ServiceErrResponse(w, r, errKind, err)
 			return

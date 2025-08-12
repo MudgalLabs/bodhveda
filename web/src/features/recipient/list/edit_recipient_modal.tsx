@@ -40,12 +40,10 @@ export const EditRecipientModal: FC<EditRecipientModalProps> = ({
 
     const { mutate: update, isPending } = useEditRecipient(
         projectID,
-        recipient.recipient_id,
+        recipient.id,
         {
             onSuccess: () => {
-                toast.success(
-                    `Recipient ${recipient.recipient_id} updated successfully`
-                );
+                toast.success(`Recipient ${recipient.id} updated successfully`);
                 setOpen(false);
             },
             onError: apiErrorHandler,

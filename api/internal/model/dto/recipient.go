@@ -9,7 +9,7 @@ import (
 )
 
 type Recipient struct {
-	ExternalID string    `json:"recipient_id"` // Unique recipient ID from the client's system.
+	ExternalID string    `json:"id"` // Unique recipient ID from the client's system.
 	Name       string    `json:"name"`
 	CreatedAt  time.Time `json:"created_at"`
 	UpdatedAt  time.Time `json:"updated_at"`
@@ -18,7 +18,7 @@ type Recipient struct {
 type CreateRecipientPayload struct {
 	ProjectID int
 
-	ExternalID string  `json:"recipient_id"`
+	ExternalID string  `json:"id"`
 	Name       *string `json:"name"`
 }
 
@@ -30,7 +30,7 @@ func (p *CreateRecipientPayload) Validate() error {
 	}
 
 	if p.ExternalID == "" {
-		errs.Add(apires.NewApiError("Recipient ID is required", "Recipient ID cannot be empty", "recipient_id", p.ExternalID))
+		errs.Add(apires.NewApiError("ID is required", "ID cannot be empty", "id", p.ExternalID))
 	}
 
 	if p.Name != nil && *p.Name == "" {
@@ -67,17 +67,17 @@ type BatchCreateRecipientsPayload struct {
 }
 
 type BatchCreateRecipientCreated struct {
-	RecipientID string `json:"recipient_id"`
+	RecipientExtID string `json:"id"`
 }
 
 type BatchCreateRecipientUpdated struct {
-	RecipientID string `json:"recipient_id"`
+	RecipientExtID string `json:"id"`
 }
 
 type BatchCreateRecipientFailed struct {
-	Errors      service.InputValidationErrors `json:"errors"`
-	RecipientID string                        `json:"recipient_id"`
-	BatchIndex  int                           `json:"batch_index"`
+	Errors         service.InputValidationErrors `json:"errors"`
+	RecipientExtID string                        `json:"id"`
+	BatchIndex     int                           `json:"batch_index"`
 }
 
 type BatchCreateRecipientsResult struct {

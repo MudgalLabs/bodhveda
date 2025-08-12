@@ -118,7 +118,7 @@ const columns: ColumnDef<APIKey>[] = [
     },
     {
         accessorKey: "scope",
-        header: () => <DataTableColumnHeader title="Permission" />,
+        header: () => <DataTableColumnHeader title="Scope" />,
         cell: ({ row }) => apiKeyScopeToString(row.original.scope),
     },
     {

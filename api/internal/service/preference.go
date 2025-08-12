@@ -155,7 +155,7 @@ func (s *PreferenceService) UpdateRecipientPreferenceTarget(ctx context.Context,
 	return dto.PreferenceTargetStateDTOFromPreference(newPref, false), service.ErrNone, nil
 }
 
-func (s *PreferenceService) GetRecipientGlobalPreferences(ctx context.Context, projectID int, recipientExtID string) (*dto.PreferenceTargetStatesResultDTO, service.Error, error) {
+func (s *PreferenceService) GetRecipientProjectPreferences(ctx context.Context, projectID int, recipientExtID string) (*dto.PreferenceTargetStatesResultDTO, service.Error, error) {
 	// 1. Fetch all project-level preferences (these are the defaults for all recipients)
 	projectPrefs, err := s.repo.ListPreferences(ctx, projectID, enum.PreferenceKindProject)
 	if err != nil {
@@ -206,7 +206,7 @@ func (s *PreferenceService) GetRecipientGlobalPreferences(ctx context.Context, p
 
 	// 6. Return the merged preferences (project-level, overridden by recipient-level where applicable)
 	return &dto.PreferenceTargetStatesResultDTO{
-		GlobalPreferences: result,
+		Preferences: result,
 	}, service.ErrNone, nil
 }
 

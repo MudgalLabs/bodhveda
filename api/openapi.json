@@ -1,0 +1,984 @@
+{
+    "openapi": "3.0.3",
+    "info": {
+        "title": "Bodhveda Notifications API",
+        "version": "1.0",
+        "description": "API for sending notifications to recipients or broadcasting to all."
+    },
+    "paths": {
+        "/v1/notifications/send": {
+            "post": {
+                "summary": "Send a notification (direct or broadcast)",
+                "operationId": "sendNotification",
+                "tags": ["Notifications"],
+                "description": "Start sending notifications through Bodhveda API.",
+                "requestBody": {
+                    "required": true,
+                    "content": {
+                        "application/json": {
+                            "schema": {
+                                "$ref": "#/components/schemas/SendNotificationPayload"
+                            }
+                        }
+                    }
+                },
+                "x-codeSamples": [
+                    {
+                        "lang": "curl",
+                        "source": "curl -X POST https://api.bodhveda.com/v1/notifications/send \\\n  -H \"Authorization: Bearer bv_xxxxxxxxx\" \\\n  -H \"Content-Type: application/json\" \\\n  -d '{\n    \"recipient_id\": \"recipient_123\",\n    \"target\": {\n      \"channel\": \"posts\",\n      \"topic\": \"post_id_123\",\n      \"event\": \"new_comment\"\n    },\n    \"payload\": {\n      \"title\": \"Elon, Zuck and others commented on your post.\",\n      \"post_url\": \"/posts/post_id_123#comments\"\n    }\n  }'"
+                    }
+                ],
+                "responses": {
+                    "200": {
+                        "description": "Notification response",
+                        "content": {
+                            "application/json": {
+                                "examples": {
+                                    "Direct notification": {
+                                        "summary": "Direct Notification Response",
+                                        "value": {
+                                            "message": "Direct notification sent successfully to recipient recipient_123.",
+                                            "data": {
+                                                "notification": {
+                                                    "id": 42069,
+                                                    "recipient_id": "recipient_123",
+                                                    "payload": {
+                                                        "title": "Elon, Zuck and others commented on your post.",
+                                                        "post_url": "/posts/post_id_123#comments"
+                                                    },
+                                                    "broadcast_id": null,
+                                                    "target": {
+                                                        "channel": "posts",
+                                                        "topic": "post_id_123",
+                                                        "event": "new_comment"
+                                                    },
+                                                    "seen": false,
+                                                    "read": false,
+                                                    "opened": false,
+                                                    "created_at": "2025-11-07T05:31:56Z",
+                                                    "updated_at": "2025-11-07T05:31:56Z"
+                                                },
+                                                "broadcast": null
+                                            }
+                                        }
+                                    },
+                                    "Broadcast notification": {
+                                        "summary": "Broadcast Notification Response",
+                                        "value": {
+                                            "message": "Broadcast notification sent successfully. It will be delivered to all elligible recipients.",
+                                            "data": {
+                                                "notification": null,
+                                                "broadcast": {
+                                                    "id": 42069,
+                                                    "target": {
+                                                        "channel": "announcements",
+                                                        "topic": "product",
+                                                        "event": "new_feature"
+                                                    },
+                                                    "payload": {
+                                                        "title": "Big News!",
+                                                        "message": "We just launched a new feature."
+                                                    },
+                                                    "created_at": "2025-08-11T20:54:25.039856+05:30",
+                                                    "updated_at": "2025-08-11T20:54:25.039856+05:30"
+                                                }
+                                            }
+                                        }
+                                    },
+                                    "Direct notification rejected": {
+                                        "summary": "Rejected Notification Based on Preferences",
+                                        "value": {
+                                            "message": "No notification was sent. Recipient's preferences do not allow delivery.",
+                                            "data": {
+                                                "notification": null,
+                                                "broadcast": null
+                                            }
+                                        }
+                                    }
+                                }
+                            }
+                        }
+                    }
+                },
+                "security": [
+                    {
+                        "BearerAuthWithAPIKeyWithFullAcessScope": []
+                    }
+                ]
+            }
+        },
+        "/v1/recipients": {
+            "post": {
+                "summary": "Create a recipient",
+                "operationId": "createRecipient",
+                "tags": ["Recipients"],
+                "description": "Create a new recipient.",
+                "requestBody": {
+                    "required": true,
+                    "content": {
+                        "application/json": {
+                            "schema": {
+                                "$ref": "#/components/schemas/CreateRecipientPayload"
+                            }
+                        }
+                    }
+                },
+                "x-codeSamples": [
+                    {
+                        "lang": "curl",
+                        "source": "curl -X POST https://api.bodhveda.com/v1/recipients \\\n  -H \"Authorization: Bearer bv_xxxxxxxxx\" \\\n  -H \"Content-Type: application/json\" \\\n  -d '{\n    \"id\": \"recipient_123\",\n    \"name\": \"Alice Johnson\"\n  }'"
+                    }
+                ],
+                "responses": {
+                    "201": {
+                        "description": "Recipient created successfully",
+                        "content": {
+                            "application/json": {
+                                "examples": {
+                                    "Recipient created": {
+                                        "summary": "Recipient Created Response",
+                                        "value": {
+                                            "message": "Recipient created",
+                                            "data": {
+                                                "id": "recipient_123",
+                                                "name": "John Doe",
+                                                "created_at": "2025-11-07T05:31:56Z",
+                                                "updated_at": "2025-11-07T05:31:56Z"
+                                            }
+                                        }
+                                    }
+                                }
+                            }
+                        }
+                    },
+                    "409": {
+                        "description": "Recipient already exists",
+                        "content": {
+                            "application/json": {
+                                "examples": {
+                                    "Conflict": {
+                                        "summary": "Recipient Already Exists",
+                                        "value": {
+                                            "message": "Recipient already exists"
+                                        }
+                                    }
+                                }
+                            }
+                        }
+                    }
+                },
+                "security": [
+                    {
+                        "BearerAuthWithAPIKeyWithFullAcessScope": []
+                    }
+                ]
+            }
+        },
+        "/v1/recipients/batch": {
+            "post": {
+                "summary": "Create up to 100 recipients at once.",
+                "operationId": "batchCreateRecipients",
+                "tags": ["Recipients"],
+                "description": "Create up to 100 recipients at once.",
+                "requestBody": {
+                    "required": true,
+                    "content": {
+                        "application/json": {
+                            "schema": {
+                                "type": "object",
+                                "properties": {
+                                    "recipients": {
+                                        "type": "array",
+                                        "items": {
+                                            "$ref": "#/components/schemas/CreateRecipientPayload"
+                                        }
+                                    }
+                                },
+                                "required": ["recipients"]
+                            }
+                        }
+                    }
+                },
+                "x-codeSamples": [
+                    {
+                        "lang": "curl",
+                        "source": "curl -X POST https://api.bodhveda.com/v1/recipients/batch \\\n  -H \"Authorization: Bearer bv_xxxxxxxxx\" \\\n  -H \"Content-Type: application/json\" \\\n  -d '{\n    \"recipients\": [\n      { \"id\": \"recipient_123\", \"name\": \"Alice Johnson\" },\n      { \"id\": \"recipient_456\", \"name\": \"Bob Smith\" },\n      { \"name\": \"Bob Smith\" }    ]\n  }'"
+                    }
+                ],
+                "responses": {
+                    "200": {
+                        "description": "Batch create recipients result",
+                        "content": {
+                            "application/json": {
+                                "examples": {
+                                    "Batch create result": {
+                                        "summary": "Batch Create Recipients Response",
+                                        "value": {
+                                            "message": "",
+                                            "data": {
+                                                "created": [
+                                                    { "id": "recipient_123" }
+                                                ],
+                                                "updated": [
+                                                    { "id": "recipient_456" }
+                                                ],
+                                                "failed": [
+                                                    {
+                                                        "id": "",
+                                                        "batch_index": 2,
+                                                        "errors": [
+                                                            {
+                                                                "message": "ID is required",
+                                                                "description": "ID cannot be empty",
+                                                                "property_path": "id",
+                                                                "invalid_value": ""
+                                                            }
+                                                        ]
+                                                    }
+                                                ]
+                                            }
+                                        }
+                                    }
+                                }
+                            }
+                        }
+                    }
+                },
+                "security": [
+                    {
+                        "BearerAuthWithAPIKeyWithFullAcessScope": []
+                    }
+                ]
+            }
+        },
+        "/v1/recipients/{recipient_id}": {
+            "get": {
+                "summary": "Retrieve a recipient.",
+                "operationId": "getRecipient",
+                "tags": ["Recipients"],
+                "description": "Retrieve a recipient.",
+                "parameters": [
+                    {
+                        "name": "recipient_id",
+                        "in": "path",
+                        "required": true,
+                        "schema": { "type": "string" },
+                        "description": "The unique identifier of the recipient."
+                    }
+                ],
+                "responses": {
+                    "200": {
+                        "description": "Recipient found",
+                        "content": {
+                            "application/json": {
+                                "examples": {
+                                    "Recipient found": {
+                                        "summary": "Recipient Found",
+                                        "value": {
+                                            "message": "",
+                                            "data": {
+                                                "id": "recipient_123",
+                                                "name": "John Doe",
+                                                "created_at": "2025-11-07T05:31:56Z",
+                                                "updated_at": "2025-11-07T05:31:56Z"
+                                            }
+                                        }
+                                    }
+                                }
+                            }
+                        }
+                    },
+                    "404": {
+                        "description": "Recipient not found",
+                        "content": {
+                            "application/json": {
+                                "examples": {
+                                    "Not found": {
+                                        "summary": "Recipient Not Found",
+                                        "value": {
+                                            "message": "Recipient not found"
+                                        }
+                                    }
+                                }
+                            }
+                        }
+                    }
+                },
+                "security": [
+                    {
+                        "BearerAuthWithAPIKeyWithFullAcessScope": []
+                    }
+                ]
+            },
+            "patch": {
+                "summary": "Update a recipient",
+                "operationId": "updateRecipient",
+                "tags": ["Recipients"],
+                "description": "Update the name of a recipient.",
+                "parameters": [
+                    {
+                        "name": "recipient_id",
+                        "in": "path",
+                        "required": true,
+                        "schema": { "type": "string" },
+                        "description": "The unique identifier of the recipient."
+                    }
+                ],
+                "x-codeSamples": [
+                    {
+                        "lang": "curl",
+                        "source": "curl -X PATCH https://api.bodhveda.com/v1/recipients/recipient_123 \\\n  -H \"Authorization: Bearer bv_xxxxxxxxx\" \\\n  -H \"Content-Type: application/json\" \\\n  -d '{\n    \"name\": \"Elon Musk\"\n  }'"
+                    }
+                ],
+                "requestBody": {
+                    "required": true,
+                    "content": {
+                        "application/json": {
+                            "schema": {
+                                "type": "object",
+                                "properties": {
+                                    "name": {
+                                        "type": "string",
+                                        "description": "Name of the recipient."
+                                    }
+                                }
+                            }
+                        }
+                    }
+                },
+                "responses": {
+                    "200": {
+                        "description": "Recipient updated",
+                        "content": {
+                            "application/json": {
+                                "examples": {
+                                    "Recipient updated": {
+                                        "summary": "Recipient Updated",
+                                        "value": {
+                                            "message": "Recipient updated",
+                                            "data": {
+                                                "id": "recipient_123",
+                                                "name": "Elon Musk",
+                                                "created_at": "2025-11-07T05:31:56Z",
+                                                "updated_at": "2025-11-07T06:00:00Z"
+                                            }
+                                        }
+                                    }
+                                }
+                            }
+                        }
+                    },
+                    "404": {
+                        "description": "Recipient not found",
+                        "content": {
+                            "application/json": {
+                                "examples": {
+                                    "Not found": {
+                                        "summary": "Recipient Not Found",
+                                        "value": {
+                                            "message": "Recipient not found"
+                                        }
+                                    }
+                                }
+                            }
+                        }
+                    }
+                },
+                "security": [
+                    {
+                        "BearerAuthWithAPIKeyWithFullAcessScope": []
+                    }
+                ]
+            },
+            "delete": {
+                "summary": "Delete a recipient",
+                "operationId": "deleteRecipient",
+                "tags": ["Recipients"],
+                "description": "Remove an existing recipient.",
+                "parameters": [
+                    {
+                        "name": "recipient_id",
+                        "in": "path",
+                        "required": true,
+                        "schema": { "type": "string" },
+                        "description": "The unique external ID of the recipient."
+                    }
+                ],
+                "responses": {
+                    "200": {
+                        "description": "Recipient deleted",
+                        "content": {
+                            "application/json": {
+                                "examples": {
+                                    "Recipient deleted": {
+                                        "summary": "Recipient Deleted",
+                                        "value": {
+                                            "message": "Recipient deleted"
+                                        }
+                                    }
+                                }
+                            }
+                        }
+                    },
+                    "404": {
+                        "description": "Recipient not found",
+                        "content": {
+                            "application/json": {
+                                "examples": {
+                                    "Not found": {
+                                        "summary": "Recipient Not Found",
+                                        "value": {
+                                            "message": "Recipient not found"
+                                        }
+                                    }
+                                }
+                            }
+                        }
+                    }
+                },
+                "security": [
+                    {
+                        "BearerAuthWithAPIKeyWithFullAcessScope": []
+                    }
+                ]
+            }
+        },
+        "/v1/recipients/{recipient_id}/preferences": {
+            "get": {
+                "summary": "List preferences for a recipient",
+                "operationId": "listRecipientPreferences",
+                "tags": ["Preferences"],
+                "description": "List of recipient's preferences.",
+                "parameters": [
+                    {
+                        "name": "recipient_id",
+                        "in": "path",
+                        "required": true,
+                        "schema": { "type": "string" },
+                        "description": "The unique identifier of the recipient."
+                    }
+                ],
+                "responses": {
+                    "200": {
+                        "description": "List of recipient's preferences.",
+                        "content": {
+                            "application/json": {
+                                "examples": {
+                                    "Preferences": {
+                                        "summary": "Preferences Response",
+                                        "value": {
+                                            "message": "",
+                                            "data": {
+                                                "preferences": [
+                                                    {
+                                                        "target": {
+                                                            "channel": "posts",
+                                                            "topic": "any",
+                                                            "event": "new_comment",
+                                                            "label": "Comments on your posts"
+                                                        },
+                                                        "state": {
+                                                            "subscribed": true,
+                                                            "inherited": true
+                                                        }
+                                                    },
+                                                    {
+                                                        "target": {
+                                                            "channel": "announcements",
+                                                            "topic": "none",
+                                                            "event": "new_feature",
+                                                            "label": "Product Announcements"
+                                                        },
+                                                        "state": {
+                                                            "subscribed": false,
+                                                            "inherited": false
+                                                        }
+                                                    }
+                                                ]
+                                            }
+                                        }
+                                    }
+                                }
+                            }
+                        }
+                    }
+                },
+                "security": [
+                    {
+                        "BearerAuthWithAPIKeyWithEitherScope": []
+                    }
+                ]
+            }
+        },
+        "/v1/recipients/{recipient_id}/preferences/targets": {
+            "get": {
+                "summary": "Check recipient's subscription state for a target",
+                "operationId": "checkRecipientTargetSubscription",
+                "tags": ["Preferences"],
+                "description": "Check if a recipient is subscribed to a specific target (channel, topic, event).",
+                "parameters": [
+                    {
+                        "name": "recipient_id",
+                        "in": "path",
+                        "required": true,
+                        "schema": { "type": "string" },
+                        "description": "The unique identifier of the recipient."
+                    },
+                    {
+                        "name": "channel",
+                        "in": "query",
+                        "required": true,
+                        "schema": { "type": "string" },
+                        "description": "Channel to check."
+                    },
+                    {
+                        "name": "topic",
+                        "in": "query",
+                        "required": true,
+                        "schema": { "type": "string" },
+                        "description": "Topic to check."
+                    },
+                    {
+                        "name": "event",
+                        "in": "query",
+                        "required": true,
+                        "schema": { "type": "string" },
+                        "description": "Event to check."
+                    }
+                ],
+                "responses": {
+                    "200": {
+                        "description": "Subscription state for the target",
+                        "content": {
+                            "application/json": {
+                                "examples": {
+                                    "Target Subscription State": {
+                                        "summary": "Target Subscription State Response",
+                                        "value": {
+                                            "message": "",
+                                            "data": {
+                                                "target": {
+                                                    "channel": "posts",
+                                                    "topic": "post_id_123",
+                                                    "event": "new_comment"
+                                                },
+                                                "state": {
+                                                    "subscribed": true,
+                                                    "inherited": false
+                                                }
+                                            }
+                                        }
+                                    }
+                                }
+                            }
+                        }
+                    }
+                },
+                "security": [
+                    {
+                        "BearerAuthWithAPIKeyWithEitherScope": []
+                    }
+                ]
+            },
+            "patch": {
+                "summary": "Set recipient's subscription state for a target",
+                "operationId": "setRecipientPreference",
+                "tags": ["Preferences"],
+                "description": "Set a recipient's subscription state for a specific target.",
+                "parameters": [
+                    {
+                        "name": "recipient_id",
+                        "in": "path",
+                        "required": true,
+                        "schema": { "type": "string" },
+                        "description": "The unique identifier of the recipient."
+                    }
+                ],
+                "requestBody": {
+                    "required": true,
+                    "content": {
+                        "application/json": {
+                            "schema": {
+                                "type": "object",
+                                "properties": {
+                                    "target": {
+                                        "$ref": "#/components/schemas/Target"
+                                    },
+                                    "state": {
+                                        "type": "object",
+                                        "properties": {
+                                            "subscribed": {
+                                                "type": "boolean",
+                                                "description": "Whether the recipient is subscribed to this target."
+                                            }
+                                        },
+                                        "required": ["subscribed"]
+                                    }
+                                },
+                                "required": ["target", "state"]
+                            }
+                        }
+                    }
+                },
+                "x-codeSamples": [
+                    {
+                        "lang": "curl",
+                        "source": "curl -X PATCH https://api.bodhveda.com/v1/recipients/recipient_123/preferences/targets \\\n  -H \"Authorization: Bearer bv_xxxxxxxxx\" \\\n  -H \"Content-Type: application/json\" \\\n  -d '{\n    \"target\": {\n      \"channel\": \"posts\",\n      \"topic\": \"post_id_123\",\n      \"event\": \"new_comment\"\n    },\n    \"state\": {\n      \"subscribed\": false\n    }\n  }'"
+                    }
+                ],
+                "responses": {
+                    "200": {
+                        "description": "Updated subscription state for the target",
+                        "content": {
+                            "application/json": {
+                                "examples": {
+                                    "Updated Target Subscription State": {
+                                        "summary": "Updated Target Subscription State Response",
+                                        "value": {
+                                            "message": "",
+                                            "data": {
+                                                "target": {
+                                                    "channel": "posts",
+                                                    "topic": "post_id_123",
+                                                    "event": "new_comment"
+                                                },
+                                                "state": {
+                                                    "subscribed": false,
+                                                    "inherited": false
+                                                }
+                                            }
+                                        }
+                                    }
+                                }
+                            }
+                        }
+                    }
+                },
+                "security": [
+                    {
+                        "BearerAuthWithAPIKeyWithEitherScope": []
+                    }
+                ]
+            }
+        },
+        "/v1/recipients/{recipient_id}/notifications": {
+            "get": {
+                "summary": "List notifications for a recipient",
+                "operationId": "listRecipientNotifications",
+                "tags": ["Notifications"],
+                "description": "Retrieve a paginated list of notifications for a recipient, ordered by most recent first.",
+                "parameters": [
+                    {
+                        "name": "recipient_id",
+                        "in": "path",
+                        "required": true,
+                        "schema": { "type": "string" },
+                        "description": "The unique identifier of the recipient."
+                    },
+                    {
+                        "name": "before",
+                        "in": "query",
+                        "required": false,
+                        "schema": { "type": "string" },
+                        "description": "Cursor for pagination. Fetch notifications with IDs less than this value."
+                    },
+                    {
+                        "name": "after",
+                        "in": "query",
+                        "required": false,
+                        "schema": { "type": "string" },
+                        "description": "Cursor for pagination. Fetch notifications with IDs greater than this value."
+                    },
+                    {
+                        "name": "limit",
+                        "in": "query",
+                        "required": false,
+                        "schema": {
+                            "type": "integer",
+                            "default": 20,
+                            "maximum": 100
+                        },
+                        "description": "Maximum number of notifications to return."
+                    }
+                ],
+                "responses": {
+                    "200": {
+                        "description": "List of notifications for the recipient.",
+                        "content": {
+                            "application/json": {
+                                "examples": {
+                                    "Notifications list": {
+                                        "summary": "Notifications List Response",
+                                        "value": {
+                                            "message": "",
+                                            "data": {
+                                                "notifications": [
+                                                    {
+                                                        "id": 42069,
+                                                        "recipient_id": "recipient_123",
+                                                        "payload": {
+                                                            "title": "Elon, Zuck and others commented on your post.",
+                                                            "post_url": "/posts/post_id_123#comments"
+                                                        },
+                                                        "broadcast_id": null,
+                                                        "target": {
+                                                            "channel": "posts",
+                                                            "topic": "post_id_123",
+                                                            "event": "new_comment"
+                                                        },
+                                                        "seen": false,
+                                                        "read": false,
+                                                        "opened": false,
+                                                        "created_at": "2025-11-07T05:31:56Z",
+                                                        "updated_at": "2025-11-07T05:31:56Z"
+                                                    }
+                                                ],
+                                                "cursor": {
+                                                    "before": "42068",
+                                                    "after": "42069"
+                                                }
+                                            }
+                                        }
+                                    }
+                                }
+                            }
+                        }
+                    }
+                },
+                "security": [
+                    {
+                        "BearerAuthWithAPIKeyWithEitherScope": []
+                    }
+                ]
+            }
+        },
+        "/v1/recipients/{recipient_id}/notifications/unread-count": {
+            "get": {
+                "summary": "Get unread notification count for a recipient",
+                "operationId": "getUnreadNotificationCount",
+                "tags": ["Notifications"],
+                "description": "Returns the number of unread notifications for a recipient.",
+                "parameters": [
+                    {
+                        "name": "recipient_id",
+                        "in": "path",
+                        "required": true,
+                        "schema": { "type": "string" },
+                        "description": "The unique identifier of the recipient."
+                    }
+                ],
+                "responses": {
+                    "200": {
+                        "description": "Unread notification count for the recipient.",
+                        "content": {
+                            "application/json": {
+                                "examples": {
+                                    "Unread count": {
+                                        "summary": "Unread Notification Count",
+                                        "value": {
+                                            "message": "",
+                                            "data": {
+                                                "unread_count": 5
+                                            }
+                                        }
+                                    }
+                                }
+                            }
+                        }
+                    },
+                    "404": {
+                        "description": "Recipient not found",
+                        "content": {
+                            "application/json": {
+                                "examples": {
+                                    "Not found": {
+                                        "summary": "Recipient Not Found",
+                                        "value": {
+                                            "message": "Recipient not found"
+                                        }
+                                    }
+                                }
+                            }
+                        }
+                    }
+                },
+                "security": [
+                    {
+                        "BearerAuthWithAPIKeyWithEitherScope": []
+                    }
+                ]
+            }
+        }
+    },
+    "components": {
+        "securitySchemes": {
+            "BearerAuthWithAPIKeyWithFullAcessScope": {
+                "type": "http",
+                "scheme": "bearer",
+                "bearerFormat": "APIKey",
+                "description": "Bearer authentication header of the form `Bearer bv_xxxxxxxxx`, where `bv_xxxxxxxxx` is your **API Key** with `Full Access` scope."
+            },
+            "BearerAuthWithAPIKeyWithEitherScope": {
+                "type": "http",
+                "scheme": "bearer",
+                "bearerFormat": "APIKey",
+                "description": "Bearer authentication header of the form `Bearer bv_xxxxxxxxx`, where `bv_xxxxxxxxx` is your **API Key** with `Full Access` or `Recipient Acess` scope."
+            }
+        },
+        "schemas": {
+            "SendNotificationPayload": {
+                "type": "object",
+                "properties": {
+                    "recipient_id": {
+                        "type": "string",
+                        "nullable": true,
+                        "description": "The `id` of a recipient.\n- If null → this is treated as a **broadcast** notification.\n- If set → this is a **direct** notification to that recipient. \n\n 💡 If no recipient exists with the `recipient_id`, Bodhveda will create a new recipient with that `recipient_id`."
+                    },
+                    "target": {
+                        "$ref": "#/components/schemas/Target"
+                    },
+                    "payload": {
+                        "type": "object",
+                        "description": "Arbitrary JSON payload for the notification."
+                    }
+                },
+                "required": ["payload"]
+            },
+            "Target": {
+                "type": "object",
+                "description": "A **target** is the structure used to describe _who should get a notification_ and _how it should be categorized_.",
+                "properties": {
+                    "channel": {
+                        "type": "string",
+                        "description": "Broad category for a notification (e.g., \"posts\")."
+                    },
+                    "topic": {
+                        "type": "string",
+                        "description": "Subcategory inside the channel (e.g., \"post_id_123\"). \n- `any` and `none` have special meaning. \n- `any` means **all topics under this channel/event**. \n- `none` means **only the base channel/event**. \n- `any` is **not** a valid `topic` when sending a notification, but both are valid for preferences. \n\n A preference with the target `posts:any:new_comment` will match a notification with target `posts:post_id_123:new_comment` but a preference with the target `posts:none:new_comment` will **only** match a notification with target `posts:none:new_comment`."
+                    },
+                    "event": {
+                        "type": "string",
+                        "description": "Event that triggered this notification (e.g., \"new_comment\")."
+                    }
+                },
+                "required": ["channel", "topic", "event"]
+            },
+            "SendNotificationResponse": {
+                "type": "object",
+                "description": "Response for send notification API.",
+                "properties": {
+                    "message": {
+                        "type": "string"
+                    },
+                    "notification": {
+                        "$ref": "#/components/schemas/Notification"
+                    },
+                    "broadcast": {
+                        "$ref": "#/components/schemas/Broadcast"
+                    }
+                }
+            },
+            "Notification": {
+                "type": "object",
+                "properties": {
+                    "id": {
+                        "type": "integer",
+                        "description": "Unique identifier for the notification."
+                    },
+                    "recipient_id": {
+                        "type": "string",
+                        "description": "Unique identifier for the recipient who received this notification."
+                    },
+                    "payload": {
+                        "type": "object",
+                        "description": "JSON payload sent with the notification."
+                    },
+                    "broadcast_id": {
+                        "type": "integer",
+                        "nullable": true,
+                        "description": "Unique identifier for the broadcast that created this notification. \n It is `null`, if this is a **direct** notification."
+                    },
+                    "target": {
+                        "$ref": "#/components/schemas/Target"
+                    },
+                    "seen": {
+                        "type": "boolean",
+                        "description": "Whether the notification has been seen by the recipient. \n\n 💡 You can update this to `true` or `false` via [mark notifications as seen](/api-reference/endpoint/mark-seen)."
+                    },
+                    "read": {
+                        "type": "boolean",
+                        "description": "Whether the notification has been read by the recipient. \n\n 💡 You can update this to `true` or `false` via [mark notifications as read](/api-reference/endpoint/mark-read)."
+                    },
+                    "opened": {
+                        "type": "boolean",
+                        "description": "Whether the notification has been opened by the recipient. \n\n 💡 You can update this to `true` or `false` via [mark notifications as opened](/api-reference/endpoint/mark-opened)."
+                    },
+                    "created_at": {
+                        "type": "string",
+                        "format": "date-time"
+                    },
+                    "updated_at": {
+                        "type": "string",
+                        "format": "date-time"
+                    }
+                }
+            },
+            "Broadcast": {
+                "type": "object",
+                "properties": {
+                    "id": {
+                        "type": "integer"
+                    },
+                    "project_id": {
+                        "type": "integer"
+                    },
+                    "payload": {
+                        "type": "object"
+                    },
+                    "channel": {
+                        "type": "string"
+                    },
+                    "topic": {
+                        "type": "string"
+                    },
+                    "event": {
+                        "type": "string"
+                    },
+                    "created_at": {
+                        "type": "string",
+                        "format": "date-time"
+                    },
+                    "updated_at": {
+                        "type": "string",
+                        "format": "date-time"
+                    }
+                }
+            },
+            "ErrorResponse": {
+                "type": "object",
+                "properties": {
+                    "error": {
+                        "type": "string"
+                    },
+                    "details": {
+                        "type": "string"
+                    }
+                }
+            },
+            "CreateRecipientPayload": {
+                "type": "object",
+                "properties": {
+                    "id": {
+                        "type": "string",
+                        "description": "Unique identifier from your system. \n\n This cannot be changed after creation. So use a stable identifier that will not change over time."
+                    },
+                    "name": {
+                        "type": "string",
+                        "description": "Name of the recipient."
+                    }
+                },
+                "required": ["id"]
+            }
+        }
+    }
+}

@@ -141,9 +141,9 @@ func (s *RecipientService) BatchCreate(ctx context.Context, payloads []dto.Creat
 	for i, p := range payloads {
 		if err := p.Validate(); err != nil {
 			failed = append(failed, dto.BatchCreateRecipientFailed{
-				Errors:      err.(service.InputValidationErrors),
-				RecipientID: p.ExternalID,
-				BatchIndex:  i,
+				Errors:         err.(service.InputValidationErrors),
+				RecipientExtID: p.ExternalID,
+				BatchIndex:     i,
 			})
 			continue
 		}
@@ -161,12 +161,12 @@ func (s *RecipientService) BatchCreate(ctx context.Context, payloads []dto.Creat
 
 	for _, id := range createdIDs {
 		created = append(created, dto.BatchCreateRecipientCreated{
-			RecipientID: id,
+			RecipientExtID: id,
 		})
 	}
 	for _, id := range updatedIDs {
 		updated = append(updated, dto.BatchCreateRecipientUpdated{
-			RecipientID: id,
+			RecipientExtID: id,
 		})
 	}
 

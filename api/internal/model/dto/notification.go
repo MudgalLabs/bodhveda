@@ -14,9 +14,7 @@ type Notification struct {
 	RecipientExtID string          `json:"recipient_id"`
 	Payload        json.RawMessage `json:"payload"`
 	BroadcastID    *int            `json:"broadcast_id"`
-	Channel        string          `json:"channel"`
-	Topic          string          `json:"topic"`
-	Event          string          `json:"event"`
+	Target         Target          `json:"target"`
 	Read           bool            `json:"read"`
 	Opened         bool            `json:"opened"`
 	CreatedAt      time.Time       `json:"created_at"`
@@ -29,11 +27,13 @@ func FromNotification(notification *entity.Notification) *Notification {
 		RecipientExtID: notification.RecipientExtID,
 		Payload:        notification.Payload,
 		BroadcastID:    notification.BroadcastID,
-		Channel:        notification.Channel,
-		Topic:          notification.Topic,
-		Event:          notification.Event,
-		CreatedAt:      notification.CreatedAt,
-		UpdatedAt:      notification.UpdatedAt,
+		Target: Target{
+			Channel: notification.Channel,
+			Topic:   notification.Topic,
+			Event:   notification.Event,
+		},
+		CreatedAt: notification.CreatedAt,
+		UpdatedAt: notification.UpdatedAt,
 	}
 
 	if notification.ReadAt != nil {

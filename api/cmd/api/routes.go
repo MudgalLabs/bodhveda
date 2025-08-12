@@ -56,7 +56,7 @@ func initRouter() http.Handler {
 	})
 
 	// These are the Bodhveda Developer API routes.
-	r.Route("/v1", func(r chi.Router) {
+	r.Route("/", func(r chi.Router) {
 		r.Use(middleware.APIKeyBasedAuthMiddleware)
 
 		r.Post("/notifications/send", handler.SendNotification(app.APP.Service.Notification))
@@ -83,16 +83,16 @@ func initRouter() http.Handler {
 				})
 
 				r.Route("/preferences", func(r chi.Router) {
-					r.Get("/global", handler.GetRecipientGlobalPreferences(app.APP.Service.Preference))
-					r.Get("/targets", handler.CheckRecipientTargetSubscription(app.APP.Service.Preference))
-					r.Patch("/targets", handler.UpdateRecipientPreferenceTarget(app.APP.Service.Preference))
+					r.Get("/", handler.GetRecipientProjectPreferences(app.APP.Service.Preference))
+					r.Patch("/", handler.UpdateRecipientPreferenceTarget(app.APP.Service.Preference))
+					r.Get("/check", handler.CheckRecipientTargetSubscription(app.APP.Service.Preference))
 				})
 			})
 		})
 	})
 
 	// These are the APIs that power the Bodhveda Console.
-	r.Route("/v1/console", func(r chi.Router) {
+	r.Route("/console", func(r chi.Router) {
 		r.Route("/auth", func(r chi.Router) {
 			r.Get("/oauth/google", handler.GoogleSignInHandler(app.APP.Service.UserIdentity))
 			r.Get("/oauth/google/callback", handler.GoogleCallbackHandler(app.APP.Service.UserIdentity))

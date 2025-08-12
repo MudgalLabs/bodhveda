@@ -67,13 +67,13 @@ func (s *NotificationService) Send(ctx context.Context, payload dto.SendNotifica
 	var message string
 	if payload.IsDirect() {
 		if result.Notification != nil {
-			message = fmt.Sprintf("Direct notification sent successfully to recipient %s", result.Notification.RecipientExtID)
+			message = fmt.Sprintf("Direct notification sent successfully to recipient %s.", result.Notification.RecipientExtID)
 		} else {
-			message = "No notification sent, as recipient preferences do not allow delivery"
+			message = "No notification was sent. Recipient's preferences do not allow delivery."
 		}
 	} else if payload.IsBroadcast() {
 		if result.Broadcast != nil {
-			message = "Broadcast notification sent successfully"
+			message = "Broadcast notification sent successfully. It will be delivered to all elligible recipients."
 		}
 	}
 

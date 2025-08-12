@@ -1,5 +1,5 @@
 export interface Recipient {
-    recipient_id: string;
+    id: string;
     name: string;
     created_at: string;
 }

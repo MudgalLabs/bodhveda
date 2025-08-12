@@ -62,7 +62,7 @@ func CreateRecipient(s *service.RecipientService) http.HandlerFunc {
 		ctx := r.Context()
 		apiKey := middleware.GetAPIKeyFromContext(ctx)
 		if apiKey == nil {
-			httpx.BadRequestResponse(w, r, errors.New("API key required"))
+			httpx.UnauthorizedErrorResponse(w, r, "API key required", errors.New("API key required"))
 			return
 		}
 
@@ -89,7 +89,7 @@ func GetRecipient(s *service.RecipientService) http.HandlerFunc {
 		ctx := r.Context()
 		apiKey := middleware.GetAPIKeyFromContext(ctx)
 		if apiKey == nil {
-			httpx.BadRequestResponse(w, r, errors.New("API key required"))
+			httpx.UnauthorizedErrorResponse(w, r, "API key required", errors.New("API key required"))
 			return
 		}
 		recipientExtID := httpx.ParamStr(r, "recipient_external_id")
@@ -113,7 +113,7 @@ func BatchCreateRecipients(s *service.RecipientService) http.HandlerFunc {
 		ctx := r.Context()
 		apiKey := middleware.GetAPIKeyFromContext(ctx)
 		if apiKey == nil {
-			httpx.BadRequestResponse(w, r, errors.New("API key required"))
+			httpx.UnauthorizedErrorResponse(w, r, "API key required", errors.New("API key required"))
 			return
 		}
 
@@ -133,7 +133,7 @@ func BatchCreateRecipients(s *service.RecipientService) http.HandlerFunc {
 			return
 		}
 
-		httpx.SuccessResponse(w, r, http.StatusCreated, "", result)
+		httpx.SuccessResponse(w, r, http.StatusOK, "", result)
 	}
 }
 
@@ -142,7 +142,7 @@ func UpdateRecipient(s *service.RecipientService) http.HandlerFunc {
 		ctx := r.Context()
 		apiKey := middleware.GetAPIKeyFromContext(ctx)
 		if apiKey == nil {
-			httpx.BadRequestResponse(w, r, errors.New("API key required"))
+			httpx.UnauthorizedErrorResponse(w, r, "API key required", errors.New("API key required"))
 			return
 		}
 
@@ -204,7 +204,7 @@ func DeleteRecipient(s *service.RecipientService) http.HandlerFunc {
 		ctx := r.Context()
 		apiKey := middleware.GetAPIKeyFromContext(ctx)
 		if apiKey == nil {
-			httpx.BadRequestResponse(w, r, errors.New("API key required"))
+			httpx.UnauthorizedErrorResponse(w, r, "API key required", errors.New("API key required"))
 			return
 		}
 		recipientExtID := httpx.ParamStr(r, "recipient_external_id")
