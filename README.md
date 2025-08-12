@@ -1,18 +1,21 @@
 <p align="center">
   <img src="./.github/screenshots/banner.png" alt="Bodhveda banner" />
+  <a href="https://console.bodhveda.com" style="margin-right:10px">Console</a>
+  <a href="https://docs.bodhveda.com" style="margin-right:10px">Documentation</a>
+  <a href="https://docs.bodhveda.com/api-reference">API Reference</a>
 </p>
 
 # Bodhveda
 
-[Bodhveda](https://bodhveda.com) is the open source notification platform that helps you add powerful and scalable in-app notifications in minutes, not weeks. Whether you are shipping your first product or scaling to millions, Bodhveda handles delivery, preferences, and analytics so you can **focus on what matters**.
+[Bodhveda](https://bodhveda.com) is an open source notification platform that empowers developers to add powerful and scalable in-app notifications to their products in minutes, not weeks. Whether you are shipping your first product or scaling to millions, Bodhveda handles delivery, preferences, and analytics so you can **focus on what matters**.
 
-## What can you build with Bodhveda?
+### What can you build with Bodhveda?
 
--   **Building a dev.to style blog platform?** Send notifications about mentions, comments, or likes.
--   **Running a SaaS dashboard?** Send usage, billing, or system notifications.
--   **Building a large scale platform?** Send GitHub, YouTube, Instagram like notifications.
+-   **A dev.to style blog platform** - Send notifications about mentions, comments, or likes.
+-   **A SaaS dashboard** - Send usage, billing, or system notifications.
+-   **A large scale platform** - Send GitHub, YouTube, Instagram like notifications.
 
-## Features
+### Features
 
 -   **Direct & Broadcast Notifications** - Send directly to a recipient or broadcast to hundreds of thousands of recipients in seconds.
 
@@ -33,16 +36,6 @@
 -   **It's just REST** - Integrate our API with any stack. SDKs coming soon.
 
 -   **Self-hostable or Managed** - Use our cloud or run on your own infra.
-
-## Learn more
-
-<!-- -   [Overview](docs/overview.md) — How Bodhveda fits into your stack. -->
-<!-- -   [Core Concepts](docs/core-concepts.md) — Understand recipients, targets, preferences, and analytics. -->
-
--   [Quickstart Guide](docs/quickstart.md) - Send your first notification in 5 minutes.
--   [API Reference](docs/api-reference.md) - Developer API documentation.
--   [Console](https://console.bodhveda.com) - Managed cloud dashboard.
--   [Self-hosting Guide](docs/self-host.md) (coming soon)
 
 ## License
 
