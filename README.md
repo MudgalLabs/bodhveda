@@ -1,13 +1,16 @@
 <p align="center">
   <img src="./.github/screenshots/banner.png" alt="Bodhveda banner" />
-  <a href="https://console.bodhveda.com" style="margin-right:10px">Console</a>
-  <a href="https://docs.bodhveda.com" style="margin-right:10px">Documentation</a>
+</p>
+
+<p align="center">
+  <a href="https://console.bodhveda.com">Console</a>
+  <a href="https://docs.bodhveda.com" style="margin:24px">Documentation</a>
   <a href="https://docs.bodhveda.com/api-reference">API Reference</a>
 </p>
 
 # Bodhveda
 
-[Bodhveda](https://bodhveda.com) is an open source notification platform that empowers developers to add powerful and scalable in-app notifications to their products in minutes, not weeks. Whether you are shipping your first product or scaling to millions, Bodhveda handles delivery, preferences, and analytics so you can **focus on what matters**.
+[Bodhveda](https://bodhveda.com) is an open-source notification platform that lets developers add in-app notifications to their products in minutes — not weeks. Whether you’re launching your first product or scaling to millions, Bodhveda handles delivery, preferences, and analytics so you can **focus on what matters**.
 
 ### What can you build with Bodhveda?
 
