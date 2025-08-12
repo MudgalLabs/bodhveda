@@ -1,36 +1,36 @@
 # ⚡ Quickstart: Send Your First Notification
 
-Get started with Bodhveda in minutes.
+Start sending notifications with Bodhveda in minutes using the REST API.
 
 ## Direct Notification
 
 Send a notification to a [recipient](./core-concepts.md#recipient-model) in just 3 steps. If the recipient doesn't exist, Bodhveda creates it automatically when sending a direct notification.
 
-### 1. Get Your API Key
+### 1. Get you API key.
 
 -   Go to [Bodhveda Console](https://console.bodhveda.com).
 -   Create a **new project**.
--   Go to **API Keys**.
+-   Click on **API Keys** in the sidebar.
 -   Generate an API key with `full` scope by clicking on **Create API Key**.
 
-### 2. Send a Direct Notification
+### 2. Send a direct notification to the recipient.
 
 ```bash
 curl -X POST https://api.bodhveda.com/v1/notifications/send \
   -H "Authorization: Bearer YOUR_API_KEY" \
   -H "Content-Type: application/json" \
   -d '{
-    "to": { "recipient_id": "user@example.com" },
+    "to": { "recipient_id": "recipient_123" },
     "payload": { "title": "Welcome!", "message": "Thanks for joining." }
   }'
 ```
 
-### 3. See Notifications
+### 3. Show notifications to the recipient in their "Inbox".
 
 Fetch notifications for a recipient:
 
 ```bash
-curl -X GET "https://api.bodhveda.com/v1/recipients/user@example.com/notifications" \
+curl -X GET "https://api.bodhveda.com/v1/recipients/recipient_123/notifications" \
   -H "Authorization: Bearer YOUR_API_KEY"
 ```
 
@@ -38,7 +38,7 @@ curl -X GET "https://api.bodhveda.com/v1/recipients/user@example.com/notificatio
 [
     {
         "id": 42069,
-        "recipient_id": "user@example.com",
+        "recipient_id": "recipient_123",
         "payload": {
             "title": "Welcome!",
             "message": "Thanks for joining."
@@ -60,18 +60,16 @@ curl -X GET "https://api.bodhveda.com/v1/recipients/user@example.com/notificatio
 You can do everything above via the [Bodhveda Console](https://console.bodhveda.com):
 
 1. After creating the project, go to **Notifications**.
-2. Send a Direct Notification by clicking on **Send Notification**.
-
----
+2. Send a direct notification by clicking on **Send Notification**.
 
 ## Broadcast Notification
 
 Broadcast to multiple recipients. This requires some setup:
 
--   [Recipients](./core-concepts.md#recipient-model) must exist.
--   [Global preferences](./core-concepts.md#preferences) should be set (to define default [targets](./core-concepts.md#notification-targeting)).
+-   At least one [recipient](./core-concepts.md#recipient-model) must exist.
+-   At least one [project preference](./core-concepts.md#preferences) must exist.
 
-### 1. Add Recipients
+### 1. Add a recipient.
 
 ```bash
 curl -X POST https://api.bodhveda.com/v1/recipients \
@@ -80,14 +78,15 @@ curl -X POST https://api.bodhveda.com/v1/recipients \
   -d '{"recipient_id": "user@example.com", "name": "Jane Doe"}'
 ```
 
-### 2. Add a Global Preference (Required)
+### 2. Add a project preference.
 
-Before broadcasting, you must add at least one global preference to define a target (channel, topic, event):
+Before broadcasting, you must add at least one project preference to define a target (channel, topic, event):
 
-1. Go to the **Preferences** tab in the Console.
-2. Click **Create Preference**.
-3. Define a target by selecting the channel, topic, and event, give it a friendly label, and set default to enabled.
-4. Save the preference.
+1. Go to [Bodhveda Console](https://console.bodhveda.com).
+2. Click on **Preferences** in the sidebar.
+3. Click on **Create Preference**.
+4. Define a target by mentioning the channel, topic, and event, give it a label, and set default to enabled.
+5. Save the preference.
 
 This way all recipients are by default subscribed to this target in your project.
 
@@ -98,22 +97,18 @@ curl -X POST https://api.bodhveda.com/v1/notifications/send \
   -H "Authorization: Bearer YOUR_API_KEY" \
   -H "Content-Type: application/json" \
   -d '{
-    "to": { "channel": "announcements", "topic": "none", "event": "new_feature" },
+    "to": { "channel": "announcements", "topic": "product", "event": "new_feature" },
     "payload": { "title": "Big News!", "message": "We just launched a new feature." }
   }'
 ```
 
 💡 No `recipient_id`, makes this notification turn into a broadcast. All recipients subscribed to this target will recieve this notification.
 
-> See [Core Concepts](./core-concepts.md#notification-targeting) for details on channels, topics, events, and preferences.
-
----
+> [Read more](./core-concepts.md#notification-targeting) for details on channels, topics, events, and preferences.
 
 ## Next Steps
 
--   [Explore the API Reference](./api-reference.md)
--   [Learn about Core Concepts](./core-concepts.md)
-
----
+-   [Explore the API reference](./api-reference.md)
+-   [Learn about core concepts](./core-concepts.md)
 
 > **Tip:** Prefer using the [SDK](./api-reference.md#sdk) if available for your language for easier integration.
