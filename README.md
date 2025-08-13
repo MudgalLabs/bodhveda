@@ -4,7 +4,7 @@
 
 <p align="center">
   <a href="https://console.bodhveda.com">Console</a>
-  <a href="https://docs.bodhveda.com" style="margin:24px">Documentation</a>
+  <a href="https://docs.bodhveda.com">Documentation</a>
   <a href="https://docs.bodhveda.com/api-reference">API Reference</a>
 </p>
 
