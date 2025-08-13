@@ -7,48 +7,62 @@ import {
     IconBell,
     IconMegaphone,
     IconTarget,
+    IconUsers,
     PageHeading,
 } from "netra";
 
-import { useGetProjectIDFromParams } from "@/features/project/project_hooks";
-import { useNotificationsOverview } from "@/features/notification/notification_hooks";
+import {
+    useGetProjectIDFromParams,
+    useGetProjects,
+} from "@/features/project/project_hooks";
 import { ReactNode, useMemo } from "react";
 
-export function NotificationList() {
+export function Home() {
     const projectID = useGetProjectIDFromParams();
-    const { data, isLoading, isError } = useNotificationsOverview(projectID);
+    const { data: projects, isLoading, isError } = useGetProjects();
 
     const content = useMemo(() => {
         if (isError) {
             return <ErrorMessage errorMsg="Error loading notifications" />;
         }
 
-        if (!data) return null;
+        if (!projects) return null;
+
+        const data = projects.data.find((p) => String(p.id) === projectID);
+
+        if (!data) return <ErrorMessage errorMsg="Project not found" />;
+
+        console.log({ data });
 
         return (
-            <div className="grid grid-cols-1 md:grid-cols-3 gap-4 p-4">
+            <div className="grid grid-cols-1 md:grid-cols-2 xl:grid-cols-4 gap-4 p-4">
                 <OverviewCard
-                    title="Total notifications delivered"
+                    title="Recipients"
+                    icon={<IconUsers size={24} />}
+                    count={data.total_recipients}
+                />
+                <OverviewCard
+                    title="Notifications"
                     icon={<IconBell size={24} />}
                     count={data.total_notifications}
                 />
                 <OverviewCard
-                    title="Direct notifications sent"
+                    title="Direct"
                     icon={<IconTarget size={24} />}
                     count={data.total_direct_sent}
                 />
                 <OverviewCard
-                    title="Broadcast notifications sent"
+                    title="Broadcast"
                     icon={<IconMegaphone size={24} />}
                     count={data.total_broadcast_sent}
                 />
             </div>
         );
-    }, [data, isError]);
+    }, [isError, projectID, projects]);
 
     return (
         <div>
-            <PageHeading heading="Notifications" loading={isLoading} />
+            <PageHeading heading="Home" loading={isLoading} />
 
             {content}
         </div>

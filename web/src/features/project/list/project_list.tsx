@@ -58,7 +58,7 @@ export function ProjectList() {
             <div className="mt-4 grid grid-cols-1 sm:grid-cols-2 md:grid-cols-3 lg:grid-cols-4 gap-6">
                 {data?.data.map((project) => (
                     <Link
-                        to={`/projects/$id/notifications`}
+                        to={`/projects/$id/home`}
                         params={{ id: String(project.id) }}
                         className="link-unstyled w-full h-full flex items-center justify-center"
                     >
@@ -77,29 +77,29 @@ export function ProjectList() {
 
                                 <div className="flex-x gap-x-4">
                                     <Tooltip
-                                        content="Total Notifications"
-                                        contentProps={{
-                                            side: "left",
-                                        }}
-                                    >
-                                        <div className="flex-x gap-x-1!">
-                                            <IconBell />
-                                            {formatNumber(
-                                                project.total_notifications
-                                            )}
-                                        </div>
-                                    </Tooltip>
-
-                                    <Tooltip
                                         content="Total Recipients"
                                         contentProps={{
-                                            side: "right",
+                                            side: "left",
                                         }}
                                     >
                                         <div className="flex-x gap-x-1!">
                                             <IconUsers />
                                             {formatNumber(
                                                 project.total_recipients
+                                            )}
+                                        </div>
+                                    </Tooltip>
+
+                                    <Tooltip
+                                        content="Total Notifications"
+                                        contentProps={{
+                                            side: "right",
+                                        }}
+                                    >
+                                        <div className="flex-x gap-x-1!">
+                                            <IconBell />
+                                            {formatNumber(
+                                                project.total_notifications
                                             )}
                                         </div>
                                     </Tooltip>

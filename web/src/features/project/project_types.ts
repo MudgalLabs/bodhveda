@@ -1,4 +1,4 @@
-import { NotificationsOverviewResult } from "@/features/notification/notification_types";
+import { NotificationsOverviewResult } from "@/features/home/notification_types";
 
 export interface Project {
     id: number;

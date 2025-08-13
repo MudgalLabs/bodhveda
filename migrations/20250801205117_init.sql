@@ -111,6 +111,7 @@ CREATE TABLE IF NOT EXISTS notification (
         channel                 TEXT NOT NULL,
         topic                   TEXT NOT NULL,
         event                   TEXT NOT NULL,
+        seen_at                 TIMESTAMPTZ,
         read_at                 TIMESTAMPTZ,
         opened_at               TIMESTAMPTZ,
         created_at              TIMESTAMPTZ NOT NULL,

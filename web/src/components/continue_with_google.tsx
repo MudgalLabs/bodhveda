@@ -13,8 +13,7 @@ export const ContinueWithGoogle: FC<ButtonProps> = (props) => {
         if (isProd()) {
             throw new Error("Google OAuth URL is missing");
         } else {
-            googleOAuthURL =
-                "http://localhost:1338/v1/platform/auth/oauth/google";
+            googleOAuthURL = "http://localhost:1338/console/auth/oauth/google";
         }
     }
 

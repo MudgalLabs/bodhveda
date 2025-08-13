@@ -17,7 +17,7 @@ import {
     IconKey,
     IconUsers,
     IconSlidersHorizontal,
-    IconBell,
+    IconHouse,
     Button,
 } from "netra";
 import { useGetProjectIDFromParams } from "@/features/project/project_hooks";
@@ -65,17 +65,15 @@ export const Sidebar = () => {
                     </div>
 
                     <Link
-                        to="/projects/$id/notifications"
+                        to="/projects/$id/home"
                         params={{ id }}
                         className="link-unstyled "
                     >
                         <SidebarNavItem
-                            label="Notifications"
-                            Icon={IconBell}
+                            label="Home"
+                            Icon={IconHouse}
                             open={isOpen}
-                            isActive={
-                                activeRoute === `/projects/${id}/notifications`
-                            }
+                            isActive={activeRoute === `/projects/${id}/home`}
                         />
                     </Link>
 
