@@ -114,6 +114,7 @@ func initRouter() http.Handler {
 				})
 
 				r.Route("/notifications", func(r chi.Router) {
+					r.Post("/send", handler.SendNotificationConsole(app.APP.Service.Notification))
 				})
 
 				r.Route("/preferences", func(r chi.Router) {

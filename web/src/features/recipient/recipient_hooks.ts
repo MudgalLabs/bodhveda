@@ -10,7 +10,7 @@ import {
     CreateRecipientPayload,
     RecipientListItem,
     EditRecipientPayload,
-} from "./recipient_types";
+} from "@/features/recipient/recipient_types";
 
 export function useGetRecipients(projectID: string) {
     return useQuery({
@@ -103,7 +103,7 @@ export function useEditRecipient(
     });
 }
 
-function getRecipientsKey(projectID?: string) {
+export function getRecipientsKey(projectID?: string) {
     if (projectID) {
         return ["useGetRecipients", projectID];
     } else {

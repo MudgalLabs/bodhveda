@@ -10,7 +10,7 @@ import {
     CreateProjectPreferencePayload,
     PreferenceKind,
     RecipientPreference,
-} from "./preference_type";
+} from "@/features/preference/preference_type";
 
 export function useGetPreferences(projectID: string, kind: PreferenceKind) {
     return useQuery({

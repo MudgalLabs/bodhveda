@@ -16,6 +16,7 @@ import { Route as ProjectsIdRouteImport } from './routes/projects/$id'
 import { Route as AuthSignInRouteImport } from './routes/auth/sign-in'
 import { Route as ProjectsIdRecipientsRouteImport } from './routes/projects/$id/recipients'
 import { Route as ProjectsIdPreferencesRouteImport } from './routes/projects/$id/preferences'
+import { Route as ProjectsIdNotificationsRouteImport } from './routes/projects/$id/notifications'
 import { Route as ProjectsIdHomeRouteImport } from './routes/projects/$id/home'
 import { Route as ProjectsIdApiKeysRouteImport } from './routes/projects/$id/api-keys'
 
@@ -54,6 +55,11 @@ const ProjectsIdPreferencesRoute = ProjectsIdPreferencesRouteImport.update({
   path: '/preferences',
   getParentRoute: () => ProjectsIdRoute,
 } as any)
+const ProjectsIdNotificationsRoute = ProjectsIdNotificationsRouteImport.update({
+  id: '/notifications',
+  path: '/notifications',
+  getParentRoute: () => ProjectsIdRoute,
+} as any)
 const ProjectsIdHomeRoute = ProjectsIdHomeRouteImport.update({
   id: '/home',
   path: '/home',
@@ -73,6 +79,7 @@ export interface FileRoutesByFullPath {
   '/projects/': typeof ProjectsIndexRoute
   '/projects/$id/api-keys': typeof ProjectsIdApiKeysRoute
   '/projects/$id/home': typeof ProjectsIdHomeRoute
+  '/projects/$id/notifications': typeof ProjectsIdNotificationsRoute
   '/projects/$id/preferences': typeof ProjectsIdPreferencesRoute
   '/projects/$id/recipients': typeof ProjectsIdRecipientsRoute
 }
@@ -83,6 +90,7 @@ export interface FileRoutesByTo {
   '/projects': typeof ProjectsIndexRoute
   '/projects/$id/api-keys': typeof ProjectsIdApiKeysRoute
   '/projects/$id/home': typeof ProjectsIdHomeRoute
+  '/projects/$id/notifications': typeof ProjectsIdNotificationsRoute
   '/projects/$id/preferences': typeof ProjectsIdPreferencesRoute
   '/projects/$id/recipients': typeof ProjectsIdRecipientsRoute
 }
@@ -95,6 +103,7 @@ export interface FileRoutesById {
   '/projects/': typeof ProjectsIndexRoute
   '/projects/$id/api-keys': typeof ProjectsIdApiKeysRoute
   '/projects/$id/home': typeof ProjectsIdHomeRoute
+  '/projects/$id/notifications': typeof ProjectsIdNotificationsRoute
   '/projects/$id/preferences': typeof ProjectsIdPreferencesRoute
   '/projects/$id/recipients': typeof ProjectsIdRecipientsRoute
 }
@@ -108,6 +117,7 @@ export interface FileRouteTypes {
     | '/projects/'
     | '/projects/$id/api-keys'
     | '/projects/$id/home'
+    | '/projects/$id/notifications'
     | '/projects/$id/preferences'
     | '/projects/$id/recipients'
   fileRoutesByTo: FileRoutesByTo
@@ -118,6 +128,7 @@ export interface FileRouteTypes {
     | '/projects'
     | '/projects/$id/api-keys'
     | '/projects/$id/home'
+    | '/projects/$id/notifications'
     | '/projects/$id/preferences'
     | '/projects/$id/recipients'
   id:
@@ -129,6 +140,7 @@ export interface FileRouteTypes {
     | '/projects/'
     | '/projects/$id/api-keys'
     | '/projects/$id/home'
+    | '/projects/$id/notifications'
     | '/projects/$id/preferences'
     | '/projects/$id/recipients'
   fileRoutesById: FileRoutesById
@@ -190,6 +202,13 @@ declare module '@tanstack/react-router' {
       preLoaderRoute: typeof ProjectsIdPreferencesRouteImport
       parentRoute: typeof ProjectsIdRoute
     }
+    '/projects/$id/notifications': {
+      id: '/projects/$id/notifications'
+      path: '/notifications'
+      fullPath: '/projects/$id/notifications'
+      preLoaderRoute: typeof ProjectsIdNotificationsRouteImport
+      parentRoute: typeof ProjectsIdRoute
+    }
     '/projects/$id/home': {
       id: '/projects/$id/home'
       path: '/home'
@@ -210,6 +229,7 @@ declare module '@tanstack/react-router' {
 interface ProjectsIdRouteChildren {
   ProjectsIdApiKeysRoute: typeof ProjectsIdApiKeysRoute
   ProjectsIdHomeRoute: typeof ProjectsIdHomeRoute
+  ProjectsIdNotificationsRoute: typeof ProjectsIdNotificationsRoute
   ProjectsIdPreferencesRoute: typeof ProjectsIdPreferencesRoute
   ProjectsIdRecipientsRoute: typeof ProjectsIdRecipientsRoute
 }
@@ -217,6 +237,7 @@ interface ProjectsIdRouteChildren {
 const ProjectsIdRouteChildren: ProjectsIdRouteChildren = {
   ProjectsIdApiKeysRoute: ProjectsIdApiKeysRoute,
   ProjectsIdHomeRoute: ProjectsIdHomeRoute,
+  ProjectsIdNotificationsRoute: ProjectsIdNotificationsRoute,
   ProjectsIdPreferencesRoute: ProjectsIdPreferencesRoute,
   ProjectsIdRecipientsRoute: ProjectsIdRecipientsRoute,
 }

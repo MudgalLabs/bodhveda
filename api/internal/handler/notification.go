@@ -36,6 +36,33 @@ func SendNotification(s *service.NotificationService) http.HandlerFunc {
 	}
 }
 
+func SendNotificationConsole(s *service.NotificationService) http.HandlerFunc {
+	return func(w http.ResponseWriter, r *http.Request) {
+		ctx := r.Context()
+		projectID, err := httpx.ParamInt(r, "project_id")
+		if err != nil {
+			httpx.BadRequestResponse(w, r, errors.New("Invalid project ID"))
+			return
+		}
+
+		var payload dto.SendNotificationPayload
+		if err := jsonx.DecodeJSONRequest(&payload, r); err != nil {
+			httpx.MalformedJSONResponse(w, r, err)
+			return
+		}
+
+		payload.ProjectID = projectID
+
+		result, message, errKind, err := s.Send(ctx, payload)
+		if err != nil {
+			httpx.ServiceErrResponse(w, r, errKind, err)
+			return
+		}
+
+		httpx.SuccessResponse(w, r, http.StatusOK, message, result)
+	}
+}
+
 func ListNotifications(s *service.NotificationService) http.HandlerFunc {
 	return func(w http.ResponseWriter, r *http.Request) {
 		ctx := r.Context()

@@ -44,7 +44,7 @@ export const CreateRecipientModal: FC<CreateRecipientModalProps> = ({
 
         create({
             payload: {
-                recipient_id: recipientID,
+                id: recipientID,
                 name: name.trim() || null,
             },
         });

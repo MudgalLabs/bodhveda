@@ -5,7 +5,7 @@ export interface Recipient {
 }
 
 export interface CreateRecipientPayload {
-    recipient_id: string;
+    id: string;
     name: string | null;
 }
 

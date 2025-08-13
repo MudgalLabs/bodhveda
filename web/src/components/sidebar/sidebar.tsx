@@ -19,6 +19,7 @@ import {
     IconSlidersHorizontal,
     IconHouse,
     Tooltip,
+    IconBell,
 } from "netra";
 import { useGetProjectIDFromParams } from "@/features/project/project_hooks";
 import { Branding } from "@/components/branding";
@@ -69,6 +70,21 @@ export const Sidebar = () => {
                             Icon={IconHouse}
                             open={isOpen}
                             isActive={activeRoute === `/projects/${id}/home`}
+                        />
+                    </Link>
+
+                    <Link
+                        to="/projects/$id/notifications"
+                        params={{ id }}
+                        className="link-unstyled "
+                    >
+                        <SidebarNavItem
+                            label="Notifications"
+                            Icon={IconBell}
+                            open={isOpen}
+                            isActive={
+                                activeRoute === `/projects/${id}/notifications`
+                            }
                         />
                     </Link>
 
