@@ -16,8 +16,10 @@ import {
     useGetProjects,
 } from "@/features/project/project_hooks";
 import { ReactNode, useMemo } from "react";
+import { useSidebar } from "@/components/sidebar/sidebar";
 
 export function Home() {
+    const { isOpen, toggleSidebar } = useSidebar();
     const projectID = useGetProjectIDFromParams();
     const { data: projects, isLoading, isError } = useGetProjects();
 
@@ -31,8 +33,6 @@ export function Home() {
         const data = projects.data.find((p) => String(p.id) === projectID);
 
         if (!data) return <ErrorMessage errorMsg="Project not found" />;
-
-        console.log({ data });
 
         return (
             <div className="grid grid-cols-1 md:grid-cols-2 xl:grid-cols-4 gap-4 p-4">
@@ -62,7 +62,12 @@ export function Home() {
 
     return (
         <div>
-            <PageHeading heading="Home" loading={isLoading} />
+            <PageHeading
+                heading="Home"
+                loading={isLoading}
+                isOpen={isOpen}
+                toggleSidebar={toggleSidebar}
+            />
 
             {content}
         </div>

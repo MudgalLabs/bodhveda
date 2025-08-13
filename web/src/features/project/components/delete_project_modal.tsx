@@ -11,30 +11,26 @@ import {
     WithLabel,
 } from "netra";
 import { useState } from "react";
-import { APIKey } from "@/features/api_key/api_key_types";
-import { useDeleteAPIKey } from "@/features/api_key/api_key_hooks";
+import { useDeleteProject } from "@/features/project/project_hooks";
 
-interface DeleteAPIKeyModalProps {
+interface DeleteProjectModalProps {
     open: boolean;
     setOpen: (open: boolean) => void;
-    projectID: string;
-    apiKey: APIKey;
+    id: number;
+    name: string;
 }
 
-export function DeleteAPIKeyModal(props: DeleteAPIKeyModalProps) {
-    const { open, setOpen, projectID, apiKey } = props;
+export function DeleteProjectModal(props: DeleteProjectModalProps) {
+    const { open, setOpen, id, name } = props;
 
     const [confirmText, setConfirmText] = useState("");
 
-    const { mutate: deleteKey, isPending: isDeleting } = useDeleteAPIKey(
-        projectID,
-        {
-            onSuccess: () => {
-                toast.success(`API Key ${apiKey.name} deleted successfully`);
-                setOpen(false);
-            },
-        }
-    );
+    const { mutate: deleteProject, isPending: isDeleting } = useDeleteProject({
+        onSuccess: () => {
+            toast.success(`Project ${name} deleted successfully`);
+            setOpen(false);
+        },
+    });
 
     const canDelete = confirmText === "DELETE";
 
@@ -42,21 +38,21 @@ export function DeleteAPIKeyModal(props: DeleteAPIKeyModalProps) {
         e.preventDefault();
         if (!canDelete) return;
 
-        deleteKey({ apiKeyID: apiKey.id });
+        deleteProject(id);
     };
 
     return (
         <Dialog open={open} onOpenChange={setOpen}>
             <DialogContent>
                 <DialogHeader>
-                    <DialogTitle>Delete API Key</DialogTitle>
+                    <DialogTitle>Delete Project</DialogTitle>
 
                     <p>
                         Are you sure you want to delete the{" "}
                         <span className="font-bold text-text-primary">
-                            {apiKey.name}
+                            {name}
                         </span>{" "}
-                        API Key?
+                        Project?
                     </p>
 
                     <p className="text-text-destructive">
@@ -88,7 +84,7 @@ export function DeleteAPIKeyModal(props: DeleteAPIKeyModalProps) {
                             disabled={!canDelete}
                             loading={isDeleting}
                         >
-                            Delete API Key
+                            Delete Project
                         </Button>
                     </DialogFooter>
                 </form>

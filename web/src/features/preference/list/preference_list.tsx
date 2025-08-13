@@ -28,8 +28,10 @@ import {
     RecipientPreference,
 } from "@/features/preference/preference_type";
 import { DeleteProjectPreferenceModal } from "../components/delete_project_preference_modal";
+import { useSidebar } from "@/components/sidebar/sidebar";
 
 export function ProjectPreferenceList() {
+    const { isOpen, toggleSidebar } = useSidebar();
     const id = useGetProjectIDFromParams();
     const [kind, setKind] = useState<PreferenceKind>("project");
     const isProject = kind === "project";
@@ -62,7 +64,12 @@ export function ProjectPreferenceList() {
 
     return (
         <div>
-            <PageHeading heading="Preferences" loading={isLoading} />
+            <PageHeading
+                heading="Preferences"
+                loading={isLoading}
+                isOpen={isOpen}
+                toggleSidebar={toggleSidebar}
+            />
 
             <div className="flex justify-between mb-4">
                 <ToggleGroup

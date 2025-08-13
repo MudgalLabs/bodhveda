@@ -28,8 +28,10 @@ import {
 import { CreateRecipientModal } from "@/features/recipient/list/create_recipient_modal";
 import { RecipientListItem } from "@/features/recipient/recipient_types";
 import { EditRecipientModal } from "./edit_recipient_modal";
+import { useSidebar } from "@/components/sidebar/sidebar";
 
 export function RecipientList() {
+    const { isOpen, toggleSidebar } = useSidebar();
     const id = useGetProjectIDFromParams();
     const { data, isLoading, isError } = useGetRecipients(id);
 
@@ -45,7 +47,12 @@ export function RecipientList() {
 
     return (
         <div>
-            <PageHeading heading="Recipients" loading={isLoading} />
+            <PageHeading
+                heading="Recipients"
+                loading={isLoading}
+                isOpen={isOpen}
+                toggleSidebar={toggleSidebar}
+            />
 
             <div className="flex justify-end mb-4">
                 <CreateRecipientModal

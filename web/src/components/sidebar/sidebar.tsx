@@ -6,7 +6,7 @@ import {
     PropsWithChildren,
     useContext,
 } from "react";
-import { useLocation, useNavigate, Link } from "@tanstack/react-router";
+import { useLocation, Link } from "@tanstack/react-router";
 import { IconType } from "react-icons";
 
 import { cn } from "@/lib/utils";
@@ -18,9 +18,10 @@ import {
     IconUsers,
     IconSlidersHorizontal,
     IconHouse,
-    Button,
+    Tooltip,
 } from "netra";
 import { useGetProjectIDFromParams } from "@/features/project/project_hooks";
+import { Branding } from "@/components/branding";
 
 export const Sidebar = () => {
     const { pathname } = useLocation();
@@ -33,19 +34,12 @@ export const Sidebar = () => {
         setActiveRoute(pathname);
     }, [pathname, setIsOpen]);
 
-    const navigate = useNavigate();
-
-    const handleClick = (route: string) => {
-        navigate({ to: route });
-        setActiveRoute(route);
-    };
-
     return (
         <div
             className={cn(
                 "relative flex h-full flex-col justify-between px-3",
                 {
-                    "w-[220px]!": isOpen,
+                    "w-[240px]!": isOpen,
                 }
             )}
         >
@@ -53,14 +47,15 @@ export const Sidebar = () => {
                 <div className="mt-6 flex flex-col gap-y-2 pb-2">
                     <div className="flex-x mb-8 ml-2 justify-between">
                         <Link
-                            to="/projects"
-                            onClick={() => handleClick("/projects")}
-                            className="link-unstyled "
+                            to="/projects/$id/home"
+                            params={{ id }}
+                            className="link-unstyled cursor-pointer!"
                         >
-                            <Button variant="link">
-                                <IconArrowLeft size={16} />
-                                Back to Projects
-                            </Button>
+                            <Branding
+                                size="small"
+                                hideBetaTag={!isOpen}
+                                hideText
+                            />
                         </Link>
                     </div>
 
@@ -125,6 +120,15 @@ export const Sidebar = () => {
             </div>
 
             <div className="mb-4 space-y-2">
+                <Link to="/projects" className="link-unstyled ">
+                    <SidebarNavItem
+                        label="Back to Projects"
+                        Icon={IconArrowLeft}
+                        open={isOpen}
+                        isActive={activeRoute === `/projects/${id}/projects`}
+                    />
+                </Link>
+
                 <SidebarNavItem
                     label="Logout"
                     Icon={IconLogout}
@@ -167,14 +171,14 @@ const SidebarNavItem: FC<SidebarNavItemProps> = (props) => {
     );
 
     return (
-        // <Tooltip
-        //     content={label}
-        //     delayDuration={0}
-        //     contentProps={{ side: "right" }}
-        //     disabled={open}
-        // >
-        content
-        // </Tooltip>
+        <Tooltip
+            content={label}
+            delayDuration={0}
+            contentProps={{ side: "right" }}
+            disabled={open}
+        >
+            {content}
+        </Tooltip>
     );
 };
 
