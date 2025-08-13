@@ -33,8 +33,8 @@ CREATE TABLE IF NOT EXISTS project (
         name         VARCHAR(255) NOT NULL,
         user_id      INT NOT NULL REFERENCES user_identity(id),
         created_at   TIMESTAMPTZ NOT NULL,
-        updated_at   TIMESTAMPTZ NOT NULL
-        deleted_at   TIMESTAMPTZ,
+        updated_at   TIMESTAMPTZ NOT NULL,
+        deleted_at   TIMESTAMPTZ
 );
 
 CREATE TABLE IF NOT EXISTS api_key (
@@ -57,6 +57,7 @@ CREATE TABLE IF NOT EXISTS recipient (
         name            VARCHAR(255) NOT NULL DEFAULT '',
         created_at      TIMESTAMPTZ NOT NULL,
         updated_at      TIMESTAMPTZ NOT NULL,
+        deleted_at      TIMESTAMPTZ,
 
         UNIQUE (project_id, external_id)
 );

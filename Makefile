@@ -1,4 +1,4 @@
-.PHONY: up dev down logs db build build_web build_api
+.PHONY: up dev down logs db build build_console build_api
 
 up:
 	docker compose up db redis asynqmon -d
@@ -15,7 +15,7 @@ db:
 dev:
 	$(MAKE) up
 	tmux new-session -d -s bodhveda \
-		"cd web && npm run dev" \; \
+		"cd console && npm run dev" \; \
 		split-window -v -t 0 "cd api && air -c air.toml" \; \
 		select-pane -t 0 \; \
 		split-window -h -t 0 "bash" \; \
@@ -41,16 +41,16 @@ build:
 		echo "❌ api build failed"; exit 1; \
 	fi
 	@echo ""
-	@echo "🔨 Building web ..."
-	@if $(MAKE) build-web; then \
-		echo "✅ web build succeeded"; \
+	@echo "🔨 Building console ..."
+	@if $(MAKE) build-console; then \
+		echo "✅ console build succeeded"; \
 	else \
-		echo "❌ web build failed"; exit 1; \
+		echo "❌ console build failed"; exit 1; \
 	fi
 	@echo ""
 
-build_web:
-	@cd web && npm run build
+build_console:
+	@cd console && npm run build
 
 build_api:
 	@cd api && go build -o ./bin/bodhveda ./cmd/api

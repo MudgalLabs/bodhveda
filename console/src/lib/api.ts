@@ -53,7 +53,7 @@ export const API_ROUTES = {
     },
 };
 
-let API_URL = import.meta.env.API_URL;
+let API_URL = import.meta.env.BODHVEDA_API_URL;
 
 if (!API_URL) {
     if (isProd()) {

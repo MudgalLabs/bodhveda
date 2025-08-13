@@ -1,4 +1,20 @@
 services:
+    console:
+        container_name: bodhveda_console
+        image: ceoshikhar/bodhveda_console:beta
+        build:
+            dockerfile: console.dockerfile
+        ports:
+            - 6970:6970
+        networks:
+            - bodhveda_network
+            - caddy_net
+        restart: unless-stopped
+        depends_on:
+            api:
+                condition: service_started
+                restart: true
+
     api:
         container_name: bodhveda_api
         image: ceoshikhar/bodhveda_api:beta
