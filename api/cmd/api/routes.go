@@ -73,12 +73,8 @@ func initRouter() http.Handler {
 				r.Route("/notifications", func(r chi.Router) {
 					r.Get("/", handler.ListNotifications(app.APP.Service.Notification))
 					r.Get("/unread-count", handler.UnreadCountForRecipient(app.APP.Service.Notification))
-					r.Patch("/mark-read", handler.MarkNotificationsAsRead(app.APP.Service.Notification))
-					r.Patch("/mark-all-read", handler.MarkAllNotificationsAsRead(app.APP.Service.Notification))
-					r.Patch("/mark-unread", handler.MarkNotificationsAsUnread(app.APP.Service.Notification))
-					r.Patch("/mark-opened", handler.MarkNotificationsAsOpened(app.APP.Service.Notification))
-					r.Patch("/mark-all-opened", handler.MarkAllNotificationsAsOpened(app.APP.Service.Notification))
-					r.Delete("/", handler.DeleteNotifications(app.APP.Service.Notification))
+					r.Patch("/", handler.UpdateRecipientsNotifications(app.APP.Service.Notification))
+					r.Delete("/", handler.DeleteRecipientsNotifications(app.APP.Service.Notification))
 				})
 
 				r.Route("/preferences", func(r chi.Router) {

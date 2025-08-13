@@ -10,15 +10,20 @@ import (
 )
 
 type Notification struct {
-	ID             int             `json:"id"`
-	RecipientExtID string          `json:"recipient_id"`
-	Payload        json.RawMessage `json:"payload"`
-	BroadcastID    *int            `json:"broadcast_id"`
-	Target         Target          `json:"target"`
-	Read           bool            `json:"read"`
-	Opened         bool            `json:"opened"`
-	CreatedAt      time.Time       `json:"created_at"`
-	UpdatedAt      time.Time       `json:"updated_at"`
+	ID             int               `json:"id"`
+	RecipientExtID string            `json:"recipient_id"`
+	Payload        json.RawMessage   `json:"payload"`
+	BroadcastID    *int              `json:"broadcast_id"`
+	Target         Target            `json:"target"`
+	State          NotificationState `json:"state,omitempty"`
+	CreatedAt      time.Time         `json:"created_at"`
+	UpdatedAt      time.Time         `json:"updated_at"`
+}
+
+type NotificationState struct {
+	Seen   bool `json:"seen"`
+	Read   bool `json:"read"`
+	Opened bool `json:"opened"`
 }
 
 func FromNotification(notification *entity.Notification) *Notification {
@@ -26,22 +31,19 @@ func FromNotification(notification *entity.Notification) *Notification {
 		ID:             notification.ID,
 		RecipientExtID: notification.RecipientExtID,
 		Payload:        notification.Payload,
-		BroadcastID:    notification.BroadcastID,
 		Target: Target{
 			Channel: notification.Channel,
 			Topic:   notification.Topic,
 			Event:   notification.Event,
 		},
-		CreatedAt: notification.CreatedAt,
-		UpdatedAt: notification.UpdatedAt,
-	}
-
-	if notification.ReadAt != nil {
-		dto.Read = true
-	}
-
-	if notification.OpenedAt != nil {
-		dto.Opened = true
+		State: NotificationState{
+			Seen:   notification.ReadAt != nil,
+			Read:   notification.ReadAt != nil,
+			Opened: notification.OpenedAt != nil,
+		},
+		BroadcastID: notification.BroadcastID,
+		CreatedAt:   notification.CreatedAt,
+		UpdatedAt:   notification.UpdatedAt,
 	}
 
 	return dto
@@ -184,7 +186,7 @@ type ListRecipientNotificationsRequest struct {
 }
 
 type NotificationIDsPayload struct {
-	NotificationIDs []int `json:"notification_ids"`
+	IDs []int `json:"ids"`
 }
 
 type PrepareBroadcastBatchesPayload struct {
@@ -200,4 +202,13 @@ type BroadcastDeliveryTaskPayload struct {
 	Channel         string
 	Topic           string
 	Event           string
+}
+
+type UpdateRecipientNotificationsPayload struct {
+	NotificationIDsPayload
+	State struct {
+		Seen   *bool `json:"seen"`
+		Read   *bool `json:"read"`
+		Opened *bool `json:"opened"`
+	} `json:"state"`
 }

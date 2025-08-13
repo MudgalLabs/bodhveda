@@ -23,12 +23,7 @@ type NotificationReader interface {
 type NotificationWriter interface {
 	Create(ctx context.Context, notification *entity.Notification) (*entity.Notification, error)
 	BatchCreateTx(ctx context.Context, tx pgx.Tx, notifications []*entity.Notification) error
-	// Pass nil for notificationIDs to mark all as read for the recipient.
-	MarkAsReadForRecipient(ctx context.Context, projectID int, recipientExtID string, notificationIDs []int) (int, error)
-	MarkAsUnreadForRecipient(ctx context.Context, projectID int, recipientExtID string, notificationIDs []int) (int, error)
-	// Pass nil for notificationIDs to mark all as read for the recipient.
-	MarkAsOpenedForRecipient(ctx context.Context, projectID int, recipientExtID string, notificationIDs []int) (int, error)
-	// Pass nil for notificationIDs to delete all notifications for the recipient.
+	UpdateForRecipient(ctx context.Context, projectID int, recipientExtID string, payload dto.UpdateRecipientNotificationsPayload) (int, error)
 	DeleteForRecipient(ctx context.Context, projectID int, recipientExtID string, notificationIDs []int) (int, error)
 	DeleteForProject(ctx context.Context, projectID int) (int, error)
 }

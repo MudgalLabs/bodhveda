@@ -199,55 +199,8 @@ func (s *NotificationService) UnreadCountForRecipient(ctx context.Context, proje
 	return count, service.ErrNone, nil
 }
 
-func (s *NotificationService) MarkAsReadForRecipient(ctx context.Context, projectID int, recipientExtID string, notificationIDs []int) (int, service.Error, error) {
-	if len(notificationIDs) == 0 {
-		return 0, service.ErrInvalidInput, fmt.Errorf("no notification ids provided")
-	}
-
-	updated, err := s.repo.MarkAsReadForRecipient(ctx, projectID, recipientExtID, notificationIDs)
-	if err != nil {
-		return 0, service.ErrInternalServerError, err
-	}
-
-	return updated, service.ErrNone, nil
-}
-
-func (s *NotificationService) MarkAllAsReadForRecipient(ctx context.Context, projectID int, recipientExtID string) (int, service.Error, error) {
-	updated, err := s.repo.MarkAsReadForRecipient(ctx, projectID, recipientExtID, nil)
-	if err != nil {
-		return 0, service.ErrInternalServerError, err
-	}
-	return updated, service.ErrNone, nil
-}
-
-func (s *NotificationService) MarkAsUnreadForRecipient(ctx context.Context, projectID int, recipientExtID string, notificationIDs []int) (int, service.Error, error) {
-	if len(notificationIDs) == 0 {
-		return 0, service.ErrInvalidInput, fmt.Errorf("no notification ids provided")
-	}
-
-	updated, err := s.repo.MarkAsUnreadForRecipient(ctx, projectID, recipientExtID, notificationIDs)
-	if err != nil {
-		return 0, service.ErrInternalServerError, err
-	}
-
-	return updated, service.ErrNone, nil
-}
-
-func (s *NotificationService) MarkAsOpenedForRecipient(ctx context.Context, projectID int, recipientExtID string, notificationIDs []int) (int, service.Error, error) {
-	if len(notificationIDs) == 0 {
-		return 0, service.ErrInvalidInput, fmt.Errorf("no notification ids provided")
-	}
-
-	updated, err := s.repo.MarkAsOpenedForRecipient(ctx, projectID, recipientExtID, notificationIDs)
-	if err != nil {
-		return 0, service.ErrInternalServerError, err
-	}
-
-	return updated, service.ErrNone, nil
-}
-
-func (s *NotificationService) MarkAllAsOpenedForRecipient(ctx context.Context, projectID int, recipientExtID string) (int, service.Error, error) {
-	updated, err := s.repo.MarkAsOpenedForRecipient(ctx, projectID, recipientExtID, nil)
+func (s *NotificationService) UpdateForRecipient(ctx context.Context, projectID int, recipientExtID string, payload dto.UpdateRecipientNotificationsPayload) (int, service.Error, error) {
+	updated, err := s.repo.UpdateForRecipient(ctx, projectID, recipientExtID, payload)
 	if err != nil {
 		return 0, service.ErrInternalServerError, err
 	}
