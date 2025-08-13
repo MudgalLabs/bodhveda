@@ -1,0 +1,136 @@
+---
+title: "Introduction"
+description: "Send notifications, manage recipients, their notifications and preferences."
+---
+
+## Base URL
+
+```
+https://api.bodhveda.com
+```
+
+All endpoints in this documentation are prefixed with `https://api.bodhveda.com`.
+
+## Authentication
+
+All requests require the `Authorization` header with a Bearer token:
+
+```
+Authorization: Bearer YOUR_API_KEY
+```
+
+Replace `YOUR_API_KEY` with your actual API key that looks like `bv_xxxxxxxxx`.
+
+### API Key Scopes
+
+There are 2 scopes for an API KEY:
+
+-   **Full access** – All APIs are accessible with this scope. Use only on the **server side**.
+-   **Recipient access** – All the recipient's API are accessible with this scope. Fetch and manage only their own notifications and preferences. Intended for **client-side/browser** use.
+
+> ⚠️ **Security Warning:**  
+> If your `recipient_id` values are predictable (e.g., auto-incrementing integers), you **should not** expose `Recipient access` scoped API keys on the frontend.  
+> Instead, route requests through your own backend to ensure recipient access is properly scoped and protected.
+
+### Authentication Errors
+
+-   If the API key is missing or invalid, you will receive a `401 Unauthorized` response.
+-   If the API key does not have sufficient permissions, you will receive a `403 Forbidden` response.
+
+## Response Structure
+
+All responses follow this structure:
+
+```json
+{
+    "status": "success", // or "error"
+    "status_code": 200,
+    "message": "Human readable message",
+    "errors": [], // array of error objects, if any
+    "data": {} // or [ ] response data, if any
+}
+```
+
+##### Error Object
+
+```json
+{
+    "message": "Short error message",
+    "description": "Detailed technical description",
+    "property_path": "field_name",
+    "invalid_value": "the value that caused the error"
+}
+```
+
+#### Example Success Response
+
+```json
+{
+    "status": "success",
+    "status_code": 200,
+    "message": "Direct notification sent successfully to recipient user_123.",
+    "data": {
+        "notification": {
+            "id": 42069,
+            "recipient_id": "user_123",
+            "payload": {
+                "title": "Welcome!",
+                "message": "Hey there! Thank you for joining Bodhveda."
+            },
+            "broadcast_id": null,
+            "target": {
+                "channel": "users",
+                "topic": "none",
+                "event": "sign_up_welcome"
+            },
+            "seen": false,
+            "read": false,
+            "opened": false,
+            "created_at": "2025-08-11T20:53:06.081316+05:30",
+            "updated_at": "2025-08-11T20:53:06.081316+05:30"
+        },
+        "broadcast": null
+    }
+}
+```
+
+#### Example Error Response
+
+```json
+{
+    "status": "error",
+    "status_code": 400,
+    "message": "Invalid request payload",
+    "errors": [
+        {
+            "message": "Recipient ID is required",
+            "description": "Recipient ID cannot be empty",
+            "property_path": "recipient_id",
+            "invalid_value": ""
+        }
+    ]
+}
+```
+
+## Response codes
+
+Bodhveda uses standard HTTP codes to indicate the success or failure of your requests.
+
+In general, `2xx` HTTP codes correspond to success, `4xx` codes are for user-related failures, and `5xx` codes are for infrastructure issues.
+
+| Status | Description                               |
+| ------ | ----------------------------------------- |
+| `2xx`  | Successful request.                       |
+| `400`  | Invalid input or malformed request        |
+| `401`  | The API Key is missing or invalid.        |
+| `403`  | The API key has insufficient permissions. |
+| `404`  | The resource was not found.               |
+| `409`  | The resource already exists.              |
+| `429`  | The rate limit was exceeded.              |
+| `5xx`  | Indicates an error with Bodhveda servers. |
+
+## Rate Limiting
+
+-   The API enforces rate limits to prevent abuse.
+-   If you exceed the allowed rate, you will receive a `429 Too Many Requests` response.
+-   Standard limit: 100 requests per minute for a project (subject to change).

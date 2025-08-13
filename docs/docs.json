@@ -1,0 +1,117 @@
+{
+    "$schema": "https://mintlify.com/docs.json",
+    "theme": "mint",
+    "name": "Bodhveda",
+    "colors": {
+        "primary": "#5A86C3",
+        "light": "#7CA6D8",
+        "dark": "#3E5D94"
+    },
+    "favicon": "/favicon.ico",
+    "navigation": {
+        "tabs": [
+            {
+                "tab": "Documentation",
+                "groups": [
+                    {
+                        "group": "Documentation",
+                        "pages": [
+                            "docs/introduction",
+                            "docs/quickstart",
+                            {
+                                "group": "Concepts",
+                                "pages": [
+                                    "docs/concepts/recipients",
+                                    "docs/concepts/targets",
+                                    "docs/concepts/preferences",
+                                    "docs/concepts/notifications"
+                                ]
+                            }
+                        ]
+                    }
+                ]
+            },
+            {
+                "tab": "API Reference",
+                "groups": [
+                    {
+                        "group": "API Reference",
+                        "pages": ["api-reference/introduction"]
+                    },
+                    {
+                        "group": "Notifications",
+                        "pages": [
+                            "api-reference/endpoint/notifications/send-notification"
+                        ]
+                    },
+                    {
+                        "group": "Recipients",
+                        "pages": [
+                            "api-reference/endpoint/recipients/create-recipient",
+                            "api-reference/endpoint/recipients/batch-create-recipients",
+                            "api-reference/endpoint/recipients/retrieve-recipient",
+                            "api-reference/endpoint/recipients/update-recipient",
+                            "api-reference/endpoint/recipients/delete-recipient",
+                            {
+                                "group": "Notifications",
+                                "pages": [
+                                    "api-reference/endpoint/recipients/notifications/list-notifications",
+                                    "api-reference/endpoint/recipients/notifications/unread-count",
+                                    "api-reference/endpoint/recipients/notifications/update-state",
+                                    "api-reference/endpoint/recipients/notifications/delete"
+                                ]
+                            },
+                            {
+                                "group": "Preferences",
+                                "pages": [
+                                    "api-reference/endpoint/recipients/preferences/list-preferences",
+                                    "api-reference/endpoint/recipients/preferences/set-preference",
+                                    "api-reference/endpoint/recipients/preferences/check-preference"
+                                ]
+                            }
+                        ]
+                    }
+                ]
+            }
+        ],
+        "global": {
+            "anchors": []
+        }
+    },
+    "logo": {
+        "light": "/logo/logo.svg",
+        "dark": "/logo/logo.svg"
+    },
+    "navbar": {
+        "links": [
+            {
+                "label": "Support",
+                "href": "mailto:support@bodhveda.com"
+            }
+        ],
+        "primary": {
+            "type": "button",
+            "label": "Console",
+            "href": "https://console.bodhveda.com"
+        }
+    },
+    "contextual": {
+        "options": [
+            "copy",
+            "view",
+            "chatgpt",
+            "claude",
+            "perplexity",
+            "mcp",
+            "cursor",
+            "vscode"
+        ]
+    },
+    "footer": {
+        "socials": {
+            "discord": "https://discord.gg/Wg9ebJSAAG",
+            "github": "https://github.com/MudgalLabs/bodhveda",
+            "linkedin": "https://www.linkedin.com/company/mudgallabs"
+        }
+    }
+}

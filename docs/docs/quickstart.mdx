@@ -1,0 +1,119 @@
+---
+title: "Quickstart"
+description: "Send your first notification in minutes using Bodhveda API or Console."
+---
+
+## Prerequisites
+
+To follow this guide with the API, you’ll need to:
+
+-   Go to [Bodhveda Console](https://console.bodhveda.com).
+-   Create a **new project**.
+-   Click on **API Keys** in the sidebar.
+-   Click on **Create API Key** and generate an API key with `Full access` scope.
+
+## Send direct notification with API
+
+Use the [send notification](/api-reference/endpoint/notifications/send-notification) API to send a direct notification to a [recipient](/docs/concepts/recipients). If the recipient doesn't exist, Bodhveda creates it automatically when sending a direct notification.
+
+```bash
+curl -X POST https://api.bodhveda.com/notifications/send \
+  -H "Authorization: Bearer YOUR_API_KEY" \
+  -H "Content-Type: application/json" \
+  -d '{
+    "to": { "recipient_id": "recipient_123" },
+    "payload": { "title": "Welcome!", "message": "Thanks for joining." }
+  }'
+```
+
+Then you can use the [list recipient's notifications](/api-reference/endpoint/recipients/notifications/list-notifications) API and you will see the notification you just sent earlier.
+
+```bash
+curl -X GET "https://api.bodhveda.com/recipients/recipient_123/notifications" \
+  -H "Authorization: Bearer YOUR_API_KEY"
+```
+
+```json
+[
+    {
+        "id": 42069,
+        "recipient_id": "recipient_123",
+        "payload": {
+            "title": "Welcome!",
+            "message": "Thanks for joining."
+        }
+        // ... other fields.
+    }
+]
+```
+
+## Send broadcast notification with API
+
+Broadcast to multiple recipients. This requires some setup:
+
+-   At least one [recipient](/docs/concepts/recipients) must exist.
+-   At least one project [preference](/docs/concepts/preferences) must exist.
+
+##### **Create a recipient**
+
+Use [create recipient](/api-reference/endpoint/recipients/create-recipient) API to create a recipient in your project.
+
+```bash
+curl -X POST https://api.bodhveda.com/recipients \
+  -H "Authorization: Bearer YOUR_API_KEY" \
+  -H "Content-Type: application/json" \
+  -d '{"recipient_id": "user@example.com", "name": "Jane Doe"}'
+```
+
+##### **Create a project preference**
+
+Before broadcasting, you must add at least one project preference to define a target (channel, topic, event):
+
+1. Go to [Bodhveda Console](https://console.bodhveda.com).
+2. Click on **Preferences** in the sidebar.
+3. Click on **Create Preference**.
+4. Define a target by mentioning the channel, topic, and event, give it a label, and set default to enabled.
+5. Save the preference.
+
+This way all recipients are by default subscribed to this target in your project.
+
+##### **Send broadcast notification**
+
+Use the [send notification](/api-reference/endpoint/notifications/send-notification) API to send a broadcast notification to a [target](/docs/concepts/target) that was used to create the project preference.
+
+```bash
+curl -X POST https://api.bodhveda.com/notifications/send \
+  -H "Authorization: Bearer YOUR_API_KEY" \
+  -H "Content-Type: application/json" \
+  -d '{
+    "to": { "channel": "announcements", "topic": "product", "event": "new_feature" },
+    "payload": { "title": "Big News!", "message": "We just launched a new feature." }
+  }'
+```
+
+<Note>
+    No <code>recipient_id</code> makes this notification turn into a broadcast.
+    All recipients subscribed to this target will receive this notification.
+</Note>
+
+## Send notification from Console
+
+You can also send notifications from the [Bodhveda Console](https://console.bodhveda.com):
+
+1. Go to **Notifications** tab.
+2. Click on **Send Notification** to send a direct notification to a recipient or a broadcast to subscribed recipients.
+
+##### **Next Steps**
+
+<Columns cols={2}>
+    <Card
+        title="API Reference"
+        icon="terminal"
+        href="/api-reference/introduction"
+    >
+        Explore the API in depth.
+    </Card>
+    <Card title="Concepts" icon="book" href="/docs/concepts/introduction">
+        Explore concepts that make up Bodhveda.
+    </Card>
+</Columns>

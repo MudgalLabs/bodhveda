@@ -1,0 +1,20 @@
+---
+title: "Targets"
+description: "Learn about notification targets in Bodhveda"
+---
+
+A **target** defines _who should get a notification_ and _how it should be categorized_. It typically consists of:
+
+-   **Channel**: Broad category (e.g., `posts`)
+-   **Topic**: Subcategory or specific resource (e.g., `post_id_123`, `any`, or `none`)
+-   **Event**: What happened (e.g., `new_comment`)
+
+Targets are used for both sending notifications and managing recipient preferences.
+
+#### `any` and `none` have special meaning:
+
+-   `any` means **all topics under this channel/event**.
+-   `none` means **only the base channel/event**.
+-   `any` is **not** a valid `topic` when sending a notification, but both are valid for preferences.
+
+A preference with the target `posts:any:new_comment` will match a notification with target `posts:post_id_123:new_comment`, but a preference with the target `posts:none:new_comment` will **only** match a notification with target `posts:none:new_comment`.

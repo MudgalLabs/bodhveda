@@ -1,0 +1,11 @@
+---
+title: "Set preference"
+openapi: "PATCH /recipients/{recipient_id}/preferences"
+---
+
+The `target` here can be used to set a project pereference (global-level) or a (resource-level) preference.
+
+You can use this API to :
+
+-   Allow recipient to update their project preference on the "Notification's setting" screen.
+-   Allow recipient to subscribe to something. Example, "Subscribe a channel on YouTube" via `target` like `yt_channel:mr_beast:new_video` with `subscribed: true`.

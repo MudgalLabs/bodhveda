@@ -1,0 +1,9 @@
+---
+title: "Send notification"
+openapi: "POST /notifications/send"
+---
+
+Send a **direct** notification to a specific recipient or send a **broadcast** to all recipients subscribed to a `target`.
+
+-   **Direct**: If `recipient_id` is set, `target` is optional.
+-   **Broadcast**: If `recipient_id` is null, `target` is required.

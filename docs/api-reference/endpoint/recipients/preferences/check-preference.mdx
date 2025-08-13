@@ -1,0 +1,8 @@
+---
+title: "Check preference"
+openapi: "GET /recipients/{recipient_id}/preferences/check"
+---
+
+💡 You could use this API to conditionally render something based on whether the recipient has subscribed to the target or not.
+
+`inherited: false` means the recipient **has** overridden the preference for that `target` explicitly to whatever `subscribed` is right now.

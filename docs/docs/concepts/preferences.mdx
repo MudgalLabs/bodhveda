@@ -1,0 +1,19 @@
+---
+title: "Preferences"
+description: "How notification preferences work"
+---
+
+**Preferences** let recipients control which notifications they receive. Preferences are set per target and can be:
+
+-   **Inherited**: Using the project's default setting.
+-   **Overridden**: Explicitly set by the recipient.
+
+Use recipient's project preferences to build notification settings screens for your users.
+
+If you want to build something like Reddit where an author is subscribed to their own post and any other user can explictly _follow_ someone else's post as well.
+
+-   For the author, you can send a direct notification and it will always deliver unless the recipient explicity unsubscribe to that target. You should still use `target` so that you get analytics based on targets.
+
+-   For the user who wants to follow someone else's post, you should subscribe the recipient to that target and if they unfollow the post, unsubscribe them from that target.
+
+-   You could subscribe the author to their post's target so that whenever some event is triggered on that post, you can just send a broadcast notification and the author and the _other user_ both will recieve the notification.
