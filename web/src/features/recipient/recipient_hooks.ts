@@ -1,5 +1,6 @@
 import {
     AnyUseMutationOptions,
+    keepPreviousData,
     useMutation,
     useQuery,
     useQueryClient,
@@ -24,6 +25,7 @@ export function useGetRecipients(
                 params: { page, limit },
             }),
         select: (res) => res.data as APIRes<ListRecipientsResult>,
+        placeholderData: keepPreviousData,
     });
 }
 

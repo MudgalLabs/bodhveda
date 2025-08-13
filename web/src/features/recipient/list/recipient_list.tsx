@@ -59,12 +59,14 @@ export function RecipientList() {
                 totalItems={data?.data?.pagination.total_items || 0}
                 state={tableState}
                 onStateChange={setTableState}
+                isFetching={isFetching}
             />
         );
     }, [
         data?.data?.pagination.total_items,
         data?.data?.recipients,
         isError,
+        isFetching,
         tableState,
     ]);
 
@@ -239,7 +241,9 @@ function Table(props: TableProps) {
             {(table) => (
                 <div className="space-y-4">
                     <DataTable table={table} />
-                    <DataTablePagination table={table} total={totalItems} />
+                    {totalItems > state.pagination.pageSize && (
+                        <DataTablePagination table={table} total={totalItems} />
+                    )}
                 </div>
             )}
         </DataTableSmart>

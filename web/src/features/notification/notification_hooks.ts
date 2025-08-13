@@ -71,6 +71,5 @@ export function useGetNotifications(
         },
         select: (res) => res.data as APIRes<ListNotificationsResult>,
         placeholderData: keepPreviousData,
-        refetchOnMount: true,
     });
 }
