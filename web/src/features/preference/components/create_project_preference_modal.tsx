@@ -99,8 +99,15 @@ export const CreateProjectPreferenceModal: FC<
                 <Alert>
                     <IconBadgeInfo />
                     <p className="text-text-muted">
-                        Recipient preferences are accessible via the Developer
-                        API.
+                        Recipient preferences are accessible via the{" "}
+                        <a
+                            href="https://docs.bodhveda.com/api-reference/endpoint/recipients/preferences/list-preferences"
+                            target="_blank"
+                            rel="noopener noreferrer"
+                        >
+                            API
+                        </a>
+                        .
                     </p>
                 </Alert>
                 <form className="flex flex-col gap-4" onSubmit={handleSubmit}>
