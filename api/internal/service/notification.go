@@ -256,20 +256,7 @@ func (s *NotificationService) MarkAllAsOpenedForRecipient(ctx context.Context, p
 }
 
 func (s *NotificationService) DeleteForRecipient(ctx context.Context, projectID int, recipientExtID string, notificationIDs []int) (int, service.Error, error) {
-	if len(notificationIDs) == 0 {
-		return 0, service.ErrInvalidInput, fmt.Errorf("no notification ids provided")
-	}
-
 	updated, err := s.repo.DeleteForRecipient(ctx, projectID, recipientExtID, notificationIDs)
-	if err != nil {
-		return 0, service.ErrInternalServerError, err
-	}
-
-	return updated, service.ErrNone, nil
-}
-
-func (s *NotificationService) DeleteAllForRecipient(ctx context.Context, projectID int, recipientExtID string) (int, service.Error, error) {
-	updated, err := s.repo.DeleteForRecipient(ctx, projectID, recipientExtID, nil)
 	if err != nil {
 		return 0, service.ErrInternalServerError, err
 	}

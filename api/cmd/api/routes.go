@@ -78,8 +78,7 @@ func initRouter() http.Handler {
 					r.Patch("/mark-unread", handler.MarkNotificationsAsUnread(app.APP.Service.Notification))
 					r.Patch("/mark-opened", handler.MarkNotificationsAsOpened(app.APP.Service.Notification))
 					r.Patch("/mark-all-opened", handler.MarkAllNotificationsAsOpened(app.APP.Service.Notification))
-					r.Delete("/delete", handler.DeleteNotifications(app.APP.Service.Notification))
-					r.Delete("/delete-all", handler.DeleteAllNotifications(app.APP.Service.Notification))
+					r.Delete("/", handler.DeleteNotifications(app.APP.Service.Notification))
 				})
 
 				r.Route("/preferences", func(r chi.Router) {

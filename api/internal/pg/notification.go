@@ -276,10 +276,8 @@ func (r *NotificationRepo) DeleteForRecipient(ctx context.Context, projectID int
 	sb.AddCompareFilter("project_id", dbx.OperatorEQ, projectID)
 	sb.AddCompareFilter("recipient_external_id", dbx.OperatorEQ, recipientExtID)
 
-	if notificationIDs == nil {
-		// Delete all for recipient (no id filter)
-	} else if len(notificationIDs) == 0 {
-		return 0, nil
+	if len(notificationIDs) == 0 {
+		// If no notification IDs are provided, delete all notifications for the recipient.
 	} else {
 		ids := make([]any, len(notificationIDs))
 		for i, id := range notificationIDs {

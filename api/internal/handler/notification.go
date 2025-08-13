@@ -254,26 +254,7 @@ func DeleteNotifications(s *service.NotificationService) http.HandlerFunc {
 			httpx.ServiceErrResponse(w, r, errKind, err)
 			return
 		}
-		httpx.SuccessResponse(w, r, http.StatusOK, "", map[string]int{"updated": updated})
-	}
-}
 
-func DeleteAllNotifications(s *service.NotificationService) http.HandlerFunc {
-	return func(w http.ResponseWriter, r *http.Request) {
-		ctx := r.Context()
-		apiKey := middleware.GetAPIKeyFromContext(ctx)
-
-		recipientExtID := httpx.ParamStr(r, "recipient_external_id")
-		if recipientExtID == "" {
-			httpx.BadRequestResponse(w, r, errors.New("recipient_id required"))
-			return
-		}
-
-		updated, errKind, err := s.DeleteAllForRecipient(ctx, apiKey.ProjectID, recipientExtID)
-		if err != nil {
-			httpx.ServiceErrResponse(w, r, errKind, err)
-			return
-		}
 		httpx.SuccessResponse(w, r, http.StatusOK, "", map[string]int{"updated": updated})
 	}
 }
