@@ -24,7 +24,6 @@ import { NotificationKind } from "../notification_types";
 import { NotificationKindToggle } from "./notification_kind_toggle";
 import { useSendNotification } from "../notification_hooks";
 import { apiErrorHandler } from "@/lib/api";
-import { SendNotificationPayload } from "@/features/home/notification_types";
 
 type SendNotificationModalProps = {
     renderTrigger: () => React.ReactNode;

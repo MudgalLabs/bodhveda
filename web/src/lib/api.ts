@@ -24,6 +24,8 @@ export const API_ROUTES = {
         notifications: {
             send: (projectId: string | number) =>
                 `/console/projects/${projectId}/notifications/send`,
+            list: (projectId: string | number) =>
+                `/console/projects/${projectId}/notifications`,
         },
 
         recipients: {

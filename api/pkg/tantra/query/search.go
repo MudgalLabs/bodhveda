@@ -6,7 +6,7 @@ type SearchField = string
 // SearchPayload is the input payload to search any <resource>.
 // It takes a generic to define resource filters type.
 type SearchPayload[T any] struct {
-	Filters    T          `json:"filters"`
+	Filters    T          `schema:"filters" json:"filters"`
 	Sort       Sorting    `json:"sort"`
 	Pagination Pagination `json:"pagination"`
 }

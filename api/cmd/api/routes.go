@@ -71,7 +71,7 @@ func initRouter() http.Handler {
 				r.Delete("/", handler.DeleteRecipient(app.APP.Service.Recipient))
 
 				r.Route("/notifications", func(r chi.Router) {
-					r.Get("/", handler.ListNotifications(app.APP.Service.Notification))
+					r.Get("/", handler.ListRecipientsNotifications(app.APP.Service.Notification))
 					r.Get("/unread-count", handler.UnreadCountForRecipient(app.APP.Service.Notification))
 					r.Patch("/", handler.UpdateRecipientsNotifications(app.APP.Service.Notification))
 					r.Delete("/", handler.DeleteRecipientsNotifications(app.APP.Service.Notification))
@@ -114,6 +114,7 @@ func initRouter() http.Handler {
 				})
 
 				r.Route("/notifications", func(r chi.Router) {
+					r.Get("/", handler.ListNotifications(app.APP.Service.Notification))
 					r.Post("/send", handler.SendNotificationConsole(app.APP.Service.Notification))
 				})
 

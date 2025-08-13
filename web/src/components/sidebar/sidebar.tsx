@@ -40,7 +40,7 @@ export const Sidebar = () => {
             className={cn(
                 "relative flex h-full flex-col justify-between px-3",
                 {
-                    "w-[240px]!": isOpen,
+                    "w-[220px]!": isOpen,
                 }
             )}
         >

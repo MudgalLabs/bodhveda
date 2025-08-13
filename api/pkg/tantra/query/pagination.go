@@ -5,15 +5,16 @@ import (
 )
 
 type Pagination struct {
-	Page  int `query:"page" json:"page" validate:"gte=1"`
-	Limit int `query:"limit" json:"limit" validate:"gte=1,lte=100"`
+	Page  int `query:"page" schema:"page" json:"page" validate:"gte=1"`
+	Limit int `query:"limit" schema:"limit" json:"limit" validate:"gte=1,lte=100"`
 }
 
 func (p *Pagination) ApplyDefaults() {
-	if p.Page == 0 {
+	if p.Page < 1 {
 		p.Page = 1
 	}
-	if p.Limit == 0 {
+
+	if p.Limit <= 0 {
 		p.Limit = 10
 	}
 }

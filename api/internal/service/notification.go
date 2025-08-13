@@ -104,10 +104,16 @@ func (s *NotificationService) sendDirectNotification(ctx context.Context, payloa
 		*payload.RecipientExtID,
 		payload.Payload,
 		nil,
-		payload.Target.Channel,
-		payload.Target.Topic,
-		payload.Target.Event,
+		"",
+		"",
+		"",
 	)
+
+	if payload.Target != nil {
+		notification.Channel = payload.Target.Channel
+		notification.Topic = payload.Target.Topic
+		notification.Event = payload.Target.Event
+	}
 
 	shouldDeliver, err := s.preferenceRepo.ShouldDirectNotificationBeDelivered(ctx, notification.ProjectID, notification.RecipientExtID, dto.TargetFromNotification(notification))
 	if err != nil {
@@ -166,7 +172,7 @@ func (s *NotificationService) Overview(ctx context.Context, projectID int) (*dto
 	return result, service.ErrNone, nil
 }
 
-func (s *NotificationService) ListForRecipient(ctx context.Context, projectID int, recipientExtID string, cursor *query.Cursor) ([]*dto.NotificationListItem, *query.Cursor, service.Error, error) {
+func (s *NotificationService) ListForRecipient(ctx context.Context, projectID int, recipientExtID string, cursor *query.Cursor) ([]*dto.Notification, *query.Cursor, service.Error, error) {
 	if recipientExtID == "" {
 		return nil, nil, service.ErrInvalidInput, fmt.Errorf("recipient id required")
 	}
@@ -183,7 +189,7 @@ func (s *NotificationService) ListForRecipient(ctx context.Context, projectID in
 		return nil, nil, service.ErrInternalServerError, err
 	}
 
-	return dto.FromNotificationList(notifs), returnedCursor, service.ErrNone, nil
+	return dto.FromNotifications(notifs), returnedCursor, service.ErrNone, nil
 }
 
 func (s *NotificationService) UnreadCountForRecipient(ctx context.Context, projectID int, recipientExtID string) (int, service.Error, error) {
@@ -215,4 +221,18 @@ func (s *NotificationService) DeleteForRecipient(ctx context.Context, projectID 
 	}
 
 	return updated, service.ErrNone, nil
+}
+
+func (s *NotificationService) ListNotifications(ctx context.Context, payload *dto.ListNotificationsFilters) (*dto.ListNotificationsResult, service.Error, error) {
+	payload.Pagination.ApplyDefaults()
+
+	notifications, total, err := s.repo.ListNotifications(ctx, payload.ProjectID, payload.Kind, payload.Pagination)
+	if err != nil {
+		return nil, service.ErrInternalServerError, err
+	}
+
+	return &dto.ListNotificationsResult{
+		Notifications: dto.FromNotifications(notifications),
+		Pagination:    payload.Pagination.GetMeta(total),
+	}, service.ErrNone, nil
 }

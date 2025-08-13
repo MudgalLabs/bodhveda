@@ -9,6 +9,7 @@ import (
 	"github.com/jackc/pgx/v5/pgxpool"
 	"github.com/mudgallabs/bodhveda/internal/model/dto"
 	"github.com/mudgallabs/bodhveda/internal/model/entity"
+	"github.com/mudgallabs/bodhveda/internal/model/enum"
 	"github.com/mudgallabs/bodhveda/internal/model/repository"
 	"github.com/mudgallabs/tantra/dbx"
 	"github.com/mudgallabs/tantra/query"
@@ -303,4 +304,62 @@ func (r *NotificationRepo) DeleteForProject(ctx context.Context, projectID int) 
 		return 0, fmt.Errorf("delete notifications for project: %w", err)
 	}
 	return int(res.RowsAffected()), nil
+}
+
+func (r *NotificationRepo) ListNotifications(ctx context.Context, projectID int, kind enum.NotificationKind, pagination query.Pagination) ([]*entity.Notification, int, error) {
+	fmt.Println("projectID:", projectID)
+	fmt.Println("Kind:", kind)
+	fmt.Println("Pagination in repo:", pagination)
+
+	sql := `
+		SELECT id, project_id, recipient_external_id, payload, broadcast_id, channel, topic, event, read_at, opened_at, created_at, updated_at
+		FROM notification
+	`
+
+	b := dbx.NewSQLBuilder(sql)
+
+	b.AddCompareFilter("project_id", dbx.OperatorEQ, projectID)
+
+	if kind == enum.NotificationKindBroadcast {
+		b.AppendWhere("broadcast_id IS NOT NULL")
+	} else {
+		b.AppendWhere("broadcast_id IS NULL")
+	}
+
+	b.AddSorting("id", "DESC")
+	b.AddPagination(pagination.Limit, pagination.Offset())
+
+	sql, args := b.Build()
+
+	rows, err := r.db.Query(ctx, sql, args...)
+	if err != nil {
+		return nil, 0, fmt.Errorf("query: %w", err)
+	}
+
+	defer rows.Close()
+
+	notifications := []*entity.Notification{}
+	for rows.Next() {
+		var n entity.Notification
+
+		err := rows.Scan(&n.ID, &n.ProjectID, &n.RecipientExtID, &n.Payload, &n.BroadcastID, &n.Channel, &n.Topic, &n.Event, &n.ReadAt, &n.OpenedAt, &n.CreatedAt, &n.UpdatedAt)
+		if err != nil {
+			return nil, 0, fmt.Errorf("scan: %w", err)
+		}
+
+		notifications = append(notifications, &n)
+	}
+
+	if err := rows.Err(); err != nil {
+		return nil, 0, fmt.Errorf("rows error: %w", err)
+	}
+
+	countSQL, countArgs := b.Count()
+	var total int
+	err = r.db.QueryRow(ctx, countSQL, countArgs...).Scan(&total)
+	if err != nil {
+		return nil, 0, err
+	}
+
+	return notifications, total, nil
 }

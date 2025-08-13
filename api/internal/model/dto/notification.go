@@ -5,7 +5,9 @@ import (
 	"time"
 
 	"github.com/mudgallabs/bodhveda/internal/model/entity"
+	"github.com/mudgallabs/bodhveda/internal/model/enum"
 	"github.com/mudgallabs/tantra/apires"
+	"github.com/mudgallabs/tantra/query"
 	"github.com/mudgallabs/tantra/service"
 )
 
@@ -110,7 +112,7 @@ func (p *SendNotificationPayload) Validate() error {
 	// If RecipientExtID is nil, then it's a broadcast notification.
 	// We need to ensure that valid channel, topic, and event are provided, if this is a broadcast notification
 	// OR even if it's a direct notification, but a value was provided for channel/topic/event.
-	if p.RecipientExtID == nil || (p.Target.Channel != "" || p.Target.Topic != "" || p.Target.Event != "") {
+	if p.RecipientExtID == nil || (p.Target != nil && (p.Target.Channel != "" || p.Target.Topic != "" || p.Target.Event != "")) {
 		if p.Target.Channel == "" {
 			errs.Add(apires.NewApiError("Channel is required", "Channel cannot be empty", "channel", p.Target.Channel))
 		}
@@ -158,22 +160,16 @@ type NotificationsOverviewResult struct {
 	TotalBroadcastSent int `json:"total_broadcast_sent"`
 }
 
-type NotificationListItem struct {
-	Notification
-}
-
-func FromNotificationList(notifications []*entity.Notification) []*NotificationListItem {
+func FromNotifications(notifications []*entity.Notification) []*Notification {
 	if notifications == nil {
 		return nil
 	}
 
-	dtos := make([]*NotificationListItem, len(notifications))
+	dtos := make([]*Notification, len(notifications))
 
 	for i, n := range notifications {
 		notificationDto := FromNotification(n)
-		dtos[i] = &NotificationListItem{
-			Notification: *notificationDto,
-		}
+		dtos[i] = notificationDto
 	}
 
 	return dtos
@@ -211,4 +207,16 @@ type UpdateRecipientNotificationsPayload struct {
 		Read   *bool `json:"read"`
 		Opened *bool `json:"opened"`
 	} `json:"state"`
+}
+
+type ListNotificationsFilters struct {
+	query.Pagination
+	ProjectID int
+
+	Kind enum.NotificationKind `schema:"kind"`
+}
+
+type ListNotificationsResult struct {
+	Notifications []*Notification      `json:"notifications"`
+	Pagination    query.PaginationMeta `json:"pagination"`
 }

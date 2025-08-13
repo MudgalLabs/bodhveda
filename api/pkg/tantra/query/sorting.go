@@ -14,8 +14,8 @@ const (
 )
 
 type Sorting struct {
-	Field SearchField `query:"field" json:"field"` // e.g., "created_at"
-	Order SortOrder   `query:"order" json:"order"`
+	Field SearchField `query:"field" schema:"field" json:"field"` // e.g., "created_at"
+	Order SortOrder   `query:"order" schema:"order" json:"order"`
 }
 
 func (s *Sorting) Validate(allowed []SearchField) error {

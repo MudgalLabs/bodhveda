@@ -63,7 +63,7 @@ func SendNotificationConsole(s *service.NotificationService) http.HandlerFunc {
 	}
 }
 
-func ListNotifications(s *service.NotificationService) http.HandlerFunc {
+func ListRecipientsNotifications(s *service.NotificationService) http.HandlerFunc {
 	return func(w http.ResponseWriter, r *http.Request) {
 		ctx := r.Context()
 		apiKey := middleware.GetAPIKeyFromContext(ctx)
@@ -169,5 +169,32 @@ func DeleteRecipientsNotifications(s *service.NotificationService) http.HandlerF
 		}
 
 		httpx.SuccessResponse(w, r, http.StatusOK, "", map[string]int{"notifications_deleted": updated})
+	}
+}
+
+func ListNotifications(s *service.NotificationService) http.HandlerFunc {
+	return func(w http.ResponseWriter, r *http.Request) {
+		ctx := r.Context()
+		projectID, err := httpx.ParamInt(r, "project_id")
+		if err != nil {
+			httpx.BadRequestResponse(w, r, errors.New("Invalid project ID"))
+			return
+		}
+
+		payload := dto.ListNotificationsFilters{}
+		if err := httpx.DecodeQuery(r, &payload); err != nil {
+			httpx.BadRequestResponse(w, r, err)
+			return
+		}
+
+		payload.ProjectID = projectID
+
+		result, errKind, err := s.ListNotifications(ctx, &payload)
+		if err != nil {
+			httpx.ServiceErrResponse(w, r, errKind, err)
+			return
+		}
+
+		httpx.SuccessResponse(w, r, http.StatusOK, "", result)
 	}
 }
