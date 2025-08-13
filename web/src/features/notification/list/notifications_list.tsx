@@ -24,30 +24,10 @@ import { useGetProjectIDFromParams } from "@/features/project/project_hooks";
 import { useGetNotifications } from "@/features/notification/notification_hooks";
 
 export function NotificationList() {
-    const projectID = useGetProjectIDFromParams();
     const { isOpen, toggleSidebar } = useSidebar();
     const [kind, setKind] = useState<NotificationKind>("direct");
 
-    const [tableState, setTableState] = useState<DataTableState>({
-        columnVisibility: {},
-        pagination: { pageIndex: 0, pageSize: 10 },
-        sorting: [],
-    });
-
-    const { data, isFetching, isError } = useGetNotifications(
-        projectID,
-        kind,
-        tableState.pagination.pageIndex + 1,
-        tableState.pagination.pageSize
-    );
-
     const content = useMemo(() => {
-        if (isError) {
-            return <ErrorMessage errorMsg="Error loading notifications" />;
-        }
-
-        if (!data) return null;
-
         return (
             <>
                 <div className="flex justify-between mb-4">
@@ -63,22 +43,19 @@ export function NotificationList() {
                     />
                 </div>
 
-                <Table
-                    data={data.data.notifications}
-                    totalItems={data.data.pagination.total_items}
-                    state={tableState}
-                    onStateChange={setTableState}
-                    isFetching={isFetching}
-                />
+                {kind === "direct" ? (
+                    <Table key="direct" kind={kind} />
+                ) : (
+                    <Table key="broadcast" kind={kind} />
+                )}
             </>
         );
-    }, [data, isError, isFetching, kind, tableState]);
+    }, [kind]);
 
     return (
         <div>
             <PageHeading
                 heading="Notifications"
-                loading={isFetching}
                 isOpen={isOpen}
                 toggleSidebar={toggleSidebar}
             />
@@ -129,34 +106,52 @@ const columns: ColumnDef<Notification>[] = [
     },
     {
         accessorKey: "created_at",
-        header: () => <DataTableColumnHeader title="When" />,
+        header: () => <DataTableColumnHeader title="Delivered" />,
         cell: ({ row }) => formatTimeAgo(new Date(row.original.created_at)),
     },
 ];
 
 interface TableProps {
-    data: Notification[];
-    totalItems: number;
-    state: DataTableState;
-    onStateChange?: (state: DataTableState) => void;
-    isFetching?: boolean;
+    kind: NotificationKind;
 }
 
 function Table(props: TableProps) {
-    const { data, totalItems, state, onStateChange, isFetching } = props;
+    const projectID = useGetProjectIDFromParams();
+    const { kind } = props;
+
+    const [tableState, setTableState] = useState<DataTableState>({
+        columnVisibility: {},
+        pagination: { pageIndex: 0, pageSize: 10 },
+        sorting: [],
+    });
+
+    const { data, isFetching, isError } = useGetNotifications(
+        projectID,
+        kind,
+        tableState.pagination.pageIndex + 1,
+        tableState.pagination.pageSize
+    );
+
+    if (isError) {
+        return <ErrorMessage errorMsg="Error loading notifications" />;
+    }
+
     return (
         <DataTableSmart
             columns={columns}
-            data={data}
-            total={totalItems}
-            state={state}
-            onStateChange={onStateChange}
+            data={data?.data.notifications || []}
+            total={data?.data.pagination.total_items || 0}
+            state={tableState}
+            onStateChange={setTableState}
             isFetching={isFetching}
         >
             {(table) => (
                 <div className="space-y-4">
                     <DataTable table={table} />
-                    <DataTablePagination table={table} total={totalItems} />
+                    <DataTablePagination
+                        table={table}
+                        total={data?.data.pagination.total_items || 0}
+                    />
                 </div>
             )}
         </DataTableSmart>

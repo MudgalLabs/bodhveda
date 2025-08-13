@@ -8,16 +8,22 @@ import { client, API_ROUTES, APIRes } from "@/lib/api";
 import {
     Recipient,
     CreateRecipientPayload,
-    RecipientListItem,
     EditRecipientPayload,
+    ListRecipientsResult,
 } from "@/features/recipient/recipient_types";
 
-export function useGetRecipients(projectID: string) {
+export function useGetRecipients(
+    projectID: string,
+    page: number,
+    limit: number
+) {
     return useQuery({
-        queryKey: getRecipientsKey(projectID),
+        queryKey: getRecipientsKey(projectID, page, limit),
         queryFn: () =>
-            client.get(API_ROUTES.project.recipients.list(projectID)),
-        select: (res) => res.data as APIRes<RecipientListItem[]>,
+            client.get(API_ROUTES.project.recipients.list(projectID), {
+                params: { page, limit },
+            }),
+        select: (res) => res.data as APIRes<ListRecipientsResult>,
     });
 }
 
@@ -103,9 +109,13 @@ export function useEditRecipient(
     });
 }
 
-export function getRecipientsKey(projectID?: string) {
+export function getRecipientsKey(
+    projectID?: string,
+    page?: number,
+    limit?: number
+) {
     if (projectID) {
-        return ["useGetRecipients", projectID];
+        return ["useGetRecipients", projectID, page, limit];
     } else {
         return ["useGetRecipients"];
     }

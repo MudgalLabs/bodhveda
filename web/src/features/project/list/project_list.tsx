@@ -1,3 +1,4 @@
+import { FormEvent, useState } from "react";
 import {
     Button,
     Card,
@@ -20,8 +21,7 @@ import { Link } from "@tanstack/react-router";
 
 import { CreateProjectModal } from "@/features/project/list/create_project_modal";
 import { useGetProjects } from "@/features/project/project_hooks";
-import { FormEvent, useState } from "react";
-import { DeleteProjectModal } from "../components/delete_project_modal";
+import { DeleteProjectModal } from "@/features/project/components/delete_project_modal";
 
 export function ProjectList() {
     const { data, isLoading, isError } = useGetProjects();

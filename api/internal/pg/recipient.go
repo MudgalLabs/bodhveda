@@ -89,15 +89,15 @@ func (r *RecipientRepo) BatchCreate(ctx context.Context, recipients []*entity.Re
 	return created, updated, nil
 }
 
-func (r *RecipientRepo) List(ctx context.Context, projectID int) ([]*entity.RecipientListItem, error) {
+func (r *RecipientRepo) List(ctx context.Context, projectID int, pagination query.Pagination) ([]*entity.RecipientListItem, int, error) {
 	payload := repository.SearchRecipientPayload{
 		Filters: repository.RecipientSearchFilter{
 			ProjectID: &projectID,
 		},
+		Pagination: pagination,
 	}
-
-	recipients, _, err := r.findRecipients(ctx, payload, true)
-	return recipients, err
+	recipients, total, err := r.findRecipients(ctx, payload, true)
+	return recipients, total, err
 }
 
 func (r *RecipientRepo) Get(ctx context.Context, projectID int, externalID string) (*entity.Recipient, error) {

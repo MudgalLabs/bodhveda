@@ -14,7 +14,7 @@ type RecipientRepository interface {
 }
 
 type RecipientReader interface {
-	List(ctx context.Context, projectID int) ([]*entity.RecipientListItem, error)
+	List(ctx context.Context, projectID int, pagination query.Pagination) ([]*entity.RecipientListItem, int, error)
 	Get(ctx context.Context, projectID int, externalID string) (*entity.Recipient, error)
 	Exists(ctx context.Context, projectID int, externalID string) (bool, error)
 	TotalCount(ctx context.Context, projectID int) (int, error)

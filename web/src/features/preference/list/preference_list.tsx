@@ -168,14 +168,23 @@ const projectPreferenceColumns: ColumnDef<ProjectPreference>[] = [
     {
         accessorKey: "channel",
         header: () => <DataTableColumnHeader title="Channel" />,
+        cell: ({ row }) => (
+            <span className="select-text!">{row.original.channel}</span>
+        ),
     },
     {
         accessorKey: "topic",
         header: () => <DataTableColumnHeader title="Topic" />,
+        cell: ({ row }) => (
+            <span className="select-text!">{row.original.topic}</span>
+        ),
     },
     {
         accessorKey: "event",
         header: () => <DataTableColumnHeader title="Event" />,
+        cell: ({ row }) => (
+            <span className="select-text!">{row.original.event}</span>
+        ),
     },
     {
         accessorKey: "created_at",

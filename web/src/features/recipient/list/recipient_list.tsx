@@ -4,7 +4,9 @@ import {
     Button,
     DataTable,
     DataTableColumnHeader,
+    DataTablePagination,
     DataTableSmart,
+    DataTableState,
     DropdownMenu,
     DropdownMenuContent,
     DropdownMenuItem,
@@ -33,23 +35,44 @@ import { useSidebar } from "@/components/sidebar/sidebar";
 export function RecipientList() {
     const { isOpen, toggleSidebar } = useSidebar();
     const id = useGetProjectIDFromParams();
-    const { data, isLoading, isError } = useGetRecipients(id);
+
+    const [tableState, setTableState] = useState<DataTableState>({
+        columnVisibility: {},
+        pagination: { pageIndex: 0, pageSize: 10 },
+        sorting: [],
+    });
+
+    const { data, isFetching, isError } = useGetRecipients(
+        id,
+        tableState.pagination.pageIndex + 1,
+        tableState.pagination.pageSize
+    );
 
     const content = useMemo(() => {
         if (isError) {
             return <ErrorMessage errorMsg="Error loading recipients" />;
         }
 
-        if (!data) return null;
-
-        return <ListTable data={data.data} />;
-    }, [data, isError]);
+        return (
+            <Table
+                data={data?.data?.recipients || []}
+                totalItems={data?.data?.pagination.total_items || 0}
+                state={tableState}
+                onStateChange={setTableState}
+            />
+        );
+    }, [
+        data?.data?.pagination.total_items,
+        data?.data?.recipients,
+        isError,
+        tableState,
+    ]);
 
     return (
         <div>
             <PageHeading
                 heading="Recipients"
-                loading={isLoading}
+                loading={isFetching}
                 isOpen={isOpen}
                 toggleSidebar={toggleSidebar}
             />
@@ -194,14 +217,31 @@ const columns: ColumnDef<RecipientListItem>[] = [
     },
 ];
 
-interface ListTableProps {
+interface TableProps {
     data: RecipientListItem[];
+    totalItems: number;
+    state: DataTableState;
+    onStateChange?: (state: DataTableState) => void;
+    isFetching?: boolean;
 }
 
-function ListTable({ data }: ListTableProps) {
+function Table(props: TableProps) {
+    const { data, totalItems, state, onStateChange, isFetching } = props;
     return (
-        <DataTableSmart data={data} columns={columns}>
-            {(table) => <DataTable table={table} />}
+        <DataTableSmart
+            columns={columns}
+            data={data}
+            total={totalItems}
+            state={state}
+            onStateChange={onStateChange}
+            isFetching={isFetching}
+        >
+            {(table) => (
+                <div className="space-y-4">
+                    <DataTable table={table} />
+                    <DataTablePagination table={table} total={totalItems} />
+                </div>
+            )}
         </DataTableSmart>
     );
 }

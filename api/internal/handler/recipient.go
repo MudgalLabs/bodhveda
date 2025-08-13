@@ -47,7 +47,15 @@ func ListRecipients(s *service.RecipientService) http.HandlerFunc {
 			return
 		}
 
-		result, errKind, err := s.List(ctx, projectID)
+		payload := dto.ListRecipientsPayload{}
+		if err := httpx.DecodeQuery(r, &payload); err != nil {
+			httpx.BadRequestResponse(w, r, err)
+			return
+		}
+
+		payload.ProjectID = projectID
+
+		result, errKind, err := s.List(ctx, &payload)
 		if err != nil {
 			httpx.ServiceErrResponse(w, r, errKind, err)
 			return

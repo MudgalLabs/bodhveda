@@ -51,13 +51,16 @@ func (s *RecipientService) Create(ctx context.Context, payload dto.CreateRecipie
 	return dto.FromRecipient(recipient), service.ErrNone, nil
 }
 
-func (s *RecipientService) List(ctx context.Context, projectID int) ([]*dto.RecipientListItem, service.Error, error) {
-	recipients, err := s.repo.List(ctx, projectID)
+func (s *RecipientService) List(ctx context.Context, payload *dto.ListRecipientsPayload) (*dto.ListRecipientsResult, service.Error, error) {
+	recipients, total, err := s.repo.List(ctx, payload.ProjectID, payload.Pagination)
 	if err != nil {
 		return nil, service.ErrInternalServerError, fmt.Errorf("recipient repo list: %w", err)
 	}
 
-	return dto.FromRecipientList(recipients), service.ErrNone, nil
+	return &dto.ListRecipientsResult{
+		Recipients: dto.FromRecipientList(recipients),
+		Pagination: payload.Pagination.GetMeta(total),
+	}, service.ErrNone, nil
 }
 
 func (s *RecipientService) Get(ctx context.Context, projectID int, externalID string) (*dto.Recipient, service.Error, error) {
@@ -193,7 +196,7 @@ func (s *RecipientService) CreateRandomRecipients(ctx context.Context, projectID
 	now := time.Now().UTC()
 
 	for i := range recipients {
-		externalID := fmt.Sprintf("user_%d_%d", projectID, 100000+i) // Unique external ID for each recipient
+		externalID := fmt.Sprintf("user_%d_%d", projectID, 10+i) // Unique external ID for each recipient
 
 		recipients[i] = &entity.Recipient{
 			ExternalID: externalID,

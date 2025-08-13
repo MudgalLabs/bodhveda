@@ -5,6 +5,7 @@ import (
 
 	"github.com/mudgallabs/bodhveda/internal/model/entity"
 	"github.com/mudgallabs/tantra/apires"
+	"github.com/mudgallabs/tantra/query"
 	"github.com/mudgallabs/tantra/service"
 )
 
@@ -141,4 +142,14 @@ func FromRecipientList(r []*entity.RecipientListItem) []*RecipientListItem {
 type DeleteRecipientDataPayload struct {
 	ProjectID      int    `json:"project_id"`
 	RecipientExtID string `json:"recipient_ext_id"`
+}
+
+type ListRecipientsPayload struct {
+	query.Pagination
+	ProjectID int `json:"project_id"`
+}
+
+type ListRecipientsResult struct {
+	Recipients []*RecipientListItem `json:"recipients"`
+	Pagination query.PaginationMeta `json:"pagination"`
 }

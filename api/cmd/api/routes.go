@@ -119,7 +119,7 @@ func initRouter() http.Handler {
 				})
 
 				r.Route("/preferences", func(r chi.Router) {
-					r.Get("/", handler.ListProjectPreferences(app.APP.Service.Preference))
+					r.Get("/", handler.ListPreferences(app.APP.Service.Preference))
 					r.Post("/", handler.CreateProjectPreference(app.APP.Service.Preference))
 
 					r.Route("/{preference_id}", func(r chi.Router) {

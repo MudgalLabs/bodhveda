@@ -44,7 +44,7 @@ func CreateProjectPreference(s *service.PreferenceService) http.HandlerFunc {
 	}
 }
 
-func ListProjectPreferences(s *service.PreferenceService) http.HandlerFunc {
+func ListPreferences(s *service.PreferenceService) http.HandlerFunc {
 	return func(w http.ResponseWriter, r *http.Request) {
 		ctx := r.Context()
 		projectID, err := httpx.ParamInt(r, "project_id")
