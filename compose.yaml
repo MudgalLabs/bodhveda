@@ -77,7 +77,6 @@ services:
             interval: 1s
             timeout: 3s
             retries: 5
-        # command: ["redis-server"]
         command: ["redis-server", "--requirepass", "${BODHVEDA_REDIS_PASSWORD}"]
 
     db:
