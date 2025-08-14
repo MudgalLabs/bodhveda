@@ -18,6 +18,7 @@
                         "pages": [
                             "docs/introduction",
                             "docs/quickstart",
+                            "docs/sdks",
                             {
                                 "group": "Concepts",
                                 "pages": [
