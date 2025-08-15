@@ -1,12 +1,10 @@
-<p align="center">
+<div align="center">
   <img src="./.github/screenshots/banner.png" alt="Bodhveda banner" />
-</p>
 
-<p align="center">
-  <a href="https://console.bodhveda.com">Console</a>
-  <a href="https://docs.bodhveda.com">Documentation</a>
-  <a href="https://docs.bodhveda.com/api-reference">API Reference</a>
-</p>
+### Open source notifications for developers
+
+[Discord](https://discord.gg/Wg9ebJSAAG) | [Website](https://bodhveda.com) | [Docs](https://docs.bodhveda.com) | [API References](https://docs.bodhveda.com/api-reference)
+</div>
 
 # Bodhveda
 
