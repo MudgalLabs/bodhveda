@@ -14,15 +14,15 @@
 
 ### What can you build with Bodhveda?
 
--   **A dev.to style blog platform** - Send notifications about mentions, comments, or likes.
+-   **A dev.to style blog platform** - Notify users about mentions, comments, or likes.
 -   **A SaaS dashboard** - Send usage, billing, or system notifications.
--   **A large scale platform** - Send GitHub, YouTube, Instagram like notifications.
+-   **A large scale platform** - Deliver GitHub, YouTube, Instagram-style notifications.
 
 ### Features
+                                          
+-   **Direct & Broadcast Notifications** - Send directly to a recipient or broadcast to hundreds of thousands in seconds.
 
--   **Direct & Broadcast Notifications** - Send directly to a recipient or broadcast to hundreds of thousands of recipients in seconds.
-
--   **Channel / Topic / Event Targeting** - For respecting preferences, targeting recipients, and getting analytics.
+-   **Channel / Topic / Event Targeting** - Target recipients, respect preferences, and get analytics.
 
 -   **Recipient Preferences** - Let recipients opt in/out of notifications.
 
