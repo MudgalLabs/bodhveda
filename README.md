@@ -10,7 +10,7 @@
 
 # Bodhveda
 
-[Bodhveda](https://bodhveda.com) is an open-source notification platform that lets you deliver direct or broadcast notifications at scale, with full user preference support. Whether you’re launching your first product or scaling to millions, Bodhveda handles delivery, preferences, and analytics so you can **focus on what matters**.
+[Bodhveda](https://bodhveda.com) is an open-source notification platform  for sending direct or broadcast notifications at scale, while respecting each user’s preferences. Whether you’re launching your first product or scaling to millions, Bodhveda handles delivery, preferences, and analytics so you can **focus on what matters**.
 
 ### What can you build with Bodhveda?
 
