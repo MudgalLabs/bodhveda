@@ -4,11 +4,12 @@
 ### Open source notifications for developers
 
 [Discord](https://discord.gg/Wg9ebJSAAG) | [Website](https://bodhveda.com) | [Docs](https://docs.bodhveda.com) | [API References](https://docs.bodhveda.com/api-reference)
+
 </div>
 
 # Bodhveda
 
-[Bodhveda](https://bodhveda.com) is an open-source notification platform  for sending direct or broadcast notifications at scale, while respecting each user’s preferences. Whether you’re launching your first product or scaling to millions, Bodhveda handles delivery, preferences, and analytics so you can **focus on what matters**.
+[Bodhveda](https://bodhveda.com) is an open-source notification platform for sending direct or broadcast notifications at scale, while respecting each user’s preferences. Whether you’re launching your first product or scaling to millions, Bodhveda handles delivery, preferences, and analytics so you can **focus on what matters**.
 
 ### What can you build with Bodhveda?
 
@@ -16,8 +17,10 @@
 -   **A SaaS dashboard** - Send usage, billing, or system notifications.
 -   **A large scale platform** - Deliver GitHub, YouTube, Instagram-style notifications.
 
+... and pretty much everything.
+
 ### Features
-                                          
+
 -   **Direct & Broadcast Notifications** - Send directly to a recipient or broadcast to hundreds of thousands in seconds.
 
 -   **Channel / Topic / Event Targeting** - Target recipients, respect preferences, and get analytics.
