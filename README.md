@@ -1,28 +1,26 @@
-<p align="center">
+<div align="center">
   <img src="./.github/screenshots/banner.png" alt="Bodhveda banner" />
-</p>
 
-<p align="center">
-  <a href="https://console.bodhveda.com">Console</a>
-  <a href="https://docs.bodhveda.com">Documentation</a>
-  <a href="https://docs.bodhveda.com/api-reference">API Reference</a>
-</p>
+### Open source notifications for developers
+
+[Discord](https://discord.gg/Wg9ebJSAAG) | [Website](https://bodhveda.com) | [Docs](https://docs.bodhveda.com) | [API References](https://docs.bodhveda.com/api-reference)
+</div>
 
 # Bodhveda
 
-[Bodhveda](https://bodhveda.com) is an open-source notification platform that lets developers add in-app notifications to their products in minutes — not weeks. Whether you’re launching your first product or scaling to millions, Bodhveda handles delivery, preferences, and analytics so you can **focus on what matters**.
+[Bodhveda](https://bodhveda.com) is an open-source notification platform  for sending direct or broadcast notifications at scale, while respecting each user’s preferences. Whether you’re launching your first product or scaling to millions, Bodhveda handles delivery, preferences, and analytics so you can **focus on what matters**.
 
 ### What can you build with Bodhveda?
 
--   **A dev.to style blog platform** - Send notifications about mentions, comments, or likes.
+-   **A dev.to style blog platform** - Notify users about mentions, comments, or likes.
 -   **A SaaS dashboard** - Send usage, billing, or system notifications.
--   **A large scale platform** - Send GitHub, YouTube, Instagram like notifications.
+-   **A large scale platform** - Deliver GitHub, YouTube, Instagram-style notifications.
 
 ### Features
+                                          
+-   **Direct & Broadcast Notifications** - Send directly to a recipient or broadcast to hundreds of thousands in seconds.
 
--   **Direct & Broadcast Notifications** - Send directly to a recipient or broadcast to hundreds of thousands of recipients in seconds.
-
--   **Channel / Topic / Event Targeting** - For respecting preferences, targeting recipients, and getting analytics.
+-   **Channel / Topic / Event Targeting** - Target recipients, respect preferences, and get analytics.
 
 -   **Recipient Preferences** - Let recipients opt in/out of notifications.
 
