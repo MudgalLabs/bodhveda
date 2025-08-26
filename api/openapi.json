@@ -478,7 +478,7 @@
                                                             "label": "Comments on your posts"
                                                         },
                                                         "state": {
-                                                            "subscribed": true,
+                                                            "enabled": true,
                                                             "inherited": true
                                                         }
                                                     },
@@ -490,7 +490,7 @@
                                                             "label": "Product Announcements"
                                                         },
                                                         "state": {
-                                                            "subscribed": false,
+                                                            "enabled": false,
                                                             "inherited": false
                                                         }
                                                     }
@@ -563,7 +563,7 @@
                                                     "event": "new_comment"
                                                 },
                                                 "state": {
-                                                    "subscribed": true,
+                                                    "enabled": true,
                                                     "inherited": false
                                                 }
                                             }
@@ -607,12 +607,12 @@
                                     "state": {
                                         "type": "object",
                                         "properties": {
-                                            "subscribed": {
+                                            "enabled": {
                                                 "type": "boolean",
                                                 "description": "Whether the recipient is subscribed to this target."
                                             }
                                         },
-                                        "required": ["subscribed"]
+                                        "required": ["enabled"]
                                     }
                                 },
                                 "required": ["target", "state"]
@@ -643,7 +643,7 @@
                                                     "event": "new_comment"
                                                 },
                                                 "state": {
-                                                    "subscribed": false,
+                                                    "enabled": false,
                                                     "inherited": false
                                                 }
                                             }
