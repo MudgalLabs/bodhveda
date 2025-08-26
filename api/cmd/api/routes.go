@@ -66,6 +66,8 @@ func initRouter() http.Handler {
 			r.Post("/batch", handler.BatchCreateRecipients(app.APP.Service.Recipient))
 
 			r.Route("/{recipient_external_id}", func(r chi.Router) {
+				r.Use(middleware.MakeSureRecipientExists)
+
 				r.Get("/", handler.GetRecipient(app.APP.Service.Recipient))
 				r.Patch("/", handler.UpdateRecipient(app.APP.Service.Recipient))
 				r.Delete("/", handler.DeleteRecipient(app.APP.Service.Recipient))
@@ -79,8 +81,8 @@ func initRouter() http.Handler {
 
 				r.Route("/preferences", func(r chi.Router) {
 					r.Get("/", handler.GetRecipientProjectPreferences(app.APP.Service.Preference))
-					r.Patch("/", handler.UpdateRecipientPreferenceTarget(app.APP.Service.Preference))
-					r.Get("/check", handler.CheckRecipientTargetSubscription(app.APP.Service.Preference))
+					r.Patch("/", handler.UpdateRecipientPreferenceForTarget(app.APP.Service.Preference))
+					r.Get("/check", handler.CheckRecipientPreferenceForTarget(app.APP.Service.Preference))
 				})
 			})
 		})

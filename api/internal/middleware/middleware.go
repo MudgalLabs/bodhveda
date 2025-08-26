@@ -17,6 +17,7 @@ import (
 	"github.com/mudgallabs/tantra/cipher"
 	"github.com/mudgallabs/tantra/httpx"
 	"github.com/mudgallabs/tantra/logger"
+	tantraRepo "github.com/mudgallabs/tantra/repository"
 	"go.uber.org/zap"
 )
 
@@ -242,6 +243,37 @@ func MakeSureAPIKeyHasFullScope(next http.Handler) http.Handler {
 
 		if apiKey.Scope != enum.APIKeyScopeFull {
 			httpx.UnauthorizedErrorResponse(w, r, "API key does not have sufficient permissions.", errors.New("API key does not have sufficient permissions."))
+			return
+		}
+
+		next.ServeHTTP(w, r.WithContext(ctx))
+	})
+}
+
+func MakeSureRecipientExists(next http.Handler) http.Handler {
+	return http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		ctx := r.Context()
+
+		apiKey := GetAPIKeyFromContext(ctx)
+		if apiKey == nil {
+			httpx.UnauthorizedErrorResponse(w, r, "API key required", errors.New("API key required"))
+			return
+		}
+
+		recipientExtID := httpx.ParamStr(r, "recipient_external_id")
+		if recipientExtID == "" {
+			httpx.BadRequestResponse(w, r, errors.New("recipient_external_id required"))
+			return
+		}
+
+		_, err := app.APP.Repository.Recipient.Get(ctx, apiKey.ProjectID, recipientExtID)
+		if err != nil {
+			if err == tantraRepo.ErrNotFound {
+				httpx.NotFoundResponse(w, r, errors.New("Recipient not found"))
+				return
+			}
+
+			httpx.InternalServerErrorResponse(w, r, errors.New("failed to fetch recipient"))
 			return
 		}
 

@@ -70,7 +70,11 @@ func (s *RecipientService) Get(ctx context.Context, projectID int, externalID st
 
 	recipient, err := s.repo.Get(ctx, projectID, externalID)
 	if err != nil {
-		return nil, service.ErrNotFound, err
+		if err == tantraRepo.ErrNotFound {
+			return nil, service.ErrNotFound, err
+		}
+
+		return nil, service.ErrInternalServerError, fmt.Errorf("recipient repo get: %w", err)
 	}
 
 	return dto.FromRecipient(recipient), service.ErrNone, nil

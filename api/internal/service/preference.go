@@ -137,7 +137,7 @@ func (s *PreferenceService) UpdateRecipientPreferenceTarget(ctx context.Context,
 		req.Target.Topic,
 		req.Target.Event,
 		nil,
-		req.State.Subscribed,
+		req.State.Enabled,
 	)
 	pref.UpdatedAt = time.Now().UTC()
 
@@ -185,9 +185,9 @@ func (s *PreferenceService) GetRecipientProjectPreferences(ctx context.Context, 
 
 		item := dto.PreferenceTargetStateDTO{
 			Target: dto.PreferenceTargetDTOFromPreference(projPref),
-			State: dto.PreferenceStateDTO{
-				Subscribed: projPref.Enabled,
-				Inherited:  true,
+			State: dto.PreferenceState{
+				Enabled:   projPref.Enabled,
+				Inherited: true,
 			},
 		}
 
@@ -197,7 +197,7 @@ func (s *PreferenceService) GetRecipientProjectPreferences(ctx context.Context, 
 
 		// 5. If a recipient-level preference exists, override the project-level setting
 		if rp, ok := recipientPrefMap[key]; ok {
-			item.State.Subscribed = rp.Enabled
+			item.State.Enabled = rp.Enabled
 			item.State.Inherited = false
 		}
 
@@ -241,16 +241,18 @@ func (s *PreferenceService) CheckRecipientTargetSubscription(ctx context.Context
 		}
 	}
 
-	// 3. Not found, default to subscribed=false, inherited=true
+	// 3. Not found, default to enabled=false, inherited=true
 	return &dto.PreferenceTargetStateDTO{
-		Target: dto.PreferenceTargetDTO{
-			Channel: payload.Channel,
-			Topic:   payload.Topic,
-			Event:   payload.Event,
+		Target: dto.PreferenceTarget{
+			Target: dto.Target{
+				Channel: payload.Channel,
+				Topic:   payload.Topic,
+				Event:   payload.Event,
+			},
 		},
-		State: dto.PreferenceStateDTO{
-			Subscribed: false,
-			Inherited:  true,
+		State: dto.PreferenceState{
+			Enabled:   false,
+			Inherited: true,
 		},
 	}, service.ErrNone, nil
 }

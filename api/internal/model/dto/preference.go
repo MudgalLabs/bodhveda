@@ -172,21 +172,19 @@ func FromProjectPreferenceList(list []*entity.ProjectPreferenceListItem) []*Proj
 	return DTOs
 }
 
-type PreferenceTargetDTO struct {
-	Channel string  `json:"channel"`
-	Topic   string  `json:"topic"`
-	Event   string  `json:"event"`
-	Label   *string `json:"label,omitempty"`
+type PreferenceTarget struct {
+	Target
+	Label *string `json:"label,omitempty"`
 }
 
-type PreferenceStateDTO struct {
-	Subscribed bool `json:"subscribed"`
-	Inherited  bool `json:"inherited"`
+type PreferenceState struct {
+	Enabled   bool `json:"enabled"`
+	Inherited bool `json:"inherited"`
 }
 
 type PreferenceTargetStateDTO struct {
-	Target PreferenceTargetDTO `json:"target"`
-	State  PreferenceStateDTO  `json:"state"`
+	Target PreferenceTarget `json:"target"`
+	State  PreferenceState  `json:"state"`
 }
 
 type PreferenceTargetStatesResultDTO struct {
@@ -194,9 +192,9 @@ type PreferenceTargetStatesResultDTO struct {
 }
 
 type PatchRecipientPreferenceTargetPayload struct {
-	Target PreferenceTargetDTO `json:"target"`
+	Target PreferenceTarget `json:"target"`
 	State  struct {
-		Subscribed bool `json:"subscribed"`
+		Enabled bool `json:"enabled"`
 	} `json:"state"`
 }
 
@@ -220,29 +218,29 @@ func (p *PatchRecipientPreferenceTargetPayload) Validate() error {
 
 type PatchRecipientPreferenceTargetResult = PreferenceTargetStateDTO
 
-func PreferenceTargetDTOFromPreference(e *entity.Preference) PreferenceTargetDTO {
-	return PreferenceTargetDTO{
-		Channel: e.Channel,
-		Topic:   e.Topic,
-		Event:   e.Event,
-		Label:   e.Label,
+func PreferenceTargetDTOFromPreference(e *entity.Preference) PreferenceTarget {
+	return PreferenceTarget{
+		Target: Target{
+			Channel: e.Channel,
+			Topic:   e.Topic,
+			Event:   e.Event,
+		},
+		Label: e.Label,
 	}
 }
 
 func PreferenceTargetStateDTOFromPreference(e *entity.Preference, inherited bool) *PreferenceTargetStateDTO {
 	return &PreferenceTargetStateDTO{
 		Target: PreferenceTargetDTOFromPreference(e),
-		State: PreferenceStateDTO{
-			Subscribed: e.Enabled,
-			Inherited:  inherited,
+		State: PreferenceState{
+			Enabled:   e.Enabled,
+			Inherited: inherited,
 		},
 	}
 }
 
 type CheckRecipientTargetPayload struct {
-	Channel string `schema:"channel"`
-	Topic   string `schema:"topic"`
-	Event   string `schema:"event"`
+	Target
 }
 
 func (q *CheckRecipientTargetPayload) Validate() error {

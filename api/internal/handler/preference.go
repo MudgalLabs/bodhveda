@@ -141,7 +141,7 @@ func GetRecipientProjectPreferences(s *service.PreferenceService) http.HandlerFu
 	}
 }
 
-func UpdateRecipientPreferenceTarget(s *service.PreferenceService) http.HandlerFunc {
+func UpdateRecipientPreferenceForTarget(s *service.PreferenceService) http.HandlerFunc {
 	return func(w http.ResponseWriter, r *http.Request) {
 		ctx := r.Context()
 		apiKey := middleware.GetAPIKeyFromContext(ctx)
@@ -167,7 +167,7 @@ func UpdateRecipientPreferenceTarget(s *service.PreferenceService) http.HandlerF
 	}
 }
 
-func CheckRecipientTargetSubscription(s *service.PreferenceService) http.HandlerFunc {
+func CheckRecipientPreferenceForTarget(s *service.PreferenceService) http.HandlerFunc {
 	return func(w http.ResponseWriter, r *http.Request) {
 		ctx := r.Context()
 		apiKey := middleware.GetAPIKeyFromContext(ctx)
