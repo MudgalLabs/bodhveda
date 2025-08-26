@@ -25,14 +25,6 @@ func initRouter() http.Handler {
 	r.Use(middleware.TimezoneMiddleware)
 	r.Use(middleware.LogRequestMiddleware)
 	r.Use(chimiddleware.Recoverer)
-	r.Use(cors.Handler(cors.Options{
-		AllowedOrigins:   []string{env.WebURL},
-		AllowedMethods:   []string{"GET", "DELETE", "OPTIONS", "PATCH", "POST", "PUT"},
-		AllowedHeaders:   []string{"Accept", "Authorization", "Content-Type", "X-CSRF-Token", "X-Timezone"},
-		ExposedHeaders:   []string{"*"},
-		AllowCredentials: true,
-		MaxAge:           300, // Maximum value not ignored by any of major browsers
-	}))
 
 	// Set a timeout value on the request context (ctx), that will signal
 	// through ctx.Done() that the request has timed out and further
@@ -57,6 +49,14 @@ func initRouter() http.Handler {
 
 	// These are the Bodhveda Developer API routes.
 	r.Route("/", func(r chi.Router) {
+		r.Use(cors.Handler(cors.Options{
+			AllowedOrigins:   []string{"*"},
+			AllowedMethods:   []string{"GET", "DELETE", "OPTIONS", "PATCH", "POST", "PUT"},
+			AllowedHeaders:   []string{"Accept", "Authorization", "Content-Type", "X-CSRF-Token", "X-Timezone"},
+			AllowCredentials: false,
+			ExposedHeaders:   []string{"*"},
+			MaxAge:           300, // Maximum value not ignored by any of major browsers
+		}))
 		r.Use(middleware.APIKeyBasedAuthMiddleware)
 
 		r.Post("/notifications/send", handler.SendNotification(app.APP.Service.Notification))
@@ -88,6 +88,15 @@ func initRouter() http.Handler {
 
 	// These are the APIs that power the Bodhveda Console.
 	r.Route("/console", func(r chi.Router) {
+		r.Use(cors.Handler(cors.Options{
+			AllowedOrigins:   []string{env.WebURL},
+			AllowedMethods:   []string{"GET", "POST", "PUT", "DELETE", "OPTIONS"},
+			AllowedHeaders:   []string{"Accept", "Authorization", "Content-Type"},
+			AllowCredentials: true,
+			ExposedHeaders:   []string{"*"},
+			MaxAge:           300, // Maximum value not ignored by any of major browsers
+		}))
+
 		r.Route("/auth", func(r chi.Router) {
 			r.Get("/oauth/google", handler.GoogleSignInHandler(app.APP.Service.UserIdentity))
 			r.Get("/oauth/google/callback", handler.GoogleCallbackHandler(app.APP.Service.UserIdentity))
