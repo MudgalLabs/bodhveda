@@ -209,7 +209,7 @@ func APIKeyBasedAuthMiddleware(next http.Handler) http.Handler {
 	})
 }
 
-func MakeSureUserOwnsThisProject(next http.Handler) http.Handler {
+func VerifyUserOwnsThisProject(next http.Handler) http.Handler {
 	return http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 		ctx := r.Context()
 		userID := GetUserIDFromContext(ctx)
@@ -236,7 +236,7 @@ func MakeSureUserOwnsThisProject(next http.Handler) http.Handler {
 	})
 }
 
-func MakeSureAPIKeyHasFullScope(next http.Handler) http.Handler {
+func VerifyAPIKeyHasFullScope(next http.Handler) http.Handler {
 	return http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 		ctx := r.Context()
 		apiKey := GetAPIKeyFromContext(ctx)
@@ -250,7 +250,7 @@ func MakeSureAPIKeyHasFullScope(next http.Handler) http.Handler {
 	})
 }
 
-func MakeSureRecipientExists(next http.Handler) http.Handler {
+func VerifyRecipientExists(next http.Handler) http.Handler {
 	return http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 		ctx := r.Context()
 

@@ -50,27 +50,25 @@ func initRouter() http.Handler {
 	// These are the Bodhveda Developer API routes.
 	r.Route("/", func(r chi.Router) {
 		r.Use(cors.Handler(cors.Options{
-			AllowedOrigins:   []string{"*"},
+			AllowedOrigins:   []string{"*"}, // Permissive CORS, because these APIs can be called from web frontend apps.
 			AllowedMethods:   []string{"GET", "DELETE", "OPTIONS", "PATCH", "POST", "PUT"},
 			AllowedHeaders:   []string{"Accept", "Authorization", "Content-Type", "X-CSRF-Token", "X-Timezone"},
 			AllowCredentials: false,
 			ExposedHeaders:   []string{"*"},
 			MaxAge:           300, // Maximum value not ignored by any of major browsers
 		}))
+
 		r.Use(middleware.APIKeyBasedAuthMiddleware)
 
-		r.Post("/notifications/send", handler.SendNotification(app.APP.Service.Notification))
+		r.Route("/notifications", func(r chi.Router) {
+			// r.Use(middleware.VerifyAPIKeyHasFullScope)
+
+			r.Post("/send", handler.SendNotification(app.APP.Service.Notification))
+		})
 
 		r.Route("/recipients", func(r chi.Router) {
-			r.Post("/", handler.CreateRecipient(app.APP.Service.Recipient))
-			r.Post("/batch", handler.BatchCreateRecipients(app.APP.Service.Recipient))
-
 			r.Route("/{recipient_external_id}", func(r chi.Router) {
-				r.Use(middleware.MakeSureRecipientExists)
-
-				r.Get("/", handler.GetRecipient(app.APP.Service.Recipient))
-				r.Patch("/", handler.UpdateRecipient(app.APP.Service.Recipient))
-				r.Delete("/", handler.DeleteRecipient(app.APP.Service.Recipient))
+				r.Use(middleware.VerifyRecipientExists)
 
 				r.Route("/notifications", func(r chi.Router) {
 					r.Get("/", handler.ListRecipientsNotifications(app.APP.Service.Notification))
@@ -85,6 +83,17 @@ func initRouter() http.Handler {
 					r.Get("/check", handler.CheckRecipientPreferenceForTarget(app.APP.Service.Preference))
 				})
 			})
+
+			r.Route("/", func(r chi.Router) {
+				r.Use(middleware.VerifyAPIKeyHasFullScope)
+
+				r.Post("/", handler.CreateRecipient(app.APP.Service.Recipient))
+				r.Post("/batch", handler.BatchCreateRecipients(app.APP.Service.Recipient))
+				r.Get("/", handler.GetRecipient(app.APP.Service.Recipient))
+				r.Patch("/", handler.UpdateRecipient(app.APP.Service.Recipient))
+				r.Delete("/", handler.DeleteRecipient(app.APP.Service.Recipient))
+			})
+
 		})
 	})
 
@@ -114,7 +123,7 @@ func initRouter() http.Handler {
 
 			r.Route("/{project_id}", func(r chi.Router) {
 				// Ensure that the user owns the project before allowing access to the routes.
-				r.Use(middleware.MakeSureUserOwnsThisProject)
+				r.Use(middleware.VerifyUserOwnsThisProject)
 
 				r.Delete("/", handler.DeleteProject(app.APP.Service.Project))
 

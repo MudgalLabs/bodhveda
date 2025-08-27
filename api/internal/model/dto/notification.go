@@ -17,7 +17,7 @@ type Notification struct {
 	Payload        json.RawMessage   `json:"payload"`
 	BroadcastID    *int              `json:"broadcast_id"`
 	Target         Target            `json:"target"`
-	State          NotificationState `json:"state,omitempty"`
+	State          NotificationState `json:"state"`
 	CreatedAt      time.Time         `json:"created_at"`
 	UpdatedAt      time.Time         `json:"updated_at"`
 }

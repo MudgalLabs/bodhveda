@@ -57,8 +57,7 @@ func (r *RecipientRepo) BatchCreate(ctx context.Context, recipients []*entity.Re
 		INSERT INTO recipient (external_id, name, project_id, created_at, updated_at)
 		VALUES ($1, $2, $3, $4, $5)
 		ON CONFLICT (project_id, external_id) DO UPDATE
-		SET name = EXCLUDED.name,
-			updated_at = EXCLUDED.updated_at
+		SET name = EXCLUDED.name, updated_at = EXCLUDED.updated_at
 		RETURNING (xmax = 0) AS inserted, external_id
 	`
 
