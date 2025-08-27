@@ -23,9 +23,9 @@ type Notification struct {
 }
 
 type NotificationState struct {
-	Seen   bool `json:"seen"`
-	Read   bool `json:"read"`
 	Opened bool `json:"opened"`
+	Read   bool `json:"read"`
+	Seen   bool `json:"seen"`
 }
 
 func FromNotification(notification *entity.Notification) *Notification {

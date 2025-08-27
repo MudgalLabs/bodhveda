@@ -307,10 +307,6 @@ func (r *NotificationRepo) DeleteForProject(ctx context.Context, projectID int) 
 }
 
 func (r *NotificationRepo) ListNotifications(ctx context.Context, projectID int, kind enum.NotificationKind, pagination query.Pagination) ([]*entity.Notification, int, error) {
-	fmt.Println("projectID:", projectID)
-	fmt.Println("Kind:", kind)
-	fmt.Println("Pagination in repo:", pagination)
-
 	sql := `
 		SELECT id, project_id, recipient_external_id, payload, broadcast_id, channel, topic, event, read_at, opened_at, created_at, updated_at
 		FROM notification

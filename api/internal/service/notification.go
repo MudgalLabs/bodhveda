@@ -182,8 +182,6 @@ func (s *NotificationService) ListForRecipient(ctx context.Context, projectID in
 		return nil, nil, service.ErrInvalidInput, err
 	}
 
-	fmt.Println("Cusor in service:", cursor)
-
 	notifs, returnedCursor, err := s.repo.ListForRecipient(ctx, projectID, recipientExtID, cursor)
 	if err != nil {
 		return nil, nil, service.ErrInternalServerError, err

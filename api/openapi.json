@@ -623,7 +623,7 @@
                 "x-codeSamples": [
                     {
                         "lang": "curl",
-                        "source": "curl -X PATCH https://api.bodhveda.com/v1/recipients/recipient_123/preferences/targets \\\n  -H \"Authorization: Bearer bv_xxxxxxxxx\" \\\n  -H \"Content-Type: application/json\" \\\n  -d '{\n    \"target\": {\n      \"channel\": \"posts\",\n      \"topic\": \"post_id_123\",\n      \"event\": \"new_comment\"\n    },\n    \"state\": {\n      \"subscribed\": false\n    }\n  }'"
+                        "source": "curl -X PATCH https://api.bodhveda.com/v1/recipients/recipient_123/preferences/targets \\\n  -H \"Authorization: Bearer bv_xxxxxxxxx\" \\\n  -H \"Content-Type: application/json\" \\\n  -d '{\n    \"target\": {\n      \"channel\": \"posts\",\n      \"topic\": \"post_id_123\",\n      \"event\": \"new_comment\"\n    },\n    \"state\": {\n      \"enabled\": false\n    }\n  }'"
                     }
                 ],
                 "responses": {

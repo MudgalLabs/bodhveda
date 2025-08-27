@@ -35,7 +35,7 @@ interface NotificationState {
 export interface SendNotificationPayload {
     recipient_id: string | null;
     target: Target | null;
-    payload: string;
+    payload: unknown;
 }
 
 export interface NotificationsOverviewResult {

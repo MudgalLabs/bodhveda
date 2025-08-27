@@ -81,7 +81,7 @@ export function SendNotificationModal({
         sendNotification({
             recipient_id: state.recipient_id ? state.recipient_id : null,
             target,
-            payload: state.payload,
+            payload: JSON.parse(state.payload),
         });
     };
 
