@@ -9,6 +9,7 @@ import {
     DialogTrigger,
     IconArrowLeft,
     IconArrowRight,
+    IconInfo,
     IconSend,
     Input,
     Label,
@@ -154,7 +155,7 @@ export function SendNotificationModal({
                     </MultiStep.StepperContainer>
 
                     <MultiStep.Content>
-                        <MultiStep.Step id="broker-step">
+                        <MultiStep.Step id="target-step">
                             <TargetStep
                                 state={state}
                                 setState={setState}
@@ -164,7 +165,7 @@ export function SendNotificationModal({
                             />
                         </MultiStep.Step>
 
-                        <MultiStep.Step id="file-step">
+                        <MultiStep.Step id="payload-step">
                             <PayloadStep state={state} setState={setState} />
                         </MultiStep.Step>
                     </MultiStep.Content>
@@ -327,7 +328,16 @@ function PayloadStep({
 }`;
 
     return (
-        <WithLabel Label={<Label required>Payload</Label>}>
+        <WithLabel
+            Label={
+                <span className="flex-x">
+                    <Label required>Payload</Label>
+                    <Tooltip content="The JSON payload to send with the notification. Must be a valid JSON value.">
+                        <IconInfo />
+                    </Tooltip>
+                </span>
+            }
+        >
             <Textarea
                 className="w-full! h-30"
                 placeholder={placeholder}
