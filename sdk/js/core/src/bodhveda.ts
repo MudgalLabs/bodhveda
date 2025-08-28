@@ -29,14 +29,14 @@ interface BodhvedaOptions {
     apiURL?: string;
 }
 
-interface BodhvedaAPI {
-    notifications: NotificationsAPI;
-    recipients: RecipientsAPI;
+export interface BodhvedaClient {
+    notifications: NotificationsClient;
+    recipients: RecipientsClient;
 }
 
-export class Bodhveda implements BodhvedaAPI {
-    notifications: NotificationsAPI;
-    recipients: RecipientsAPI;
+export class Bodhveda implements BodhvedaClient {
+    notifications: NotificationsClient;
+    recipients: RecipientsClient;
 
     constructor(apiKey: string, options: BodhvedaOptions = {}) {
         const { apiURL = "https://api.bodhveda.com" } = options;
@@ -65,38 +65,45 @@ export class Bodhveda implements BodhvedaAPI {
     }
 }
 
-interface NotificationsAPI {
+interface NotificationsClient {
     send: (req: SendNotificationRequest) => Promise<SendNotificationResponse>;
 }
 
-class Notifications implements NotificationsAPI {
+class Notifications implements NotificationsClient {
     client: AxiosInstance;
 
     constructor(client: AxiosInstance) {
         this.client = client;
     }
 
-    async send(req: SendNotificationRequest): Promise<SendNotificationResponse> {
+    async send(
+        req: SendNotificationRequest
+    ): Promise<SendNotificationResponse> {
         const response = await this.client.post(ROUTES.notifications.send, req);
         return response.data as SendNotificationResponse;
     }
 }
 
-interface RecipientsAPI {
+interface RecipientsClient {
     create: (req: CreateRecipientRequest) => Promise<CreateRecipientResponse>;
-    createBatch: (req: CreateRecipientsBatchRequest) => Promise<CreateRecipientsBatchResponse>;
+    createBatch: (
+        req: CreateRecipientsBatchRequest
+    ) => Promise<CreateRecipientsBatchResponse>;
     get: (recipientID: string) => Promise<GetRecipientResponse>;
-    update: (recipientID: string, req: UpdateRecipientRequest) => Promise<UpdateRecipientResponse>;
+    update: (
+        recipientID: string,
+        req: UpdateRecipientRequest
+    ) => Promise<UpdateRecipientResponse>;
     delete: (recipientID: string) => Promise<void>;
 
-    preferences: RecipientsPreferencesAPI;
-    notifications: RecipientsNotificationsAPI;
+    preferences: RecipientsPreferencesClient;
+    notifications: RecipientsNotificationsClient;
 }
 
-class Recipients implements RecipientsAPI {
+class Recipients implements RecipientsClient {
     client: AxiosInstance;
-    notifications: RecipientsNotificationsAPI;
-    preferences: RecipientsPreferencesAPI;
+    notifications: RecipientsNotificationsClient;
+    preferences: RecipientsPreferencesClient;
 
     constructor(client: AxiosInstance) {
         this.client = client;
@@ -104,23 +111,38 @@ class Recipients implements RecipientsAPI {
         this.preferences = new RecipientsPreferences(client);
     }
 
-    async create(req: CreateRecipientRequest): Promise<CreateRecipientResponse> {
+    async create(
+        req: CreateRecipientRequest
+    ): Promise<CreateRecipientResponse> {
         const response = await this.client.post(ROUTES.recipients.create, req);
         return response.data as CreateRecipientResponse;
     }
 
-    async createBatch(req: CreateRecipientsBatchRequest): Promise<CreateRecipientsBatchResponse> {
-        const response = await this.client.post(ROUTES.recipients.createBatch, req);
+    async createBatch(
+        req: CreateRecipientsBatchRequest
+    ): Promise<CreateRecipientsBatchResponse> {
+        const response = await this.client.post(
+            ROUTES.recipients.createBatch,
+            req
+        );
         return response.data as CreateRecipientsBatchResponse;
     }
 
     async get(recipientID: string): Promise<GetRecipientResponse> {
-        const response = await this.client.get(ROUTES.recipients.get(recipientID));
+        const response = await this.client.get(
+            ROUTES.recipients.get(recipientID)
+        );
         return response.data as GetRecipientResponse;
     }
 
-    async update(recipientID: string, req: UpdateRecipientRequest): Promise<UpdateRecipientResponse> {
-        const response = await this.client.patch(ROUTES.recipients.update(recipientID), req);
+    async update(
+        recipientID: string,
+        req: UpdateRecipientRequest
+    ): Promise<UpdateRecipientResponse> {
+        const response = await this.client.patch(
+            ROUTES.recipients.update(recipientID),
+            req
+        );
         return response.data as UpdateRecipientResponse;
     }
 
@@ -129,29 +151,46 @@ class Recipients implements RecipientsAPI {
     }
 }
 
-interface RecipientsNotificationsAPI {
-    list(recipientID: string, req?: ListNotificationsRequest): Promise<ListNotificationsResponse>;
+interface RecipientsNotificationsClient {
+    list(
+        recipientID: string,
+        req?: ListNotificationsRequest
+    ): Promise<ListNotificationsResponse>;
     unreadCount(recipientID: string): Promise<UnreadCountResponse>;
-    updateState(recipientID: string, req: UpdateNotificationsStateRequest): Promise<UpdateNotificationsStateResponse>;
-    delete(recipientID: string, req: DeleteNotificationsRequest): Promise<DeleteNotificationsResponse>;
+    updateState(
+        recipientID: string,
+        req: UpdateNotificationsStateRequest
+    ): Promise<UpdateNotificationsStateResponse>;
+    delete(
+        recipientID: string,
+        req: DeleteNotificationsRequest
+    ): Promise<DeleteNotificationsResponse>;
 }
 
-class RecipientsNotifications implements RecipientsNotificationsAPI {
+class RecipientsNotifications implements RecipientsNotificationsClient {
     client: AxiosInstance;
 
     constructor(client: AxiosInstance) {
         this.client = client;
     }
 
-    async list(recipientID: string, req?: ListNotificationsRequest): Promise<ListNotificationsResponse> {
-        const response = await this.client.get(ROUTES.recipients.notifications.list(recipientID), {
-            params: req,
-        });
+    async list(
+        recipientID: string,
+        req?: ListNotificationsRequest
+    ): Promise<ListNotificationsResponse> {
+        const response = await this.client.get(
+            ROUTES.recipients.notifications.list(recipientID),
+            {
+                params: req,
+            }
+        );
         return response.data as ListNotificationsResponse;
     }
 
     async unreadCount(recipientID: string): Promise<UnreadCountResponse> {
-        const response = await this.client.get(ROUTES.recipients.notifications.unreadCount(recipientID));
+        const response = await this.client.get(
+            ROUTES.recipients.notifications.unreadCount(recipientID)
+        );
         return response.data as UnreadCountResponse;
     }
 
@@ -159,25 +198,40 @@ class RecipientsNotifications implements RecipientsNotificationsAPI {
         recipientID: string,
         req: UpdateNotificationsStateRequest
     ): Promise<UpdateNotificationsStateResponse> {
-        const response = await this.client.patch(ROUTES.recipients.notifications.udpateState(recipientID), req);
+        const response = await this.client.patch(
+            ROUTES.recipients.notifications.udpateState(recipientID),
+            req
+        );
         return response.data as UpdateNotificationsStateResponse;
     }
 
-    async delete(recipientID: string, req: DeleteNotificationsRequest): Promise<DeleteNotificationsResponse> {
-        const response = await this.client.delete(ROUTES.recipients.notifications.delete(recipientID), {
-            data: req,
-        });
+    async delete(
+        recipientID: string,
+        req: DeleteNotificationsRequest
+    ): Promise<DeleteNotificationsResponse> {
+        const response = await this.client.delete(
+            ROUTES.recipients.notifications.delete(recipientID),
+            {
+                data: req,
+            }
+        );
         return response.data as DeleteNotificationsResponse;
     }
 }
 
-interface RecipientsPreferencesAPI {
+interface RecipientsPreferencesClient {
     list(recipientID: string): Promise<ListPreferencesResponse>;
-    set(recipientID: string, req: SetPreferenceRequest): Promise<SetPreferenceResponse>;
-    check(recipientID: string, req: CheckPreferenceRequest): Promise<CheckPreferenceResponse>;
+    set(
+        recipientID: string,
+        req: SetPreferenceRequest
+    ): Promise<SetPreferenceResponse>;
+    check(
+        recipientID: string,
+        req: CheckPreferenceRequest
+    ): Promise<CheckPreferenceResponse>;
 }
 
-class RecipientsPreferences implements RecipientsPreferencesAPI {
+class RecipientsPreferences implements RecipientsPreferencesClient {
     client: AxiosInstance;
 
     constructor(client: AxiosInstance) {
@@ -185,22 +239,36 @@ class RecipientsPreferences implements RecipientsPreferencesAPI {
     }
 
     async list(recipientID: string): Promise<ListPreferencesResponse> {
-        const response = await this.client.get(ROUTES.recipients.preferences.list(recipientID));
+        const response = await this.client.get(
+            ROUTES.recipients.preferences.list(recipientID)
+        );
         return response.data as ListPreferencesResponse;
     }
 
-    async set(recipientID: string, req: SetPreferenceRequest): Promise<SetPreferenceResponse> {
-        const response = await this.client.patch(ROUTES.recipients.preferences.set(recipientID), {
-            target: req.target,
-            state: req.state,
-        });
+    async set(
+        recipientID: string,
+        req: SetPreferenceRequest
+    ): Promise<SetPreferenceResponse> {
+        const response = await this.client.patch(
+            ROUTES.recipients.preferences.set(recipientID),
+            {
+                target: req.target,
+                state: req.state,
+            }
+        );
         return response.data as SetPreferenceResponse;
     }
 
-    async check(recipientID: string, req: CheckPreferenceRequest): Promise<CheckPreferenceResponse> {
-        const response = await this.client.get(ROUTES.recipients.preferences.check(recipientID), {
-            params: req.target,
-        });
+    async check(
+        recipientID: string,
+        req: CheckPreferenceRequest
+    ): Promise<CheckPreferenceResponse> {
+        const response = await this.client.get(
+            ROUTES.recipients.preferences.check(recipientID),
+            {
+                params: req.target,
+            }
+        );
         return response.data as CheckPreferenceResponse;
     }
 }

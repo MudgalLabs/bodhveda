@@ -7,3 +7,5 @@ volumes
 
 # node_modules in multiple directories.
 node_modules
+
+dist

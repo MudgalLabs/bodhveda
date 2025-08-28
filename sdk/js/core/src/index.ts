@@ -1,2 +1,2 @@
-export { Bodhveda } from "./bodhveda";
+export * from "./bodhveda";
 export * from "./types";
