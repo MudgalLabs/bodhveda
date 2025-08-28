@@ -9,6 +9,8 @@ import {
 import { API_ROUTES, APIRes, client } from "@/lib/api";
 import { getRecipientsKey } from "@/features/recipient/recipient_hooks";
 import {
+    ListBroadcastsPayload,
+    ListBroadcastsResult,
     ListNotificationsPayload,
     ListNotificationsResult,
     NotificationKind,
@@ -47,7 +49,7 @@ export function useSendNotification(
     });
 }
 
-export function useGetNotifications(
+export function useNotifications(
     projectID: string,
     kind: NotificationKind,
     page: number,
@@ -70,6 +72,23 @@ export function useGetNotifications(
             );
         },
         select: (res) => res.data as APIRes<ListNotificationsResult>,
+        placeholderData: keepPreviousData,
+    });
+}
+
+export function useBroadcasts(projectID: string, page: number, limit: number) {
+    return useQuery({
+        queryKey: ["useGetBroadcasts", projectID, page, limit],
+        queryFn: () => {
+            const params: ListBroadcastsPayload = {
+                page,
+                limit,
+            };
+            return client.get(API_ROUTES.project.broadcasts.list(projectID), {
+                params,
+            });
+        },
+        select: (res) => res.data as APIRes<ListBroadcastsResult>,
         placeholderData: keepPreviousData,
     });
 }

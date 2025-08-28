@@ -1,3 +1,5 @@
+import { PaginationMeta } from "@/lib/types";
+
 export type NotificationKind = "direct" | "broadcast";
 
 export interface Notification {
@@ -56,10 +58,21 @@ export interface ListNotificationsPayload {
 
 export interface ListNotificationsResult {
     notifications: Notification[];
-    pagination: {
-        page: number;
-        limit: number;
-        total_items: number;
-        total_pages: number;
-    };
+    pagination: PaginationMeta;
+}
+
+export interface BroadcastListItem extends Broadcast {
+    delivered_count: number;
+    read_count: number;
+    opened_count: number;
+}
+
+export interface ListBroadcastsPayload {
+    page?: number;
+    limit?: number;
+}
+
+export interface ListBroadcastsResult {
+    broadcasts: BroadcastListItem[];
+    pagination: PaginationMeta;
 }

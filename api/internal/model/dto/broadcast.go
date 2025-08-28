@@ -44,8 +44,9 @@ type BroadcastListItem struct {
 }
 
 type ListBroadcastsFilters struct {
-	query.Pagination
 	ProjectID int
+
+	query.Pagination
 }
 
 type ListBroadcastssResult struct {

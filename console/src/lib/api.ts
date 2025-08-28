@@ -21,6 +21,11 @@ export const API_ROUTES = {
                 `/console/projects/${projectId}/api-keys/${apiKeyID}`,
         },
 
+        broadcasts: {
+            list: (projectId: string | number) =>
+                `/console/projects/${projectId}/broadcasts`,
+        },
+
         notifications: {
             send: (projectId: string | number) =>
                 `/console/projects/${projectId}/notifications/send`,

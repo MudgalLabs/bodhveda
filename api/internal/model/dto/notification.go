@@ -209,9 +209,9 @@ type UpdateRecipientNotificationsPayload struct {
 }
 
 type ListNotificationsFilters struct {
-	query.Pagination
 	ProjectID int
 
+	query.Pagination
 	Kind enum.NotificationKind `schema:"kind"`
 }
 
