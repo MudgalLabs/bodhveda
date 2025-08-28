@@ -1,0 +1,55 @@
+{
+    "name": "@bodhveda/react",
+    "version": "0.0.1",
+    "description": "React SDK for Bodhveda",
+    "license": "MIT",
+    "repository": {
+        "type": "git",
+        "url": "git+https://github.com/MudgalLabs/bodhveda.git"
+    },
+    "keywords": [
+        "bodhveda",
+        "notification",
+        "sdk",
+        "react"
+    ],
+    "publishConfig": {
+        "access": "public"
+    },
+    "bugs": {
+        "url": "https://github.com/MudgalLabs/bodhveda/issues"
+    },
+    "homepage": "https://github.com/MudgalLabs/bodhveda/sdk/js/react/#readme",
+    "type": "module",
+    "main": "dist/index.js",
+    "module": "dist/index.js",
+    "types": "dist/index.d.ts",
+    "exports": {
+        ".": {
+            "types": "./dist/index.d.ts",
+            "import": "./dist/index.js",
+            "default": "./dist/index.js"
+        }
+    },
+    "files": [
+        "dist"
+    ],
+    "sideEffects": false,
+    "scripts": {
+        "build": "tsc -p tsconfig.json",
+        "clean": "rm -rf dist",
+        "prepublishOnly": "npm run clean && npm run build"
+    },
+    "peerDependencies": {
+        "@tanstack/react-query": ">=5.0.0",
+        "react": ">=18"
+    },
+    "dependencies": {
+        "bodhveda": "^0.0.1"
+    },
+    "devDependencies": {
+        "@types/react": "^19.1.12",
+        "react": "^19.1.1",
+        "typescript": "^5.9.2"
+    }
+}
