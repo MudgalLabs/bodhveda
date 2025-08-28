@@ -12,12 +12,14 @@ import {
     DropdownMenuItem,
     DropdownMenuTrigger,
     ErrorMessage,
-    formatTimeAgo,
+    formatDate,
     IconEdit,
     IconEllipsis,
     IconHouse,
     IconInfo,
+    IconMegaphone,
     IconPlus,
+    IconTarget,
     IconTrash,
     Loading,
     PageHeading,
@@ -182,15 +184,14 @@ const columns: ColumnDef<RecipientListItem>[] = [
                         <Tooltip
                             content={
                                 <div className="space-y-2">
-                                    <p>
-                                        🎯 <strong>Direct notifications</strong>{" "}
-                                        are sent to a specific recipient.
-                                    </p>
-                                    <p>
-                                        📢{" "}
-                                        <strong>Broadcast notifications</strong>{" "}
-                                        are sent to one or more recipients.
-                                    </p>
+                                    <span className="flex-x">
+                                        <IconTarget size={16} />
+                                        <strong>Direct notifications</strong>
+                                    </span>
+                                    <span className="flex-x">
+                                        <IconMegaphone size={16} />
+                                        <strong>Broadcast notifications</strong>
+                                    </span>
                                 </div>
                             }
                         >
@@ -201,16 +202,23 @@ const columns: ColumnDef<RecipientListItem>[] = [
             />
         ),
         cell: ({ row }) => (
-            <div className="flex-x gap-x-6!">
-                <p>🎯 {row.original.direct_notifications_count}</p>
-                <p>📢 {row.original.broadcast_notifications_count}</p>
+            <div className="flex-x gap-x-4!">
+                <span className="flex-x">
+                    <IconTarget size={16} />
+                    {row.original.direct_notifications_count}
+                </span>
+                <span className="flex-x">
+                    <IconMegaphone size={16} />
+                    {row.original.broadcast_notifications_count}
+                </span>
             </div>
         ),
     },
     {
         accessorKey: "created_at",
-        header: () => <DataTableColumnHeader title="Created At" />,
-        cell: ({ row }) => formatTimeAgo(new Date(row.original.created_at)),
+        header: () => <DataTableColumnHeader title="Created" />,
+        cell: ({ row }) =>
+            formatDate(new Date(row.original.created_at), { time: true }),
     },
     {
         id: "actions",

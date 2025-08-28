@@ -101,7 +101,7 @@ func initRouter() http.Handler {
 	r.Route("/console", func(r chi.Router) {
 		r.Use(cors.Handler(cors.Options{
 			AllowedOrigins:   []string{env.WebURL},
-			AllowedMethods:   []string{"GET", "POST", "PUT", "DELETE", "OPTIONS"},
+			AllowedMethods:   []string{"GET", "DELETE", "OPTIONS", "PATCH", "POST", "PUT"},
 			AllowedHeaders:   []string{"Accept", "Authorization", "Content-Type"},
 			AllowCredentials: true,
 			ExposedHeaders:   []string{"*"},
