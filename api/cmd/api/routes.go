@@ -71,10 +71,10 @@ func initRouter() http.Handler {
 				r.Use(middleware.VerifyRecipientExists)
 
 				r.Route("/notifications", func(r chi.Router) {
-					r.Get("/", handler.ListRecipientsNotifications(app.APP.Service.Notification))
+					r.Get("/", handler.ListForRecipient(app.APP.Service.Notification))
 					r.Get("/unread-count", handler.UnreadCountForRecipient(app.APP.Service.Notification))
-					r.Patch("/", handler.UpdateRecipientsNotifications(app.APP.Service.Notification))
-					r.Delete("/", handler.DeleteRecipientsNotifications(app.APP.Service.Notification))
+					r.Patch("/", handler.UpdateRecipientNotifications(app.APP.Service.Notification))
+					r.Delete("/", handler.DeleteRecipientNotifications(app.APP.Service.Notification))
 				})
 
 				r.Route("/preferences", func(r chi.Router) {
@@ -133,8 +133,12 @@ func initRouter() http.Handler {
 					r.Delete("/{api_key_id}", handler.DeleteAPIKey(app.APP.Service.APIKey))
 				})
 
+				r.Route("/broadcasts", func(r chi.Router) {
+					r.Get("/", handler.ListBroadcasts(app.APP.Service.Broadcast))
+				})
+
 				r.Route("/notifications", func(r chi.Router) {
-					r.Get("/", handler.ListNotifications(app.APP.Service.Notification))
+					r.Get("/", handler.List(app.APP.Service.Notification))
 					r.Post("/send", handler.SendNotificationConsole(app.APP.Service.Notification))
 				})
 

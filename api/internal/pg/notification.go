@@ -82,12 +82,10 @@ func (r *NotificationRepo) BatchCreateTx(ctx context.Context, tx pgx.Tx, notific
 func (r *NotificationRepo) Overview(ctx context.Context, projectID int) (*dto.NotificationsOverviewResult, error) {
 	sql := `
 		SELECT
-		    COUNT(*) FILTER (WHERE n.broadcast_id IS NULL) AS total_direct_sent,
-		    COUNT(DISTINCT b.id) AS total_broadcast_sent,
-		    COUNT(*) AS total_notifications
-		FROM notification n
-		LEFT JOIN broadcast b ON n.broadcast_id = b.id
-		WHERE n.project_id = $1;
+			(SELECT COUNT(id) FROM notification WHERE project_id = $1 AND broadcast_id IS NULL) AS direct_count,
+			(SELECT COUNT(id) FROM broadcast WHERE project_id = $1) AS broadcast_count,
+			(SELECT COUNT(id) FROM notification WHERE project_id = $1) AS total_count;
+
 	`
 
 	result := &dto.NotificationsOverviewResult{}
@@ -97,6 +95,7 @@ func (r *NotificationRepo) Overview(ctx context.Context, projectID int) (*dto.No
 		&result.TotalBroadcastSent,
 		&result.TotalNotifications,
 	)
+
 	if err != nil {
 		return nil, fmt.Errorf("overview query: %w", err)
 	}
@@ -226,14 +225,6 @@ func (r *NotificationRepo) UpdateForRecipient(ctx context.Context, projectID int
 
 	now := time.Now().UTC()
 
-	if payload.State.Seen != nil {
-		if *payload.State.Seen {
-			b.SetColumn("seen_at", now)
-		} else {
-			b.SetColumn("seen_at", nil)
-		}
-	}
-
 	if payload.State.Read != nil {
 		if *payload.State.Read {
 			b.SetColumn("read_at", now)
@@ -336,14 +327,14 @@ func (r *NotificationRepo) ListNotifications(ctx context.Context, projectID int,
 
 	notifications := []*entity.Notification{}
 	for rows.Next() {
-		var n entity.Notification
+		var notification entity.Notification
 
-		err := rows.Scan(&n.ID, &n.ProjectID, &n.RecipientExtID, &n.Payload, &n.BroadcastID, &n.Channel, &n.Topic, &n.Event, &n.ReadAt, &n.OpenedAt, &n.CreatedAt, &n.UpdatedAt)
+		err := rows.Scan(&notification.ID, &notification.ProjectID, &notification.RecipientExtID, &notification.Payload, &notification.BroadcastID, &notification.Channel, &notification.Topic, &notification.Event, &notification.ReadAt, &notification.OpenedAt, &notification.CreatedAt, &notification.UpdatedAt)
 		if err != nil {
 			return nil, 0, fmt.Errorf("scan: %w", err)
 		}
 
-		notifications = append(notifications, &n)
+		notifications = append(notifications, &notification)
 	}
 
 	if err := rows.Err(); err != nil {

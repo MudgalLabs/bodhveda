@@ -3,7 +3,9 @@ package repository
 import (
 	"context"
 
+	"github.com/mudgallabs/bodhveda/internal/model/dto"
 	"github.com/mudgallabs/bodhveda/internal/model/entity"
+	"github.com/mudgallabs/tantra/query"
 )
 
 type BroadcastRepository interface {
@@ -13,6 +15,7 @@ type BroadcastRepository interface {
 
 type BroadcastReader interface {
 	GetByID(ctx context.Context, id int) (*entity.Broadcast, error)
+	List(ctx context.Context, projectID int, pagination query.Pagination) ([]*dto.BroadcastListItem, int, error)
 }
 
 type BroadcastWriter interface {

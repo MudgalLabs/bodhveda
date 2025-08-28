@@ -52,7 +52,6 @@
                                                         "topic": "post_id_123",
                                                         "event": "new_comment"
                                                     },
-                                                    "seen": false,
                                                     "read": false,
                                                     "opened": false,
                                                     "created_at": "2025-11-07T05:31:56Z",
@@ -720,7 +719,6 @@
                                                             "topic": "post_id_123",
                                                             "event": "new_comment"
                                                         },
-                                                        "seen": false,
                                                         "read": false,
                                                         "opened": false,
                                                         "created_at": "2025-11-07T05:31:56Z",
@@ -1022,10 +1020,6 @@
                     },
                     "target": {
                         "$ref": "#/components/schemas/Target"
-                    },
-                    "seen": {
-                        "type": "boolean",
-                        "description": "Whether the notification has been seen by the recipient. \n\n 💡 You can update this to `true` or `false` via [mark notifications as seen](/api-reference/endpoint/mark-seen)."
                     },
                     "read": {
                         "type": "boolean",

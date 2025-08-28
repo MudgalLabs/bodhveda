@@ -14,7 +14,6 @@ type Notification struct {
 	Channel        string
 	Topic          string
 	Event          string
-	SeenAt         *time.Time
 	ReadAt         *time.Time
 	OpenedAt       *time.Time
 	CreatedAt      time.Time
@@ -32,7 +31,6 @@ func NewNotification(projectID int, recipientExtID string, payload json.RawMessa
 		Channel:        channel,
 		Topic:          topic,
 		Event:          event,
-		SeenAt:         nil,
 		ReadAt:         nil,
 		OpenedAt:       nil,
 		CreatedAt:      now,

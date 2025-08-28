@@ -36,7 +36,6 @@ export interface Preference {
 export interface NotificationState {
     opened: boolean;
     read: boolean;
-    seen: boolean;
 }
 
 /**

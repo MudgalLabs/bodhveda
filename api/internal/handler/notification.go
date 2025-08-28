@@ -63,7 +63,7 @@ func SendNotificationConsole(s *service.NotificationService) http.HandlerFunc {
 	}
 }
 
-func ListRecipientsNotifications(s *service.NotificationService) http.HandlerFunc {
+func ListForRecipient(s *service.NotificationService) http.HandlerFunc {
 	return func(w http.ResponseWriter, r *http.Request) {
 		ctx := r.Context()
 		apiKey := middleware.GetAPIKeyFromContext(ctx)
@@ -118,7 +118,7 @@ func UnreadCountForRecipient(s *service.NotificationService) http.HandlerFunc {
 	}
 }
 
-func UpdateRecipientsNotifications(s *service.NotificationService) http.HandlerFunc {
+func UpdateRecipientNotifications(s *service.NotificationService) http.HandlerFunc {
 	return func(w http.ResponseWriter, r *http.Request) {
 		ctx := r.Context()
 		apiKey := middleware.GetAPIKeyFromContext(ctx)
@@ -145,7 +145,7 @@ func UpdateRecipientsNotifications(s *service.NotificationService) http.HandlerF
 	}
 }
 
-func DeleteRecipientsNotifications(s *service.NotificationService) http.HandlerFunc {
+func DeleteRecipientNotifications(s *service.NotificationService) http.HandlerFunc {
 	return func(w http.ResponseWriter, r *http.Request) {
 		ctx := r.Context()
 		apiKey := middleware.GetAPIKeyFromContext(ctx)
@@ -172,7 +172,7 @@ func DeleteRecipientsNotifications(s *service.NotificationService) http.HandlerF
 	}
 }
 
-func ListNotifications(s *service.NotificationService) http.HandlerFunc {
+func List(s *service.NotificationService) http.HandlerFunc {
 	return func(w http.ResponseWriter, r *http.Request) {
 		ctx := r.Context()
 		projectID, err := httpx.ParamInt(r, "project_id")

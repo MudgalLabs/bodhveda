@@ -25,7 +25,11 @@ type Notification struct {
 type NotificationState struct {
 	Opened bool `json:"opened"`
 	Read   bool `json:"read"`
-	Seen   bool `json:"seen"`
+}
+
+type NotificationStateFilter struct {
+	Opened *bool `schema:"opened"`
+	Read   *bool `schema:"read"`
 }
 
 func FromNotification(notification *entity.Notification) *Notification {
@@ -39,7 +43,6 @@ func FromNotification(notification *entity.Notification) *Notification {
 			Event:   notification.Event,
 		},
 		State: NotificationState{
-			Seen:   notification.ReadAt != nil,
 			Read:   notification.ReadAt != nil,
 			Opened: notification.OpenedAt != nil,
 		},
@@ -202,11 +205,7 @@ type BroadcastDeliveryTaskPayload struct {
 
 type UpdateRecipientNotificationsPayload struct {
 	NotificationIDsPayload
-	State struct {
-		Seen   *bool `json:"seen"`
-		Read   *bool `json:"read"`
-		Opened *bool `json:"opened"`
-	} `json:"state"`
+	State NotificationStateFilter `json:"state"`
 }
 
 type ListNotificationsFilters struct {

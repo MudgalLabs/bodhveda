@@ -27,7 +27,6 @@ export interface Target {
 }
 
 interface NotificationState {
-    seen: boolean;
     read: boolean;
     opened: boolean;
 }

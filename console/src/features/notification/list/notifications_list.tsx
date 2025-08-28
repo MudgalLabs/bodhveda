@@ -143,11 +143,6 @@ const columns: ColumnDef<Notification>[] = [
         cell: ({ row }) => row.original.target.event,
     },
     {
-        accessorKey: "state.seen",
-        header: () => <DataTableColumnHeader title="Seen" />,
-        cell: ({ row }) => (row.original.state.seen ? "Yes" : "No"),
-    },
-    {
         accessorKey: "state.read",
         header: () => <DataTableColumnHeader title="Read" />,
         cell: ({ row }) => (row.original.state.read ? "Yes" : "No"),

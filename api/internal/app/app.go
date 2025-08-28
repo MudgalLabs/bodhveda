@@ -30,6 +30,7 @@ type App struct {
 // All the services.
 type services struct {
 	APIKey       *service.APIKeyService
+	Broadcast    *service.BroadcastService
 	Notification *service.NotificationService
 	Preference   *service.PreferenceService
 	Project      *service.ProjectService
@@ -94,6 +95,7 @@ func Init() {
 
 	// REFACTOR: Why not we define handlers as methods on the `app` struct?
 	apikeyService := service.NewAPIKeyService(apikeyRepository, projectRepository)
+	broadcastService := service.NewBroadcastService(broadcastRepository)
 	preferenceService := service.NewProjectPreferenceService(preferenceRepository, recipientRepository)
 	recipientService := service.NewRecipientService(recipientRepository, ASYNQCLIENT)
 	notificationService := service.NewNotificationService(notificationRepository, recipientRepository,
@@ -104,6 +106,7 @@ func Init() {
 
 	services := services{
 		APIKey:       apikeyService,
+		Broadcast:    broadcastService,
 		Notification: notificationService,
 		Preference:   preferenceService,
 		Project:      projectService,

@@ -5,9 +5,11 @@ import (
 	"fmt"
 
 	"github.com/jackc/pgx/v5/pgxpool"
+	"github.com/mudgallabs/bodhveda/internal/model/dto"
 	"github.com/mudgallabs/bodhveda/internal/model/entity"
 	"github.com/mudgallabs/bodhveda/internal/model/repository"
 	"github.com/mudgallabs/tantra/dbx"
+	"github.com/mudgallabs/tantra/query"
 )
 
 type BroadcastRepo struct {
@@ -90,4 +92,96 @@ func (r *BroadcastRepo) DeleteForProject(ctx context.Context, projectID int) (in
 	}
 
 	return int(tag.RowsAffected()), nil
+}
+
+func (r *BroadcastRepo) List(ctx context.Context, projectID int, pagination query.Pagination) ([]*dto.BroadcastListItem, int, error) {
+	sql := `
+		SELECT 
+			id, payload, channel, topic, event, completed_at, created_at, updated_at
+		FROM broadcast
+	`
+	b := dbx.NewSQLBuilder(sql)
+	b.AddCompareFilter("project_id", dbx.OperatorEQ, projectID)
+	b.AddSorting("id", "DESC")
+	b.AddPagination(pagination.Limit, pagination.Offset())
+
+	sql, args := b.Build()
+
+	rows, err := r.db.Query(ctx, sql, args...)
+	if err != nil {
+		return nil, 0, fmt.Errorf("query: %w", err)
+	}
+	defer rows.Close()
+
+	broadcasts := []*dto.BroadcastListItem{}
+	broadcastIDs := []int{}
+	for rows.Next() {
+		var broadcast dto.BroadcastListItem
+		err := rows.Scan(
+			&broadcast.ID, &broadcast.Payload, &broadcast.Target.Channel, &broadcast.Target.Topic,
+			&broadcast.Target.Event, &broadcast.CompletedAt, &broadcast.CreatedAt, &broadcast.UpdatedAt,
+		)
+		if err != nil {
+			return nil, 0, fmt.Errorf("scan: %w", err)
+		}
+		broadcasts = append(broadcasts, &broadcast)
+		broadcastIDs = append(broadcastIDs, broadcast.ID)
+	}
+	if err := rows.Err(); err != nil {
+		return nil, 0, fmt.Errorf("rows error: %w", err)
+	}
+
+	countsSQL := `
+		SELECT 
+			broadcast_id,
+			COUNT(id) AS delivered_count,
+			COUNT(id) FILTER (WHERE read_at IS NOT NULL) AS read_count,
+			COUNT(id) FILTER (WHERE opened_at IS NOT NULL) AS opened_count
+		FROM notification
+		WHERE broadcast_id = ANY($1)
+		GROUP BY broadcast_id
+	`
+
+	countRows, err := r.db.Query(ctx, countsSQL, broadcastIDs)
+	if err != nil {
+		return nil, 0, fmt.Errorf("notification counts: %w", err)
+	}
+
+	defer countRows.Close()
+
+	type counts struct{ delivered, read, opened int }
+	countMap := make(map[int]counts)
+
+	for countRows.Next() {
+		var bid, delivered, read, opened int
+
+		if err := countRows.Scan(&bid, &delivered, &read, &opened); err != nil {
+			return nil, 0, fmt.Errorf("scan counts: %w", err)
+		}
+
+		countMap[bid] = counts{delivered, read, opened}
+	}
+
+	if err := countRows.Err(); err != nil {
+		return nil, 0, fmt.Errorf("counts rows error: %w", err)
+	}
+
+	// Attach counts to broadcasts
+	for _, b := range broadcasts {
+		if c, ok := countMap[b.ID]; ok {
+			b.DeliveredCount = c.delivered
+			b.ReadCount = c.read
+			b.OpenedCount = c.opened
+		}
+	}
+
+	countSQL, countArgs := b.Count()
+	var total int
+
+	err = r.db.QueryRow(ctx, countSQL, countArgs...).Scan(&total)
+	if err != nil {
+		return nil, 0, err
+	}
+
+	return broadcasts, total, nil
 }

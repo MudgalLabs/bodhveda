@@ -27,7 +27,7 @@
 
 -   **Recipient Preferences** - Let recipients opt in/out of notifications.
 
--   **Inbox-like API** - Fetch, mark as seen/unseen, delete, just like a modern inbox.
+-   **Inbox-like API** - Fetch notifications, update opened & read status, delete, just like a modern inbox.
 
 -   **Headless by Design** - Send any data you want and control exactly how it’s displayed in your product.
 

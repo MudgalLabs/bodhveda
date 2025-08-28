@@ -5,6 +5,7 @@ import (
 	"time"
 
 	"github.com/mudgallabs/bodhveda/internal/model/entity"
+	"github.com/mudgallabs/tantra/query"
 )
 
 type Broadcast struct {
@@ -33,4 +34,21 @@ func FromBroadcast(broadcast *entity.Broadcast) *Broadcast {
 		CreatedAt:   broadcast.CreatedAt,
 		UpdatedAt:   broadcast.UpdatedAt,
 	}
+}
+
+type BroadcastListItem struct {
+	Broadcast
+	DeliveredCount int `json:"delivered_count"`
+	ReadCount      int `json:"read_count"`
+	OpenedCount    int `json:"opened_count"`
+}
+
+type ListBroadcastsFilters struct {
+	query.Pagination
+	ProjectID int
+}
+
+type ListBroadcastssResult struct {
+	Broadcasts []*BroadcastListItem `json:"broadcasts"`
+	Pagination query.PaginationMeta `json:"pagination"`
 }
