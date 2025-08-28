@@ -11,7 +11,7 @@ import {
     DropdownMenuItem,
     DropdownMenuTrigger,
     ErrorMessage,
-    formatTimeAgo,
+    formatDate,
     IconEllipsis,
     IconKey,
     IconPlus,
@@ -129,8 +129,9 @@ const columns: ColumnDef<APIKey>[] = [
     },
     {
         accessorKey: "created_at",
-        header: () => <DataTableColumnHeader title="Created At" />,
-        cell: ({ row }) => formatTimeAgo(new Date(row.original.created_at)),
+        header: () => <DataTableColumnHeader title="Created" />,
+        cell: ({ row }) =>
+            formatDate(new Date(row.original.created_at), { time: true }),
     },
     {
         id: "actions",

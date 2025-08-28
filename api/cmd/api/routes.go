@@ -55,13 +55,13 @@ func initRouter() http.Handler {
 			AllowedHeaders:   []string{"Accept", "Authorization", "Content-Type", "X-CSRF-Token", "X-Timezone"},
 			AllowCredentials: false,
 			ExposedHeaders:   []string{"*"},
-			MaxAge:           300, // Maximum value not ignored by any of major browsers
+			MaxAge:           300,
 		}))
 
 		r.Use(middleware.APIKeyBasedAuthMiddleware)
 
 		r.Route("/notifications", func(r chi.Router) {
-			// r.Use(middleware.VerifyAPIKeyHasFullScope)
+			r.Use(middleware.VerifyAPIKeyHasFullScope)
 
 			r.Post("/send", handler.SendNotification(app.APP.Service.Notification))
 		})
@@ -105,7 +105,7 @@ func initRouter() http.Handler {
 			AllowedHeaders:   []string{"Accept", "Authorization", "Content-Type"},
 			AllowCredentials: true,
 			ExposedHeaders:   []string{"*"},
-			MaxAge:           300, // Maximum value not ignored by any of major browsers
+			MaxAge:           300,
 		}))
 
 		r.Route("/auth", func(r chi.Router) {

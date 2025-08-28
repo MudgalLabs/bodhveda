@@ -5,7 +5,6 @@ import {
     IconSend,
     PageHeading,
     DataTableColumnHeader,
-    formatTimeAgo,
     DataTableState,
     ErrorMessage,
     DataTableSmart,
@@ -13,6 +12,7 @@ import {
     DataTablePagination,
     IconBell,
     Loading,
+    formatDate,
 } from "netra";
 
 import {
@@ -160,7 +160,8 @@ const columns: ColumnDef<Notification>[] = [
     {
         accessorKey: "created_at",
         header: () => <DataTableColumnHeader title="Delivered" />,
-        cell: ({ row }) => formatTimeAgo(new Date(row.original.created_at)),
+        cell: ({ row }) =>
+            formatDate(new Date(row.original.created_at), { time: true }),
     },
 ];
 

@@ -10,8 +10,8 @@ import {
     DropdownMenuItem,
     DropdownMenuTrigger,
     ErrorMessage,
+    formatDate,
     formatNumber,
-    formatTimeAgo,
     IconEllipsis,
     IconPlus,
     IconTrash,
@@ -187,8 +187,9 @@ const projectPreferenceColumns: ColumnDef<ProjectPreference>[] = [
     },
     {
         accessorKey: "created_at",
-        header: () => <DataTableColumnHeader title="Created At" />,
-        cell: ({ row }) => formatTimeAgo(new Date(row.original.created_at)),
+        header: () => <DataTableColumnHeader title="Created" />,
+        cell: ({ row }) =>
+            formatDate(new Date(row.original.created_at), { time: true }),
     },
     {
         id: "actions",
@@ -232,13 +233,15 @@ const recipientPreferenceColumns: ColumnDef<RecipientPreference>[] = [
     },
     {
         accessorKey: "created_at",
-        header: () => <DataTableColumnHeader title="Created At" />,
-        cell: ({ row }) => formatTimeAgo(new Date(row.original.created_at)),
+        header: () => <DataTableColumnHeader title="Created" />,
+        cell: ({ row }) =>
+            formatDate(new Date(row.original.created_at), { time: true }),
     },
     {
         accessorKey: "updated_at",
         header: () => <DataTableColumnHeader title="Updated At" />,
-        cell: ({ row }) => formatTimeAgo(new Date(row.original.updated_at)),
+        cell: ({ row }) =>
+            formatDate(new Date(row.original.created_at), { time: true }),
     },
 ];
 
