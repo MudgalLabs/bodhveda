@@ -11,9 +11,10 @@ import {
     DataTableSmart,
     DataTable,
     DataTablePagination,
+    IconBell,
+    Loading,
 } from "netra";
 
-import { useSidebar } from "@/components/sidebar/sidebar";
 import {
     NotificationKind,
     Notification,
@@ -25,7 +26,6 @@ import { useGetNotifications } from "@/features/notification/notification_hooks"
 
 export function NotificationList() {
     const projectID = useGetProjectIDFromParams();
-    const { isOpen, toggleSidebar } = useSidebar();
     const [kind, setKind] = useState<NotificationKind>("direct");
     const isDirect = kind === "direct";
 
@@ -107,12 +107,11 @@ export function NotificationList() {
 
     return (
         <div>
-            <PageHeading
-                heading="Notifications"
-                loading={isFetching}
-                isOpen={isOpen}
-                toggleSidebar={toggleSidebar}
-            />
+            <PageHeading>
+                <IconBell size={18} />
+                <h1>Notifications</h1>
+                {isFetching && <Loading />}
+            </PageHeading>
 
             {content}
         </div>

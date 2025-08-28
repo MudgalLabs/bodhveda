@@ -13,8 +13,10 @@ import {
     ErrorMessage,
     formatTimeAgo,
     IconEllipsis,
+    IconKey,
     IconPlus,
     IconTrash,
+    Loading,
     PageHeading,
 } from "netra";
 
@@ -23,10 +25,8 @@ import { useGetAPIKeys } from "@/features/api_key/api_key_hooks";
 import { CreateAPIKeyModal } from "@/features/api_key/components/create_api_key_modal";
 import { APIKey, apiKeyScopeToString } from "@/features/api_key/api_key_types";
 import { DeleteAPIKeyModal } from "../components/delete_api_key_modal";
-import { useSidebar } from "@/components/sidebar/sidebar";
 
 export function APIKeyList() {
-    const { isOpen, toggleSidebar } = useSidebar();
     const id = useGetProjectIDFromParams();
 
     const { data, isLoading, isError } = useGetAPIKeys(id);
@@ -43,12 +43,11 @@ export function APIKeyList() {
 
     return (
         <div>
-            <PageHeading
-                heading="API Keys"
-                loading={isLoading}
-                isOpen={isOpen}
-                toggleSidebar={toggleSidebar}
-            />
+            <PageHeading>
+                <IconKey size={18} />
+                <h1>API Keys</h1>
+                {isLoading && <Loading />}
+            </PageHeading>
 
             <div className="flex justify-end mb-4">
                 <CreateAPIKeyModal

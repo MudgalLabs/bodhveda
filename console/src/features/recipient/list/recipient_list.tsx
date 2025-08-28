@@ -15,9 +15,11 @@ import {
     formatTimeAgo,
     IconEdit,
     IconEllipsis,
+    IconHouse,
     IconInfo,
     IconPlus,
     IconTrash,
+    Loading,
     PageHeading,
     toast,
     Tooltip,
@@ -30,10 +32,8 @@ import {
 import { CreateRecipientModal } from "@/features/recipient/list/create_recipient_modal";
 import { RecipientListItem } from "@/features/recipient/recipient_types";
 import { EditRecipientModal } from "./edit_recipient_modal";
-import { useSidebar } from "@/components/sidebar/sidebar";
 
 export function RecipientList() {
-    const { isOpen, toggleSidebar } = useSidebar();
     const id = useGetProjectIDFromParams();
 
     const [tableState, setTableState] = useState<DataTableState>({
@@ -72,12 +72,11 @@ export function RecipientList() {
 
     return (
         <div>
-            <PageHeading
-                heading="Recipients"
-                loading={isFetching}
-                isOpen={isOpen}
-                toggleSidebar={toggleSidebar}
-            />
+            <PageHeading>
+                <IconHouse size={18} />
+                <h1>Recipients</h1>
+                {isFetching && <Loading />}
+            </PageHeading>
 
             <div className="flex justify-end mb-4">
                 <CreateRecipientModal

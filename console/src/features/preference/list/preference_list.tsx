@@ -15,6 +15,8 @@ import {
     IconEllipsis,
     IconPlus,
     IconTrash,
+    IconUsers,
+    Loading,
     PageHeading,
     ToggleGroup,
     ToggleGroupItem,
@@ -28,10 +30,8 @@ import {
     RecipientPreference,
 } from "@/features/preference/preference_type";
 import { DeleteProjectPreferenceModal } from "../components/delete_project_preference_modal";
-import { useSidebar } from "@/components/sidebar/sidebar";
 
 export function ProjectPreferenceList() {
-    const { isOpen, toggleSidebar } = useSidebar();
     const id = useGetProjectIDFromParams();
     const [kind, setKind] = useState<PreferenceKind>("project");
     const isProject = kind === "project";
@@ -64,12 +64,11 @@ export function ProjectPreferenceList() {
 
     return (
         <div>
-            <PageHeading
-                heading="Preferences"
-                loading={isLoading}
-                isOpen={isOpen}
-                toggleSidebar={toggleSidebar}
-            />
+            <PageHeading>
+                <IconUsers size={18} />
+                <h1>Preferences</h1>
+                {isLoading && <Loading />}
+            </PageHeading>
 
             <div className="flex justify-between mb-4">
                 <ToggleGroup

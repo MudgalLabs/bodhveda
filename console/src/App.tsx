@@ -4,13 +4,12 @@ import {
     QueryClientProvider,
 } from "@tanstack/react-query";
 import { RouterProvider, createRouter } from "@tanstack/react-router";
+import { SidebarProvider, TooltipProvider } from "netra";
 
 import { routeTree } from "@/routeTree.gen";
 import { useAuth, AuthProvider } from "@/features/auth/auth_context";
 import { apiErrorHandler } from "@/lib/api";
 import { LoadingScreen } from "@/components/loading_screen";
-import { SidebarProvider } from "@/components/sidebar/sidebar";
-import { TooltipProvider } from "netra";
 
 // Create a new router instance
 const router = createRouter({

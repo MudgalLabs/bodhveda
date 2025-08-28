@@ -5,9 +5,11 @@ import {
     ErrorMessage,
     formatNumber,
     IconBell,
+    IconHouse,
     IconMegaphone,
     IconTarget,
     IconUsers,
+    Loading,
     PageHeading,
 } from "netra";
 
@@ -16,10 +18,8 @@ import {
     useGetProjects,
 } from "@/features/project/project_hooks";
 import { ReactNode, useMemo } from "react";
-import { useSidebar } from "@/components/sidebar/sidebar";
 
 export function Home() {
-    const { isOpen, toggleSidebar } = useSidebar();
     const projectID = useGetProjectIDFromParams();
     const { data: projects, isLoading, isError } = useGetProjects();
 
@@ -62,12 +62,11 @@ export function Home() {
 
     return (
         <div>
-            <PageHeading
-                heading="Home"
-                loading={isLoading}
-                isOpen={isOpen}
-                toggleSidebar={toggleSidebar}
-            />
+            <PageHeading>
+                <IconHouse size={18} />
+                <h1>Home</h1>
+                {isLoading && <Loading />}
+            </PageHeading>
 
             {content}
         </div>

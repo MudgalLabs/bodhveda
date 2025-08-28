@@ -1,4 +1,4 @@
-import { FormEvent, useState } from "react";
+import { FormEvent, useMemo, useState } from "react";
 import {
     Button,
     Card,
@@ -13,6 +13,7 @@ import {
     IconPlus,
     IconTrash,
     IconUsers,
+    Loading,
     LoadingScreen,
     PageHeading,
     Tooltip,
@@ -26,33 +27,22 @@ import { DeleteProjectModal } from "@/features/project/components/delete_project
 export function ProjectList() {
     const { data, isLoading, isError } = useGetProjects();
 
-    if (isError) {
-        return <ErrorMessage errorMsg="Error loading projects" />;
-    }
+    const content = useMemo(() => {
+        if (isError) {
+            return <ErrorMessage errorMsg="Error loading projects" />;
+        }
 
-    if (isLoading) {
+        if (isLoading) {
+            return (
+                <div className="h-screen w-screen">
+                    <LoadingScreen />
+                </div>
+            );
+        }
+
+        if (!data) return null;
+
         return (
-            <div className="h-screen w-screen">
-                <LoadingScreen />
-            </div>
-        );
-    }
-
-    return (
-        <div className="w-full max-w-[1200px] mx-auto mt-12 px-4">
-            <PageHeading heading="Projects" />
-
-            <div className="flex justify-end">
-                <CreateProjectModal
-                    renderTrigger={() => (
-                        <Button>
-                            <IconPlus size={16} />
-                            Create Project
-                        </Button>
-                    )}
-                />
-            </div>
-
             <div className="mt-4 grid grid-cols-1 sm:grid-cols-2 md:grid-cols-3 lg:grid-cols-4 gap-6">
                 {data?.data.map((project) => (
                     <div
@@ -112,6 +102,32 @@ export function ProjectList() {
                     </div>
                 ))}
             </div>
+        );
+    }, [data, isError, isLoading]);
+
+    return (
+        <div className="w-full max-w-[1200px] mx-auto mt-12 px-4">
+            <PageHeading hideSidebarToggle>
+                <div className="flex-x justify-between w-full">
+                    <div>
+                        <h1>Projects</h1>
+                        {isLoading && <Loading />}
+                    </div>
+
+                    <div className="flex justify-end">
+                        <CreateProjectModal
+                            renderTrigger={() => (
+                                <Button>
+                                    <IconPlus size={16} />
+                                    Create Project
+                                </Button>
+                            )}
+                        />
+                    </div>
+                </div>
+            </PageHeading>
+
+            {content}
         </div>
     );
 }

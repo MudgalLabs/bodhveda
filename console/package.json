@@ -18,7 +18,7 @@
         "axios": "^1.11.0",
         "class-variance-authority": "^0.7.1",
         "lodash": "^4.17.21",
-        "netra": "^0.1.0",
+        "netra": "^0.1.8",
         "react": "^19.0.0",
         "react-dom": "^19.0.0",
         "tailwind-merge": "^3.3.1",
