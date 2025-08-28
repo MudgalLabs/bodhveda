@@ -1,5 +1,5 @@
 export * from "./provider";
 export * from "./hooks";
 
-// Export Bodhveda type from core package for convenience.
-export type * from "bodhveda";
+// Export Bodhveda class and types from core package for convenience.
+export * from "bodhveda";

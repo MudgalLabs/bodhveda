@@ -32,6 +32,12 @@ const QUERY_KEYS = {
     usePreferences: ["usePreferences"],
 };
 
+/**
+ * Returns the Bodhveda client instance.
+ *
+ * @throws If used outside a {@link BodhvedaProvider}.
+ * @returns {Bodhveda} The Bodhveda client instance.
+ */
 export function useBodhveda() {
     const context = useContext(BodhvedaContext);
 
@@ -42,6 +48,12 @@ export function useBodhveda() {
     return context.bodhveda;
 }
 
+/**
+ * Returns the current recipient ID.
+ *
+ * @throws If used outside a {@link BodhvedaProvider}.
+ * @returns {string} The recipient ID.
+ */
 export function useRecipientID() {
     const context = useContext(BodhvedaContext);
 
@@ -52,6 +64,12 @@ export function useRecipientID() {
     return context.recipientID;
 }
 
+/**
+ * Fetches the list of notifications for the current recipient.
+ *
+ * @param options - Optional react-query options.
+ * @returns {UseQueryResult<ListNotificationsResponse>} Query result.
+ */
 export function useNotifications(
     options: QueryOptions = {}
 ): UseQueryResult<ListNotificationsResponse> {
@@ -65,6 +83,12 @@ export function useNotifications(
     });
 }
 
+/**
+ * Fetches the unread notifications count for the current recipient.
+ *
+ * @param options - Optional react-query options.
+ * @returns {UseQueryResult<{ unread_count: number }>} Query result.
+ */
 export function useNotificationsUnreadCount(
     options: QueryOptions = {}
 ): UseQueryResult<{ unread_count: number }> {
@@ -79,6 +103,12 @@ export function useNotificationsUnreadCount(
     });
 }
 
+/**
+ * Returns a mutation hook to update notification state (e.g., mark as read).
+ *
+ * @param options - Optional mutation options.
+ * @returns Mutation hook.
+ */
 export function useUpdateNotificationsState(options: MutationOptions = {}) {
     const bodhveda = useBodhveda();
     const recipientID = useRecipientID();
@@ -110,6 +140,12 @@ export function useUpdateNotificationsState(options: MutationOptions = {}) {
     });
 }
 
+/**
+ * Returns a mutation hook to delete notifications for the current recipient.
+ *
+ * @param options - Optional mutation options.
+ * @returns Mutation hook.
+ */
 export function useDeleteNotifications(options: MutationOptions = {}) {
     const bodhveda = useBodhveda();
     const recipientID = useRecipientID();
@@ -138,6 +174,12 @@ export function useDeleteNotifications(options: MutationOptions = {}) {
     });
 }
 
+/**
+ * Fetches the notification preferences for the current recipient.
+ *
+ * @param options - Optional react-query options.
+ * @returns {UseQueryResult<ListPreferencesResponse>} Query result.
+ */
 export function usePreferences(
     options: QueryOptions = {}
 ): UseQueryResult<ListPreferencesResponse> {
@@ -151,6 +193,12 @@ export function usePreferences(
     });
 }
 
+/**
+ * Returns a mutation hook to update a notification preference for the current recipient.
+ *
+ * @param options - Optional mutation options.
+ * @returns Mutation hook.
+ */
 export function useUpdatePreference(options: MutationOptions = {}) {
     const bodhveda = useBodhveda();
     const recipientID = useRecipientID();
@@ -179,6 +227,13 @@ export function useUpdatePreference(options: MutationOptions = {}) {
     });
 }
 
+/**
+ * Checks a specific notification preference for the current recipient.
+ *
+ * @param target - The notification target/channel to check.
+ * @param options - Optional react-query options.
+ * @returns {UseQueryResult<CheckPreferenceResponse>} Query result.
+ */
 export function useCheckPreference(
     target: Target,
     options: QueryOptions = {}

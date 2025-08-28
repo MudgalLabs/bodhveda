@@ -1,6 +1,6 @@
 {
     "name": "@bodhveda/react",
-    "version": "0.0.3",
+    "version": "0.0.4",
     "description": "React SDK for Bodhveda",
     "license": "MIT",
     "repository": {
@@ -50,6 +50,6 @@
         "typescript": "^5.9.2"
     },
     "dependencies": {
-        "bodhveda": "^0.0.3"
+        "bodhveda": "^0.0.4"
     }
 }

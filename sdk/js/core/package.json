@@ -1,7 +1,7 @@
 {
     "name": "bodhveda",
     "description": "JavaScript SDK for Bodhveda",
-    "version": "0.0.3",
+    "version": "0.0.4",
     "license": "MIT",
     "repository": {
         "type": "git",
