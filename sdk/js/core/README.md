@@ -1,6 +1,7 @@
-# bodhveda
+# JavaScript/TypeScript SDK for Bodhveda
 
-`bodhveda` is the official JavaScript/TypeScript SDK for Bodhveda.  
+Official JavaScript/TypeScript SDK for Bodhveda.
+
 It offers a simple and type-safe way to work with Bodhveda APIs in both browser and server environments.
 
 ## Index

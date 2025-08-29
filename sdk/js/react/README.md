@@ -1,8 +1,10 @@
-# @bodhveda/react
+# React SDK for Bodhveda
 
 Official React SDK for Bodhveda.
 
-It extends the core `bodhveda` SDK with React hooks making it easy to build custom notification experiences.
+It extends the core `bodhveda` SDK to provide you with hooks to make it easy to build custom notification UX with React.
+
+> This SDK uses [TanStack Query](https://tanstack.com/query/v5/docs/framework/react/overview) to manage Bodhveda API state for you - including caching and invalidation as well. You will need to add `@tanstack/react-query` and wrap your React app with `QueryClientProvider` and then put `BodhvedaProvider` inside it so that `@bodhveda/react` can use the ReactQuery's `QueryClient`.
 
 ## Installation
 
@@ -12,32 +14,44 @@ npm install @bodhveda/react @tanstack/react-query
 
 ## Usage
 
-Wrap your app with the `BodhvedaProvider`:
-
 ```tsx
+import { QueryClient, QueryClientProvider } from "@tanstack/react-query";
 import { BodhvedaProvider } from "@bodhveda/react";
 
-<BodhvedaProvider apiKey="your-api-key" recipientID="user-123">
-    <App />
-</BodhvedaProvider>;
-```
+const queryClient = new QueryClient();
 
-Or provide an existing Bodhveda client:
+<QueryClientProvider client={queryClient}>
+    <BodhvedaProvider apiKey="your-api-key" recipientID="user-123">
+        <NotificationInbox />
+    </BodhvedaProvider>
+</QueryClientProvider>;
 
-```tsx
-import { Bodhveda } from "bodhveda";
-import { BodhvedaProvider } from "@bodhveda/react";
+// src/components/NotificationInbox.tsx
+import { Notification } from "./Notification";
+import { useNotifications } from "@bodhveda/react";
 
-const client = new Bodhveda("your-api-key");
+function NotificationInbox() {
+    // Fetch recipient's notifications.
+    const { data } = useNotifications();
 
-<BodhvedaProvider bodhveda={client} recipientID="user-123">
-    <App />
-</BodhvedaProvider>;
+    // ...
+    // Handle loading and error states.
+    // ...
+
+    // Render the notifications however you want.
+    return (
+        <ul>
+            {data.notifications.map((notification) => (
+                <li key={notification.id}>
+                    <Notification notification={notification} />
+                </li>
+            ))}
+        </ul>
+    );
+}
 ```
 
 ## Hooks
-
-All hooks must be used within a `BodhvedaProvider`.
 
 ### `useBodhveda()`
 
