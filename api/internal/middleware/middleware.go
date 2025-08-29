@@ -38,7 +38,7 @@ func AuthMiddleware(next http.Handler) http.Handler {
 		if err != nil {
 			if errors.Is(err, http.ErrNoCookie) {
 				l.Warn("no session found")
-				httpx.UnauthorizedErrorResponse(w, r, errorMsg, errors.New("no session found"))
+				httpx.UnauthorizedResponse(w, r, errorMsg, errors.New("no session found"))
 				return
 			}
 		}
@@ -47,7 +47,7 @@ func AuthMiddleware(next http.Handler) http.Handler {
 
 		if userID == 0 {
 			l.Warnw("no user ID found in the session")
-			httpx.UnauthorizedErrorResponse(w, r, errorMsg, errors.New("no user ID found in session"))
+			httpx.UnauthorizedResponse(w, r, errorMsg, errors.New("no user ID found in session"))
 			return
 		}
 
@@ -180,19 +180,19 @@ func APIKeyBasedAuthMiddleware(next http.Handler) http.Handler {
 		authHeader := r.Header.Get("Authorization")
 		if authHeader == "" {
 			http.Error(w, "missing Authorization header", http.StatusUnauthorized)
-			httpx.UnauthorizedErrorResponse(w, r, "Missing Authorization header", errors.New("Missing Authorization header"))
+			httpx.UnauthorizedResponse(w, r, "Missing Authorization header", errors.New("Missing Authorization header"))
 			return
 		}
 
 		parts := strings.Fields(authHeader)
 		if len(parts) != 2 || parts[0] != "Bearer" {
-			httpx.UnauthorizedErrorResponse(w, r, "Invalid Authorization header format", errors.New("Invalid Authorization header format"))
+			httpx.UnauthorizedResponse(w, r, "Invalid Authorization header format", errors.New("Invalid Authorization header format"))
 			return
 		}
 
 		tokenPlain := parts[1]
 		if tokenPlain == "" {
-			httpx.UnauthorizedErrorResponse(w, r, "Missing API Key in Authorization header", errors.New("Missing API Key in Authorization header"))
+			httpx.UnauthorizedResponse(w, r, "Missing API Key in Authorization header", errors.New("Missing API Key in Authorization header"))
 			return
 		}
 
@@ -200,7 +200,7 @@ func APIKeyBasedAuthMiddleware(next http.Handler) http.Handler {
 
 		apiKey, err := app.APP.Repository.APIKey.GetByTokenHash(ctx, tokenHash)
 		if err != nil {
-			httpx.UnauthorizedErrorResponse(w, r, "Invalid API Key", errors.New("Invalid API Key"))
+			httpx.UnauthorizedResponse(w, r, "Invalid API Key", errors.New("Invalid API Key"))
 			return
 		}
 
@@ -242,7 +242,7 @@ func VerifyAPIKeyHasFullScope(next http.Handler) http.Handler {
 		apiKey := GetAPIKeyFromContext(ctx)
 
 		if apiKey.Scope != enum.APIKeyScopeFull {
-			httpx.UnauthorizedErrorResponse(w, r, "API key does not have sufficient permissions.", errors.New("API key does not have sufficient permissions."))
+			httpx.ForbiddenResponse(w, r, "API key does not have sufficient permissions.", errors.New("API key does not have sufficient permissions."))
 			return
 		}
 
@@ -256,7 +256,7 @@ func VerifyRecipientExists(next http.Handler) http.Handler {
 
 		apiKey := GetAPIKeyFromContext(ctx)
 		if apiKey == nil {
-			httpx.UnauthorizedErrorResponse(w, r, "API key required", errors.New("API key required"))
+			httpx.UnauthorizedResponse(w, r, "API key required", errors.New("API key required"))
 			return
 		}
 
