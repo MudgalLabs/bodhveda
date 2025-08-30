@@ -171,6 +171,10 @@ export interface ListNotificationsRequest {
  */
 export interface ListNotificationsResponse {
     notifications: Notification[];
+    cursor: {
+        before: string | null;
+        after: string | null;
+    };
 }
 
 /**
