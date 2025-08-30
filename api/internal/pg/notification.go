@@ -121,16 +121,16 @@ func (r *NotificationRepo) ListForRecipient(ctx context.Context, projectID int, 
 	b.AddCompareFilter("project_id", dbx.OperatorEQ, projectID)
 	b.AddCompareFilter("recipient_external_id", dbx.OperatorEQ, recipientExtID)
 
-	if cursor.Before != nil && *cursor.Before != "" && cursor.After == nil {
+	if cursor.BeforeIsValid() && !cursor.AfterIsValid() {
 		b.AddCompareFilter("id", dbx.OperatorLT, cursor.Before)
 	}
 
-	if cursor.After != nil && *cursor.After != "" && cursor.Before == nil {
+	if cursor.AfterIsValid() && !cursor.BeforeIsValid() {
 		b.AddCompareFilter("id", dbx.OperatorGT, cursor.After)
 	}
 
 	b.AddSorting("id", "DESC")
-	b.AddPagination(*cursor.Limit, 0)
+	b.AddPagination(*cursor.Limit+1, 0) // Overfetch by 1 to determine if there are more notifications.
 
 	sql, args := b.Build()
 
@@ -157,12 +157,29 @@ func (r *NotificationRepo) ListForRecipient(ctx context.Context, projectID int, 
 		return nil, nil, fmt.Errorf("rows error: %w", err)
 	}
 
+	hasMore := false
+	if len(notifications) > *cursor.Limit {
+		hasMore = true
+		// Trim the overfetched notification.
+		notifications = notifications[:*cursor.Limit]
+	}
+
 	if len(notifications) > 0 {
+		firstNotification := notifications[0]
 		lastNotification := notifications[len(notifications)-1]
+
 		before := fmt.Sprintf("%d", lastNotification.ID)
-		after := fmt.Sprintf("%d", notifications[0].ID)
-		returnedCursor.Before = &before
-		returnedCursor.After = &after
+		after := fmt.Sprintf("%d", firstNotification.ID)
+
+		if hasMore {
+			returnedCursor.Before = &before
+		}
+
+		// We are not at the start of  list if we have a 'before' cursor
+		// that means there are newer items than the current first item.
+		if cursor.BeforeIsValid() && !cursor.AfterIsValid() {
+			returnedCursor.After = &after
+		}
 	}
 
 	return notifications, returnedCursor, nil

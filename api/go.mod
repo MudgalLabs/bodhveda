@@ -10,7 +10,7 @@ require (
 	github.com/hibiken/asynq v0.25.1
 	github.com/jackc/pgx/v5 v5.7.5
 	github.com/joho/godotenv v1.5.1
-	github.com/mudgallabs/tantra v0.2.0
+	github.com/mudgallabs/tantra v0.2.1
 	go.uber.org/zap v1.27.0
 	golang.org/x/crypto v0.37.0
 )

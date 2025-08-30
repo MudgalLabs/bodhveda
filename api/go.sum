@@ -64,6 +64,8 @@ github.com/mudgallabs/tantra v0.1.0 h1:O2x08jXeiv3dSG7VMJQN4q/S9ax1QzdPBlBe0NZVm
 github.com/mudgallabs/tantra v0.1.0/go.mod h1:+4Ke0p51FedK6yvBl0q3QJaOV3N5/KQSQL+1rTjYR30=
 github.com/mudgallabs/tantra v0.2.0 h1:TgcV9kNvsh/tQxlHhvk3eHkGgLHGQbN706wKKKMBnNU=
 github.com/mudgallabs/tantra v0.2.0/go.mod h1:+4Ke0p51FedK6yvBl0q3QJaOV3N5/KQSQL+1rTjYR30=
+github.com/mudgallabs/tantra v0.2.1 h1:nQYIkT2pzBsX1+7aOraZnrCZKuAz8M8UEfoFaikkwsU=
+github.com/mudgallabs/tantra v0.2.1/go.mod h1:+4Ke0p51FedK6yvBl0q3QJaOV3N5/KQSQL+1rTjYR30=
 github.com/pmezard/go-difflib v1.0.0 h1:4DBwDE0NGyQoBHbLQYPwSUPoCMWR5BEzIk/f1lZbAQM=
 github.com/pmezard/go-difflib v1.0.0/go.mod h1:iKH77koFhYxTK1pcRnkKkqfTogsbg7gZNVY4sRDYZ/4=
 github.com/redis/go-redis/v9 v9.12.0 h1:XlVPGlflh4nxfhsNXPA8Qp6EmEfTo0rp8oaBzPipXnU=
