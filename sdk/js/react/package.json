@@ -50,6 +50,6 @@
         "typescript": "^5.9.2"
     },
     "dependencies": {
-        "bodhveda": "^0.0.4"
+        "bodhveda": "^0.0.5"
     }
 }

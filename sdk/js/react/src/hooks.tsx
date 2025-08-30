@@ -25,7 +25,7 @@ import { BodhvedaContext } from "./context";
 type QueryOptions = Omit<AnyUseQueryOptions, "queryKey">;
 type MutationOptions = AnyUseMutationOptions;
 
-const QUERY_KEYS = {
+export const QueryKeys = {
     useNotifications: ["useNotifications"],
     useNotificationsUnreadCount: ["useNotificationsUnreadCount"],
     useCheckPreference: ["useCheckPreference"],
@@ -77,7 +77,7 @@ export function useNotifications(
     const recipientID = useRecipientID();
 
     return useQuery({
-        queryKey: [QUERY_KEYS.useNotifications],
+        queryKey: [QueryKeys.useNotifications],
         queryFn: () => bodhveda.recipients.notifications.list(recipientID),
         ...options,
     });
@@ -96,7 +96,7 @@ export function useNotificationsUnreadCount(
     const recipientID = useRecipientID();
 
     return useQuery({
-        queryKey: [QUERY_KEYS.useNotificationsUnreadCount],
+        queryKey: [QueryKeys.useNotificationsUnreadCount],
         queryFn: () =>
             bodhveda.recipients.notifications.unreadCount(recipientID),
         ...options,
@@ -129,10 +129,10 @@ export function useUpdateNotificationsState(options: MutationOptions = {}) {
         },
         onSuccess: (...args) => {
             queryClient.invalidateQueries({
-                queryKey: [QUERY_KEYS.useNotifications],
+                queryKey: [QueryKeys.useNotifications],
             });
             queryClient.invalidateQueries({
-                queryKey: [QUERY_KEYS.useNotificationsUnreadCount],
+                queryKey: [QueryKeys.useNotificationsUnreadCount],
             });
             onSuccess?.(...args);
         },
@@ -163,10 +163,10 @@ export function useDeleteNotifications(options: MutationOptions = {}) {
         },
         onSuccess: (...args) => {
             queryClient.invalidateQueries({
-                queryKey: [QUERY_KEYS.useNotifications],
+                queryKey: [QueryKeys.useNotifications],
             });
             queryClient.invalidateQueries({
-                queryKey: [QUERY_KEYS.useNotificationsUnreadCount],
+                queryKey: [QueryKeys.useNotificationsUnreadCount],
             });
             onSuccess?.(...args);
         },
@@ -187,7 +187,7 @@ export function usePreferences(
     const recipientID = useRecipientID();
 
     return useQuery({
-        queryKey: [QUERY_KEYS.usePreferences],
+        queryKey: [QueryKeys.usePreferences],
         queryFn: () => bodhveda.recipients.preferences.list(recipientID),
         ...options,
     });
@@ -216,10 +216,10 @@ export function useUpdatePreference(options: MutationOptions = {}) {
         },
         onSuccess: (...args) => {
             queryClient.invalidateQueries({
-                queryKey: [QUERY_KEYS.usePreferences],
+                queryKey: [QueryKeys.usePreferences],
             });
             queryClient.invalidateQueries({
-                queryKey: [QUERY_KEYS.useCheckPreference, args[0].target],
+                queryKey: [QueryKeys.useCheckPreference, args[0].target],
             });
             onSuccess?.(...args);
         },
@@ -242,7 +242,7 @@ export function useCheckPreference(
     const recipientID = useRecipientID();
 
     return useQuery({
-        queryKey: [QUERY_KEYS.useCheckPreference, target],
+        queryKey: [QueryKeys.useCheckPreference, target],
         queryFn: () =>
             bodhveda.recipients.preferences.check(recipientID, { target }),
         ...options,
