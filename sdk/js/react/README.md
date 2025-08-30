@@ -32,21 +32,30 @@ import { useNotifications } from "@bodhveda/react";
 
 function NotificationInbox() {
     // Fetch recipient's notifications.
-    const { data } = useNotifications();
+    const { data, isLoading, isError, isFetching, fetchNextPage, hasNextPage } =
+        useNotifications();
 
     // ...
     // Handle loading and error states.
     // ...
 
-    // Render the notifications however you want.
+    // Render the notifications as per your requirements.
     return (
-        <ul>
-            {data.notifications.map((notification) => (
-                <li key={notification.id}>
-                    <Notification notification={notification} />
-                </li>
-            ))}
-        </ul>
+        <>
+            <ul>
+                {data.notifications.map((notification) => (
+                    <li key={notification.id}>
+                        <NotificationItem notification={notification} />
+                    </li>
+                ))}
+            </ul>
+
+            {hasNextPage && (
+                <Button onClick={() => fetchNextPage()} loading={isFetching}>
+                    Load more
+                </Button>
+            )}
+        </>
     );
 }
 ```
@@ -61,9 +70,9 @@ Returns the Bodhveda client instance.
 
 Returns the current recipient ID.
 
-### `useNotifications(options?)`
+### `useNotifications(req?, options?)`
 
-Fetches the list of notifications for the current recipient.
+Fetches notifications for the current recipient in a infinite scrolling manner.
 
 ### `useNotificationsUnreadCount(options?)`
 

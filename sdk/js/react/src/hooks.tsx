@@ -2,6 +2,9 @@ import { useContext } from "react";
 import {
     AnyUseMutationOptions,
     AnyUseQueryOptions,
+    useInfiniteQuery,
+    UseInfiniteQueryOptions,
+    UseInfiniteQueryResult,
     useMutation,
     useQuery,
     useQueryClient,
@@ -18,6 +21,7 @@ import {
     DeleteNotificationsRequest,
     Target,
     CheckPreferenceResponse,
+    ListNotificationsRequest,
 } from "bodhveda";
 
 import { BodhvedaContext } from "./context";
@@ -65,20 +69,48 @@ export function useRecipientID() {
 }
 
 /**
- * Fetches the list of notifications for the current recipient.
+ * Fetches the list of notifications for the current recipient with infinite scrolling support.
  *
- * @param options - Optional react-query options.
- * @returns {UseQueryResult<ListNotificationsResponse>} Query result.
+ * @param req - Optional request parameters for listing notifications.
+ * @param options - Optional react-query infinite query options.
+ * @returns {UseInfiniteQueryResult<ListNotificationsResponse, Error>} Infinite query result containing notifications and pagination info.
  */
 export function useNotifications(
-    options: QueryOptions = {}
-): UseQueryResult<ListNotificationsResponse> {
+    req: ListNotificationsRequest = {},
+    options: Partial<
+        UseInfiniteQueryOptions<
+            ListNotificationsResponse,
+            Error,
+            ListNotificationsResponse,
+            [typeof QueryKeys.useNotifications]
+        >
+    > = {}
+): UseInfiniteQueryResult<ListNotificationsResponse, Error> {
     const bodhveda = useBodhveda();
     const recipientID = useRecipientID();
+    const { limit = 10 } = req;
 
-    return useQuery({
+    return useInfiniteQuery<
+        ListNotificationsResponse,
+        Error,
+        ListNotificationsResponse,
+        [typeof QueryKeys.useNotifications]
+    >({
         queryKey: [QueryKeys.useNotifications],
-        queryFn: () => bodhveda.recipients.notifications.list(recipientID),
+        queryFn: ({ pageParam }) => {
+            return bodhveda.recipients.notifications.list(recipientID, {
+                limit,
+                before: pageParam ? String(pageParam) : undefined,
+            });
+        },
+        initialPageParam: null,
+        getNextPageParam: (lastPage) => lastPage.cursor.before,
+        select: (data) => {
+            return {
+                ...data.pages[data.pages.length - 1],
+                notifications: data.pages.flatMap((page) => page.notifications),
+            };
+        },
         ...options,
     });
 }
