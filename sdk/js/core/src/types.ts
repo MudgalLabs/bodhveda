@@ -10,7 +10,7 @@ export interface Target {
 /**
  * Represents a preference target, extending the Target interface.
  */
-export interface PreferenceTarget extends Target {
+export interface TargetWithLabel extends Target {
     label?: string;
 }
 
@@ -26,7 +26,7 @@ export interface PreferenceState {
  * Represents a preference with a target and state.
  */
 export interface Preference {
-    target: PreferenceTarget;
+    target: TargetWithLabel;
     state: PreferenceState;
 }
 
@@ -39,7 +39,7 @@ export interface NotificationState {
 }
 
 /**
- * Represents a notification with various properties.
+ * Represents a notification.
  */
 export interface Notification {
     id: number;
@@ -53,7 +53,7 @@ export interface Notification {
 }
 
 /**
- * Represents a broadcast with various properties.
+ * Represents a broadcast.
  */
 export interface Broadcast {
     id: number;
@@ -64,7 +64,7 @@ export interface Broadcast {
 }
 
 /**
- * Represents a recipient with various properties.
+ * Represents a recipient.
  */
 export interface Recipient {
     id: string;
@@ -161,9 +161,9 @@ export interface SendNotificationResponse {
  * Represents a request to list notifications.
  */
 export interface ListNotificationsRequest {
+    limit?: number;
     before?: string;
     after?: string;
-    limit?: number;
 }
 
 /**

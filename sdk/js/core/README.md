@@ -2,7 +2,7 @@
 
 Official JavaScript/TypeScript SDK for Bodhveda.
 
-It offers a simple and type-safe way to work with Bodhveda APIs in both browser and server environments.
+It offers a simpler way to work with Bodhveda APIs in both browser and server environments.
 
 ## Index
 
@@ -27,19 +27,14 @@ import { Bodhveda } from "bodhveda";
 
 const bodhveda = new Bodhveda("YOUR_API_KEY");
 
-// Create a recipient
-await bodhveda.recipients.create({
-    id: "user-123",
-    name: "Elon Zuckerberg",
-});
-
-// Send a notification
+// Send a notification to a recipient.
+// Note: Bodhveda will create the recipient if it does not already exist.
 await bodhveda.notifications.send({
     recipient_id: "user-123",
     payload: { message: "Hello, world!" },
 });
 
-// List notifications for a recipient
+// List all notifications for a recipient.
 const notifications = await bodhveda.recipients.notifications.list("user-123");
 ```
 

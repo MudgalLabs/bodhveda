@@ -6,21 +6,35 @@ export const ROUTES = {
     recipients: {
         create: "/recipients",
         createBatch: "/recipients/batch",
-        get: (recipientID: string) => `/recipients/${recipientID}`,
-        update: (recipientID: string) => `/recipients/${recipientID}`,
-        delete: (recipientID: string) => `/recipients/${recipientID}`,
+        get: (recipientID: string) =>
+            `/recipients/${encodeURIComponent(recipientID)}`,
+        update: (recipientID: string) =>
+            `/recipients/${encodeURIComponent(recipientID)}`,
+        delete: (recipientID: string) =>
+            `/recipients/${encodeURIComponent(recipientID)}`,
 
         notifications: {
-            list: (recipientID: string) => `/recipients/${recipientID}/notifications`,
-            unreadCount: (recipientID: string) => `/recipients/${recipientID}/notifications/unread-count`,
-            udpateState: (recipientID: string) => `/recipients/${recipientID}/notifications`,
-            delete: (recipientID: string) => `/recipients/${recipientID}/notifications`,
+            list: (recipientID: string) =>
+                `/recipients/${encodeURIComponent(recipientID)}/notifications`,
+            unreadCount: (recipientID: string) =>
+                `/recipients/${encodeURIComponent(
+                    recipientID
+                )}/notifications/unread-count`,
+            udpateState: (recipientID: string) =>
+                `/recipients/${encodeURIComponent(recipientID)}/notifications`,
+            delete: (recipientID: string) =>
+                `/recipients/${encodeURIComponent(recipientID)}/notifications`,
         },
 
         preferences: {
-            list: (recipientID: string) => `/recipients/${recipientID}/preferences`,
-            set: (recipientID: string) => `/recipients/${recipientID}/preferences`,
-            check: (recipientID: string) => `/recipients/${recipientID}/preferences/check`,
+            list: (recipientID: string) =>
+                `/recipients/${encodeURIComponent(recipientID)}/preferences`,
+            set: (recipientID: string) =>
+                `/recipients/${encodeURIComponent(recipientID)}/preferences`,
+            check: (recipientID: string) =>
+                `/recipients/${encodeURIComponent(
+                    recipientID
+                )}/preferences/check`,
         },
     },
 };
