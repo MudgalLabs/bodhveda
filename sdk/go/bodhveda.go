@@ -2,6 +2,7 @@
 package bodhveda
 
 import (
+	"context"
 	"fmt"
 	"net/url"
 
@@ -50,7 +51,7 @@ func NewClient(apiKey string, opts *ClientOptions) *Client {
 // NotificationsService defines notification-related API methods.
 type NotificationsService interface {
 	// Send sends a notification.
-	Send(req *SendNotificationRequest) (*SendNotificationResponse, error)
+	Send(ctx context.Context, req *SendNotificationRequest) (*SendNotificationResponse, error)
 }
 
 // Notifications implements NotificationsService.
@@ -58,28 +59,28 @@ type Notifications struct {
 	client *httpx.Client
 }
 
-func (notifications *Notifications) Send(req *SendNotificationRequest) (*SendNotificationResponse, error) {
+func (notifications *Notifications) Send(ctx context.Context, req *SendNotificationRequest) (*SendNotificationResponse, error) {
 	var resp SendNotificationResponse
-	err := notifications.client.Do("POST", routes.NotificationsSend, req, &resp)
+	err := notifications.client.Do(ctx, "POST", routes.NotificationsSend, req, &resp)
 	return &resp, err
 }
 
 // RecipientService defines recipient-related API methods.
 type RecipientService interface {
 	// Create creates a new recipient.
-	Create(req *CreateRecipientRequest) (*CreateRecipientResponse, error)
+	Create(ctx context.Context, req *CreateRecipientRequest) (*CreateRecipientResponse, error)
 
 	// CreateBatch creates multiple recipients in a batch.
-	CreateBatch(req *CreateRecipientsBatchRequest) (*CreateRecipientsBatchResponse, error)
+	CreateBatch(ctx context.Context, req *CreateRecipientsBatchRequest) (*CreateRecipientsBatchResponse, error)
 
 	// Get retrieves a recipient by ID.
-	Get(recipientID string) (*GetRecipientResponse, error)
+	Get(ctx context.Context, recipientID string) (*GetRecipientResponse, error)
 
 	// Update updates a recipient by ID.
-	Update(recipientID string, req *UpdateRecipientRequest) (*UpdateRecipientResponse, error)
+	Update(ctx context.Context, recipientID string, req *UpdateRecipientRequest) (*UpdateRecipientResponse, error)
 
 	// Delete deletes a recipient by ID.
-	Delete(recipientID string) error
+	Delete(ctx context.Context, recipientID string) error
 }
 
 // Recipients implements RecipientService.
@@ -90,47 +91,47 @@ type Recipients struct {
 	Preferences   *RecipientsPreferences
 }
 
-func (recipients *Recipients) Create(req CreateRecipientRequest) (*CreateRecipientResponse, error) {
+func (recipients *Recipients) Create(ctx context.Context, req *CreateRecipientRequest) (*CreateRecipientResponse, error) {
 	var resp CreateRecipientResponse
-	err := recipients.client.Do("POST", routes.RecipientsCreate, req, &resp)
+	err := recipients.client.Do(ctx, "POST", routes.RecipientsCreate, req, &resp)
 	return &resp, err
 }
 
-func (recipients *Recipients) CreateBatch(req *CreateRecipientsBatchRequest) (*CreateRecipientsBatchResponse, error) {
+func (recipients *Recipients) CreateBatch(ctx context.Context, req *CreateRecipientsBatchRequest) (*CreateRecipientsBatchResponse, error) {
 	var resp CreateRecipientsBatchResponse
-	err := recipients.client.Do("POST", routes.RecipientsCreateBatch, req, &resp)
+	err := recipients.client.Do(ctx, "POST", routes.RecipientsCreateBatch, req, &resp)
 	return &resp, err
 }
 
-func (recipients *Recipients) Get(recipientID string) (*GetRecipientResponse, error) {
+func (recipients *Recipients) Get(ctx context.Context, recipientID string) (*GetRecipientResponse, error) {
 	var resp GetRecipientResponse
-	err := recipients.client.Do("GET", routes.RecipeientsGet(recipientID), nil, &resp)
+	err := recipients.client.Do(ctx, "GET", routes.RecipeientsGet(recipientID), nil, &resp)
 	return &resp, err
 }
 
-func (recipients *Recipients) Update(recipientID string, req *UpdateRecipientRequest) (*UpdateRecipientResponse, error) {
+func (recipients *Recipients) Update(ctx context.Context, recipientID string, req *UpdateRecipientRequest) (*UpdateRecipientResponse, error) {
 	var resp UpdateRecipientResponse
-	err := recipients.client.Do("PATCH", routes.RecipeientsUpdate(recipientID), req, &resp)
+	err := recipients.client.Do(ctx, "PATCH", routes.RecipeientsUpdate(recipientID), req, &resp)
 	return &resp, err
 }
 
-func (recipients *Recipients) Delete(recipientID string) error {
-	return recipients.client.Do("DELETE", routes.RecipeientsDelete(recipientID), nil, nil)
+func (recipients *Recipients) Delete(ctx context.Context, recipientID string) error {
+	return recipients.client.Do(ctx, "DELETE", routes.RecipeientsDelete(recipientID), nil, nil)
 }
 
 // ReciepientsNotificationsService provides notification methods for a recipient.
 type ReciepientsNotificationsService interface {
 	// List lists notifications for a recipient.
-	List(recipientID string, req *ListNotificationsRequest) (*ListNotificationsResponse, error)
+	List(ctx context.Context, recipientID string, req *ListNotificationsRequest) (*ListNotificationsResponse, error)
 
 	// UnreadCount gets the count of unread notifications for a recipient.
-	UnreadCount(recipientID string) (*UnreadCountResponse, error)
+	UnreadCount(ctx context.Context, recipientID string) (*UnreadCountResponse, error)
 
 	// UpdateState updates the state of one or more notifications for a recipient.
-	UpdateState(recipientID string, req *UpdateNotificationsStateRequest) (*UpdateNotificationsStateResponse, error)
+	UpdateState(ctx context.Context, recipientID string, req *UpdateNotificationsStateRequest) (*UpdateNotificationsStateResponse, error)
 
 	// Delete deletes one or more notifications for a recipient.
-	Delete(recipientID string, req *DeleteNotificationsRequest) (*DeleteNotificationsResponse, error)
+	Delete(ctx context.Context, recipientID string, req *DeleteNotificationsRequest) (*DeleteNotificationsResponse, error)
 }
 
 // RecipientsNotifications implements ReciepientsNotificationsService.
@@ -138,12 +139,12 @@ type RecipientsNotifications struct {
 	client *httpx.Client
 }
 
-func (recipientsNotifications *RecipientsNotifications) List(recipientID string, req *ListNotificationsRequest) (*ListNotificationsResponse, error) {
+func (recipientsNotifications *RecipientsNotifications) List(ctx context.Context, recipientID string, req *ListNotificationsRequest) (*ListNotificationsResponse, error) {
 	params := url.Values{}
 
 	if req != nil {
 		if req.Limit != nil && *req.Limit > 0 {
-			params.Set("limit", fmt.Sprintf("%d", req.Limit))
+			params.Set("limit", fmt.Sprintf("%d", *req.Limit))
 		}
 
 		if req.Before != nil && *req.Before != "" {
@@ -161,38 +162,38 @@ func (recipientsNotifications *RecipientsNotifications) List(recipientID string,
 	}
 
 	var resp ListNotificationsResponse
-	err := recipientsNotifications.client.Do("GET", path, nil, &resp)
+	err := recipientsNotifications.client.Do(ctx, "GET", path, nil, &resp)
 	return &resp, err
 }
 
-func (recipientsNotifications *RecipientsNotifications) UnreadCount(recipientID string) (*UnreadCountResponse, error) {
+func (recipientsNotifications *RecipientsNotifications) UnreadCount(ctx context.Context, recipientID string) (*UnreadCountResponse, error) {
 	var resp UnreadCountResponse
-	err := recipientsNotifications.client.Do("GET", routes.RecipientsNotificationUnreadCount(recipientID), nil, &resp)
+	err := recipientsNotifications.client.Do(ctx, "GET", routes.RecipientsNotificationUnreadCount(recipientID), nil, &resp)
 	return &resp, err
 }
 
-func (recipientsNotifications *RecipientsNotifications) UpdateState(recipientID string, req *UpdateNotificationsStateRequest) (*UpdateNotificationsStateResponse, error) {
+func (recipientsNotifications *RecipientsNotifications) UpdateState(ctx context.Context, recipientID string, req *UpdateNotificationsStateRequest) (*UpdateNotificationsStateResponse, error) {
 	var resp UpdateNotificationsStateResponse
-	err := recipientsNotifications.client.Do("PATCH", routes.RecipientsNotificationsUpdateState(recipientID), req, &resp)
+	err := recipientsNotifications.client.Do(ctx, "PATCH", routes.RecipientsNotificationsUpdateState(recipientID), req, &resp)
 	return &resp, err
 }
 
-func (recipientsNotifications *RecipientsNotifications) Delete(recipientID string, req *DeleteNotificationsRequest) (*DeleteNotificationsResponse, error) {
+func (recipientsNotifications *RecipientsNotifications) Delete(ctx context.Context, recipientID string, req *DeleteNotificationsRequest) (*DeleteNotificationsResponse, error) {
 	var resp DeleteNotificationsResponse
-	err := recipientsNotifications.client.Do("DELETE", routes.RecipientsNotificationsDelete(recipientID), req, &resp)
+	err := recipientsNotifications.client.Do(ctx, "DELETE", routes.RecipientsNotificationsDelete(recipientID), req, &resp)
 	return &resp, err
 }
 
 // RecipientPreferencesService provides preference methods for a recipient.
 type RecipientPreferencesService interface {
 	// List lists preferences for a recipient.
-	List(recipientID string) (*ListPreferencesResponse, error)
+	List(ctx context.Context, recipientID string) (*ListPreferencesResponse, error)
 
 	// Set sets a preference for a recipient.
-	Set(recipientID string, req *SetPreferenceRequest) (*SetPreferenceResponse, error)
+	Set(ctx context.Context, recipientID string, req *SetPreferenceRequest) (*SetPreferenceResponse, error)
 
 	// Check checks a preference for a recipient.
-	Check(recipientID string, req *CheckPreferenceRequest) (*CheckPreferenceResponse, error)
+	Check(ctx context.Context, recipientID string, req *CheckPreferenceRequest) (*CheckPreferenceResponse, error)
 }
 
 // RecipientsPreferences implements RecipientPreferencesService.
@@ -200,19 +201,19 @@ type RecipientsPreferences struct {
 	client *httpx.Client
 }
 
-func (recipientsPreferences *RecipientsPreferences) List(recipientID string) (*ListPreferencesResponse, error) {
+func (recipientsPreferences *RecipientsPreferences) List(ctx context.Context, recipientID string) (*ListPreferencesResponse, error) {
 	var resp ListPreferencesResponse
-	err := recipientsPreferences.client.Do("GET", routes.RecipientsPreferencesList(recipientID), nil, &resp)
+	err := recipientsPreferences.client.Do(ctx, "GET", routes.RecipientsPreferencesList(recipientID), nil, &resp)
 	return &resp, err
 }
 
-func (recipientsPreferences *RecipientsPreferences) Set(recipientID string, req *SetPreferenceRequest) (*SetPreferenceResponse, error) {
+func (recipientsPreferences *RecipientsPreferences) Set(ctx context.Context, recipientID string, req *SetPreferenceRequest) (*SetPreferenceResponse, error) {
 	var resp SetPreferenceResponse
-	err := recipientsPreferences.client.Do("PATCH", routes.RecipientsPreferencesSet(recipientID), req, &resp)
+	err := recipientsPreferences.client.Do(ctx, "PATCH", routes.RecipientsPreferencesSet(recipientID), req, &resp)
 	return &resp, err
 }
 
-func (recipientsPreferences *RecipientsPreferences) Check(recipientID string, req *CheckPreferenceRequest) (*CheckPreferenceResponse, error) {
+func (recipientsPreferences *RecipientsPreferences) Check(ctx context.Context, recipientID string, req *CheckPreferenceRequest) (*CheckPreferenceResponse, error) {
 	params := url.Values{}
 
 	if req != nil {
@@ -227,6 +228,6 @@ func (recipientsPreferences *RecipientsPreferences) Check(recipientID string, re
 	}
 
 	var resp CheckPreferenceResponse
-	err := recipientsPreferences.client.Do("GET", path, nil, &resp)
+	err := recipientsPreferences.client.Do(ctx, "GET", path, nil, &resp)
 	return &resp, err
 }

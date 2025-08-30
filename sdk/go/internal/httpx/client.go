@@ -3,6 +3,7 @@ package httpx
 
 import (
 	"bytes"
+	"context"
 	"encoding/json"
 	"errors"
 	"io"
@@ -24,7 +25,7 @@ func NewClient(apiKey, baseURL string) *Client {
 	}
 }
 
-func (client *Client) Do(method, path string, body any, out any) error {
+func (client *Client) Do(ctx context.Context, method, path string, body any, out any) error {
 	var bodyReader io.Reader
 
 	if body != nil {
@@ -35,7 +36,7 @@ func (client *Client) Do(method, path string, body any, out any) error {
 		bodyReader = bytes.NewReader(data)
 	}
 
-	req, err := http.NewRequest(method, client.baseURL+path, bodyReader)
+	req, err := http.NewRequestWithContext(ctx, method, client.baseURL+path, bodyReader)
 	if err != nil {
 		return err
 	}

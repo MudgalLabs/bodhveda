@@ -24,24 +24,26 @@ go get github.com/MudgalLabs/bodhveda/sdk/go
 
 ```go
 import (
+    "context"
     "encoding/json"
 
     bodhveda "github.com/MudgalLabs/bodhveda/sdk/go"
 )
 
+ctx := context.Background()
 client := bodhveda.NewClient("YOUR_API_KEY", nil)
 
 // Send a notification to a recipient.
 // Note: Bodhveda will create the recipient if it does not already exist.
 recipientID := "user-123"
 payload, _ := json.Marshal(map[string]any{"message": "Hello, world!"})
-resp, _ := client.Notifications.Send(&bodhveda.SendNotificationRequest{
+resp, _ := client.Notifications.Send(ctx, &bodhveda.SendNotificationRequest{
     RecipientID: &recipientID,
     Payload:     payload,
 })
 
 // List all notifications for a recipient.
-resp, _ := client.Recipients.Notifications.List("user-123", nil)
+resp, _ := client.Recipients.Notifications.List(ctx, "user-123", nil)
 // resp.Notifications
 ```
 
@@ -56,7 +58,7 @@ import "encoding/json"
 
 recipientID := "user-123"
 payload, _ := json.Marshal(map[string]any{"message": "Hello, world!"})
-resp, _ := client.Notifications.Send(&bodhveda.SendNotificationRequest{
+resp, _ := client.Notifications.Send(ctx, &bodhveda.SendNotificationRequest{
     RecipientID: &recipientID,
     Payload:     payload,
 })
@@ -73,7 +75,7 @@ Create a new recipient.
 
 ```go
 name := "Alice"
-resp, _ := client.Recipients.Create(bodhveda.CreateRecipientRequest{
+resp, _ := client.Recipients.Create(ctx, &bodhveda.CreateRecipientRequest{
     ID: "user-123",
     Name: &name,
 })
@@ -87,7 +89,7 @@ Create multiple recipients in a single request.
 ```go
 name1 := "Alice"
 name2 := "Bob"
-resp, _ := client.Recipients.CreateBatch(&bodhveda.CreateRecipientsBatchRequest{
+resp, _ := client.Recipients.CreateBatch(ctx, &bodhveda.CreateRecipientsBatchRequest{
     Recipients: []bodhveda.CreateRecipientRequest{
         {ID: "user-1", Name: &name1},
         {ID: "user-2", Name: &name2},
@@ -101,7 +103,7 @@ resp, _ := client.Recipients.CreateBatch(&bodhveda.CreateRecipientsBatchRequest{
 Retrieve details of a recipient by ID.
 
 ```go
-resp, _ := client.Recipients.Get("user-123")
+resp, _ := client.Recipients.Get(ctx, "user-123")
 // resp.Recipient
 ```
 
@@ -111,7 +113,7 @@ Update recipient details.
 
 ```go
 updatedName := "Alice Updated"
-resp, _ := client.Recipients.Update("user-123", &bodhveda.UpdateRecipientRequest{
+resp, _ := client.Recipients.Update(ctx, "user-123", &bodhveda.UpdateRecipientRequest{
     Name: &updatedName,
 })
 // resp.Recipient
@@ -122,7 +124,7 @@ resp, _ := client.Recipients.Update("user-123", &bodhveda.UpdateRecipientRequest
 Delete a recipient by ID.
 
 ```go
-err := client.Recipients.Delete("user-123")
+err := client.Recipients.Delete(ctx, "user-123")
 ```
 
 ---
@@ -134,7 +136,7 @@ err := client.Recipients.Delete("user-123")
 List notifications for a recipient.
 
 ```go
-resp, _ := client.Recipients.Notifications.List("user-123", nil)
+resp, _ := client.Recipients.Notifications.List(ctx, "user-123", nil)
 // resp.Notifications
 ```
 
@@ -143,7 +145,7 @@ resp, _ := client.Recipients.Notifications.List("user-123", nil)
 Get the count of unread notifications for a recipient.
 
 ```go
-resp, _ := client.Recipients.Notifications.UnreadCount("user-123")
+resp, _ := client.Recipients.Notifications.UnreadCount(ctx, "user-123")
 // resp.UnreadCount
 ```
 
@@ -153,7 +155,7 @@ Update the state (e.g., mark as read) of notifications for a recipient.
 
 ```go
 read := true
-resp, _ := client.Recipients.Notifications.UpdateState("user-123", &bodhveda.UpdateNotificationsStateRequest{
+resp, _ := client.Recipients.Notifications.UpdateState(ctx, "user-123", &bodhveda.UpdateNotificationsStateRequest{
     IDs: []int{1, 2, 3},
     State: bodhveda.NotificationStateOptional{
         Read: &read,
@@ -167,7 +169,7 @@ resp, _ := client.Recipients.Notifications.UpdateState("user-123", &bodhveda.Upd
 Delete notifications for a recipient.
 
 ```go
-resp, _ := client.Recipients.Notifications.Delete("user-123", &bodhveda.DeleteNotificationsRequest{
+resp, _ := client.Recipients.Notifications.Delete(ctx, "user-123", &bodhveda.DeleteNotificationsRequest{
     IDs: []int{1, 2, 3},
 })
 // resp.DeletedCount
@@ -182,7 +184,7 @@ resp, _ := client.Recipients.Notifications.Delete("user-123", &bodhveda.DeleteNo
 List all preferences for a recipient.
 
 ```go
-resp, _ := client.Recipients.Preferences.List("user-123")
+resp, _ := client.Recipients.Preferences.List(ctx, "user-123")
 // resp.Preferences
 ```
 
@@ -191,7 +193,7 @@ resp, _ := client.Recipients.Preferences.List("user-123")
 Set a notification preference for a recipient.
 
 ```go
-resp, _ := client.Recipients.Preferences.Set("user-123", &bodhveda.SetPreferenceRequest{
+resp, _ := client.Recipients.Preferences.Set(ctx, "user-123", &bodhveda.SetPreferenceRequest{
     Target: bodhveda.Target{
         Channel: "email",
         Topic:   "news",
@@ -207,7 +209,7 @@ resp, _ := client.Recipients.Preferences.Set("user-123", &bodhveda.SetPreference
 Check the state of a specific preference for a recipient.
 
 ```go
-resp, _ := client.Recipients.Preferences.Check("user-123", &bodhveda.CheckPreferenceRequest{
+resp, _ := client.Recipients.Preferences.Check(ctx, "user-123", &bodhveda.CheckPreferenceRequest{
     Target: bodhveda.Target{
         Channel: "email",
         Topic:   "news",
