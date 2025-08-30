@@ -1,5 +1,5 @@
-// Package client provides a simple HTTP client for interacting with the Bodhveda API.
-package client
+// Package httpx provides a simple HTTP client for interacting with the Bodhveda API.
+package httpx
 
 import (
 	"bytes"

@@ -5,13 +5,13 @@ import (
 	"fmt"
 	"net/url"
 
-	"github.com/MudgalLabs/bodhveda/sdk/go/internal/client"
+	"github.com/MudgalLabs/bodhveda/sdk/go/internal/httpx"
 	"github.com/MudgalLabs/bodhveda/sdk/go/internal/routes"
 )
 
-// bodhveda is the main client for interacting with the bodhveda API.
-type bodhveda struct {
-	client *client.Client
+// Client is used for interacting with the Bodhveda API.
+type Client struct {
+	client *httpx.Client
 
 	Notifications *Notifications
 	Recipients    *Recipients
@@ -23,7 +23,7 @@ type ClientOptions struct {
 }
 
 // NewClient creates a new Bodhveda client.
-func NewClient(apiKey string, opts *ClientOptions) *bodhveda {
+func NewClient(apiKey string, opts *ClientOptions) *Client {
 	baseURL := "https://api.bodhveda.com"
 
 	if opts != nil {
@@ -32,9 +32,9 @@ func NewClient(apiKey string, opts *ClientOptions) *bodhveda {
 		}
 	}
 
-	client := client.NewClient(apiKey, baseURL)
+	client := httpx.NewClient(apiKey, baseURL)
 
-	bodhveda := &bodhveda{
+	bodhveda := &Client{
 		client:        client,
 		Notifications: &Notifications{client},
 		Recipients: &Recipients{
@@ -55,7 +55,7 @@ type NotificationsService interface {
 
 // Notifications implements NotificationsService.
 type Notifications struct {
-	client *client.Client
+	client *httpx.Client
 }
 
 func (notifications *Notifications) Send(req *SendNotificationRequest) (*SendNotificationResponse, error) {
@@ -84,7 +84,7 @@ type RecipientService interface {
 
 // Recipients implements RecipientService.
 type Recipients struct {
-	client *client.Client
+	client *httpx.Client
 
 	Notifications *RecipientsNotifications
 	Preferences   *RecipientsPreferences
@@ -135,7 +135,7 @@ type ReciepientsNotificationsService interface {
 
 // RecipientsNotifications implements ReciepientsNotificationsService.
 type RecipientsNotifications struct {
-	client *client.Client
+	client *httpx.Client
 }
 
 func (recipientsNotifications *RecipientsNotifications) List(recipientID string, req *ListNotificationsRequest) (*ListNotificationsResponse, error) {
@@ -197,7 +197,7 @@ type RecipientPreferencesService interface {
 
 // RecipientsPreferences implements RecipientPreferencesService.
 type RecipientsPreferences struct {
-	client *client.Client
+	client *httpx.Client
 }
 
 func (recipientsPreferences *RecipientsPreferences) List(recipientID string) (*ListPreferencesResponse, error) {
