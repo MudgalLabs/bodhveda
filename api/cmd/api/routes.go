@@ -68,7 +68,7 @@ func initRouter() http.Handler {
 
 		r.Route("/recipients", func(r chi.Router) {
 			r.Route("/{recipient_external_id}", func(r chi.Router) {
-				r.Use(middleware.VerifyRecipientExists)
+				r.Use(middleware.CreateRecipientIfNotExists)
 
 				r.Route("/notifications", func(r chi.Router) {
 					r.Get("/", handler.ListForRecipient(app.APP.Service.Notification))

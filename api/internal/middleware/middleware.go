@@ -1,3 +1,4 @@
+// Package middleware provides HTTP middleware.
 package middleware
 
 import (
@@ -11,13 +12,13 @@ import (
 	"github.com/go-chi/chi/v5/middleware"
 	"github.com/mudgallabs/bodhveda/internal/app"
 	"github.com/mudgallabs/bodhveda/internal/env"
+	"github.com/mudgallabs/bodhveda/internal/model/dto"
 	"github.com/mudgallabs/bodhveda/internal/model/entity"
 	"github.com/mudgallabs/bodhveda/internal/model/enum"
 	"github.com/mudgallabs/tantra/auth/session"
 	"github.com/mudgallabs/tantra/cipher"
 	"github.com/mudgallabs/tantra/httpx"
 	"github.com/mudgallabs/tantra/logger"
-	tantraRepo "github.com/mudgallabs/tantra/repository"
 	"go.uber.org/zap"
 )
 
@@ -250,7 +251,7 @@ func VerifyAPIKeyHasFullScope(next http.Handler) http.Handler {
 	})
 }
 
-func VerifyRecipientExists(next http.Handler) http.Handler {
+func CreateRecipientIfNotExists(next http.Handler) http.Handler {
 	return http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 		ctx := r.Context()
 
@@ -266,14 +267,13 @@ func VerifyRecipientExists(next http.Handler) http.Handler {
 			return
 		}
 
-		_, err := app.APP.Repository.Recipient.Get(ctx, apiKey.ProjectID, recipientExtID)
-		if err != nil {
-			if err == tantraRepo.ErrNotFound {
-				httpx.NotFoundResponse(w, r, errors.New("Recipient not found"))
-				return
-			}
+		_, _, err := app.APP.Service.Recipient.CreateIfNotExists(ctx, dto.CreateRecipientPayload{
+			ProjectID:  apiKey.ProjectID,
+			ExternalID: recipientExtID,
+		})
 
-			httpx.InternalServerErrorResponse(w, r, errors.New("failed to fetch recipient"))
+		if err != nil {
+			httpx.InternalServerErrorResponse(w, r, errors.New("failed to create recipient if not exists"))
 			return
 		}
 

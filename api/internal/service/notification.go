@@ -81,22 +81,14 @@ func (s *NotificationService) Send(ctx context.Context, payload dto.SendNotifica
 }
 
 func (s *NotificationService) sendDirectNotification(ctx context.Context, payload dto.SendNotificationPayload) (*dto.Notification, error) {
-	exists, err := s.recipientRepo.Exists(ctx, payload.ProjectID, *payload.RecipientExtID)
-	if err != nil {
-		return nil, fmt.Errorf("check recipient existence: %w", err)
-	}
-
-	// If recipient does not exist, create it.
 	// This is to ensure that we can send notifications to recipients that are not yet created.
-	if !exists {
-		_, _, err := s.recipientService.Create(ctx, dto.CreateRecipientPayload{
-			ProjectID:  payload.ProjectID,
-			ExternalID: *payload.RecipientExtID,
-		})
+	_, _, err := s.recipientService.CreateIfNotExists(ctx, dto.CreateRecipientPayload{
+		ProjectID:  payload.ProjectID,
+		ExternalID: *payload.RecipientExtID,
+	})
 
-		if err != nil {
-			return nil, fmt.Errorf("create recipient: %w", err)
-		}
+	if err != nil {
+		return nil, fmt.Errorf("create recipient: %w", err)
 	}
 
 	notification := entity.NewNotification(

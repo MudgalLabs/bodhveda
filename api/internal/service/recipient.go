@@ -51,6 +51,32 @@ func (s *RecipientService) Create(ctx context.Context, payload dto.CreateRecipie
 	return dto.FromRecipient(recipient), service.ErrNone, nil
 }
 
+func (s *RecipientService) CreateIfNotExists(ctx context.Context, payload dto.CreateRecipientPayload) (*dto.Recipient, service.Error, error) {
+	err := payload.Validate()
+	if err != nil {
+		return nil, service.ErrInvalidInput, err
+	}
+
+	name := ""
+	if payload.Name != nil {
+		name = *payload.Name
+	}
+
+	recipient := entity.NewRecipient(payload.ProjectID, payload.ExternalID, name)
+	recipient, err = s.repo.Create(ctx, recipient)
+	if err != nil {
+		// If recipient already exists, fetch and return it.
+		if err == tantraRepo.ErrConflict {
+			recipient, err = s.repo.Get(ctx, payload.ProjectID, payload.ExternalID)
+			return dto.FromRecipient(recipient), service.ErrNone, err
+		}
+
+		return nil, service.ErrInternalServerError, fmt.Errorf("recipient repo create: %w", err)
+	}
+
+	return dto.FromRecipient(recipient), service.ErrNone, nil
+}
+
 func (s *RecipientService) List(ctx context.Context, payload *dto.ListRecipientsPayload) (*dto.ListRecipientsResult, service.Error, error) {
 	recipients, total, err := s.repo.List(ctx, payload.ProjectID, payload.Pagination)
 	if err != nil {

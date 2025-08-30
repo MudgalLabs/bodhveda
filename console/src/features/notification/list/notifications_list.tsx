@@ -269,7 +269,7 @@ const broadcastColumns: ColumnDef<BroadcastListItem>[] = [
 
             return completedAt ? (
                 <span className="flex-x">
-                    <Tag variant="success">Completed</Tag>
+                    <Tag variant="success">Delivered</Tag>
                     <span className="text-xs text-text-muted">
                         {formatNumber(msDiff / 1000)}s
                     </span>
