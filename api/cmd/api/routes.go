@@ -84,16 +84,13 @@ func initRouter() http.Handler {
 				})
 			})
 
-			r.Route("/", func(r chi.Router) {
-				r.Use(middleware.VerifyAPIKeyHasFullScope)
-
+			r.With(middleware.VerifyAPIKeyHasFullScope).Group(func(r chi.Router) {
 				r.Post("/", handler.CreateRecipient(app.APP.Service.Recipient))
 				r.Post("/batch", handler.BatchCreateRecipients(app.APP.Service.Recipient))
 				r.Get("/", handler.GetRecipient(app.APP.Service.Recipient))
 				r.Patch("/", handler.UpdateRecipient(app.APP.Service.Recipient))
 				r.Delete("/", handler.DeleteRecipient(app.APP.Service.Recipient))
 			})
-
 		})
 	})
 
