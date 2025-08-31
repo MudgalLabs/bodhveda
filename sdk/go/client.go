@@ -1,26 +1,24 @@
-// Package httpx provides a simple HTTP client for interacting with the Bodhveda API.
-package httpx
+package bodhveda
 
 import (
 	"bytes"
 	"context"
 	"encoding/json"
-	"errors"
 	"fmt"
 	"io"
 	"net/http"
 	"time"
 )
 
-type Client struct {
+type httpClient struct {
 	apiKey      string
 	baseURL     string
 	debug       bool
 	innerClient *http.Client
 }
 
-func NewClient(apiKey, baseURL string, debug bool) *Client {
-	return &Client{
+func newHTTPClient(apiKey, baseURL string, debug bool) *httpClient {
+	return &httpClient{
 		apiKey:      apiKey,
 		baseURL:     baseURL,
 		debug:       debug,
@@ -28,7 +26,7 @@ func NewClient(apiKey, baseURL string, debug bool) *Client {
 	}
 }
 
-func (client *Client) Do(ctx context.Context, method, path string, body any, out any) error {
+func (client *httpClient) Do(ctx context.Context, method, path string, body any, out any) error {
 	var bodyReader io.Reader
 
 	if body != nil {
@@ -61,7 +59,6 @@ func (client *Client) Do(ctx context.Context, method, path string, body any, out
 	if err != nil {
 		return err
 	}
-
 	defer resp.Body.Close()
 
 	respBody, err := io.ReadAll(resp.Body)
@@ -74,12 +71,35 @@ func (client *Client) Do(ctx context.Context, method, path string, body any, out
 		fmt.Printf("[DEBUG] Response Body: %s\n", string(respBody))
 	}
 
+	// Handle errors explicitly
 	if resp.StatusCode >= 400 {
-		return errors.New(string(respBody))
+		var apiErr BodhvedaError
+		if err := json.Unmarshal(respBody, &apiErr); err != nil {
+			// fallback: return raw response
+			return fmt.Errorf("HTTP %d: %s", resp.StatusCode, string(respBody))
+		}
+		return &apiErr
 	}
 
+	// Success response
 	if out != nil {
-		return json.Unmarshal(respBody, out)
+		// Define a temporary wrapper to extract "data"
+		var wrapper struct {
+			Data json.RawMessage `json:"data"`
+		}
+
+		if err := json.Unmarshal(respBody, &wrapper); err != nil {
+			return fmt.Errorf("failed to decode wrapper response: %w", err)
+		}
+
+		if len(wrapper.Data) == 0 {
+			return fmt.Errorf("missing data in success response")
+		}
+
+		// Now unmarshal the actual data into out
+		if err := json.Unmarshal(wrapper.Data, out); err != nil {
+			return fmt.Errorf("failed to decode data field: %w", err)
+		}
 	}
 
 	return nil

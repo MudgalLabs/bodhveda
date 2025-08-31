@@ -6,13 +6,12 @@ import (
 	"fmt"
 	"net/url"
 
-	"github.com/MudgalLabs/bodhveda/sdk/go/internal/httpx"
-	"github.com/MudgalLabs/bodhveda/sdk/go/internal/routes"
+	"github.com/MudgalLabs/bodhveda/sdk/go/routes"
 )
 
 // Client is used for interacting with the Bodhveda API.
 type Client struct {
-	client *httpx.Client
+	client *httpClient
 
 	Notifications *Notifications
 	Recipients    *Recipients
@@ -37,7 +36,7 @@ func NewClient(apiKey string, opts *ClientOptions) *Client {
 		debug = opts.Debug
 	}
 
-	client := httpx.NewClient(apiKey, baseURL, debug)
+	client := newHTTPClient(apiKey, baseURL, debug)
 
 	bodhveda := &Client{
 		client:        client,
@@ -60,7 +59,7 @@ type NotificationsService interface {
 
 // Notifications implements NotificationsService.
 type Notifications struct {
-	client *httpx.Client
+	client *httpClient
 }
 
 func (notifications *Notifications) Send(ctx context.Context, req *SendNotificationRequest) (*SendNotificationResponse, error) {
@@ -89,7 +88,7 @@ type RecipientService interface {
 
 // Recipients implements RecipientService.
 type Recipients struct {
-	client *httpx.Client
+	client *httpClient
 
 	Notifications *RecipientsNotifications
 	Preferences   *RecipientsPreferences
@@ -140,7 +139,7 @@ type ReciepientsNotificationsService interface {
 
 // RecipientsNotifications implements ReciepientsNotificationsService.
 type RecipientsNotifications struct {
-	client *httpx.Client
+	client *httpClient
 }
 
 func (recipientsNotifications *RecipientsNotifications) List(ctx context.Context, recipientID string, req *ListNotificationsRequest) (*ListNotificationsResponse, error) {
@@ -202,7 +201,7 @@ type RecipientPreferencesService interface {
 
 // RecipientsPreferences implements RecipientPreferencesService.
 type RecipientsPreferences struct {
-	client *httpx.Client
+	client *httpClient
 }
 
 func (recipientsPreferences *RecipientsPreferences) List(ctx context.Context, recipientID string) (*ListPreferencesResponse, error) {
