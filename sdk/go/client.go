@@ -6,6 +6,7 @@ import (
 	"encoding/json"
 	"fmt"
 	"io"
+	"log"
 	"net/http"
 	"time"
 )
@@ -34,9 +35,10 @@ func (client *httpClient) Do(ctx context.Context, method, path string, body any,
 		if err != nil {
 			return err
 		}
+
 		bodyReader = bytes.NewReader(data)
 		if client.debug {
-			fmt.Printf("[DEBUG] Request Body: %s\n", string(data))
+			logBodyTruncated("Request", data)
 		}
 	}
 
@@ -49,11 +51,18 @@ func (client *httpClient) Do(ctx context.Context, method, path string, body any,
 	req.Header.Set("Authorization", "Bearer "+client.apiKey)
 
 	if client.debug {
-		fmt.Printf("[DEBUG] Request: %s %s\n", method, client.baseURL+path)
+		log.Printf("[DEBUG] Request: %s %s\n", method, client.baseURL+path)
+
 		for k, v := range req.Header {
-			fmt.Printf("[DEBUG] Request Header: %s: %v\n", k, v)
+			if k == "Authorization" {
+				log.Printf("[DEBUG] Request Header: %s: %s\n", k, "[REDACTED]")
+			} else {
+				log.Printf("[DEBUG] Request Header: %s: %v\n", k, v)
+			}
 		}
 	}
+
+	start := time.Now()
 
 	resp, err := client.innerClient.Do(req)
 	if err != nil {
@@ -61,14 +70,20 @@ func (client *httpClient) Do(ctx context.Context, method, path string, body any,
 	}
 	defer resp.Body.Close()
 
+	duration := time.Since(start)
+
+	if client.debug {
+		fmt.Printf("[DEBUG] Request Duration: %s\n", duration)
+	}
+
 	respBody, err := io.ReadAll(resp.Body)
 	if err != nil {
 		return err
 	}
 
 	if client.debug {
-		fmt.Printf("[DEBUG] Response Status: %s\n", resp.Status)
-		fmt.Printf("[DEBUG] Response Body: %s\n", string(respBody))
+		log.Printf("[DEBUG] Response Status: %s\n", resp.Status)
+		logBodyTruncated("Request", respBody)
 	}
 
 	// Handle errors explicitly
@@ -100,7 +115,23 @@ func (client *httpClient) Do(ctx context.Context, method, path string, body any,
 		if err := json.Unmarshal(wrapper.Data, out); err != nil {
 			return fmt.Errorf("failed to decode data field: %w", err)
 		}
+
+		if client.debug {
+			logBodyTruncated("Response", wrapper.Data)
+		}
 	}
 
 	return nil
+}
+
+const maxLogSize = 1000
+
+func logBodyTruncated(prefix string, content []byte) {
+	bodyToLog := string(content)
+
+	if len(bodyToLog) > maxLogSize {
+		bodyToLog = bodyToLog[:maxLogSize] + "...[truncated]"
+	}
+
+	log.Printf("[DEBUG] %s Body: %s\n", prefix, bodyToLog)
 }
