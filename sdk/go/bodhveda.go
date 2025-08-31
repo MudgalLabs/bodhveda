@@ -21,19 +21,25 @@ type Client struct {
 // ClientOptions configures the Bodhveda client.
 type ClientOptions struct {
 	APIURL *string
+	Debug  *bool
 }
 
 // NewClient creates a new Bodhveda client.
 func NewClient(apiKey string, opts *ClientOptions) *Client {
 	baseURL := "https://api.bodhveda.com"
+	debug := false
 
 	if opts != nil {
 		if opts.APIURL != nil && *opts.APIURL != "" {
 			baseURL = *opts.APIURL
 		}
+
+		if opts.Debug != nil {
+			debug = *opts.Debug
+		}
 	}
 
-	client := httpx.NewClient(apiKey, baseURL)
+	client := httpx.NewClient(apiKey, baseURL, debug)
 
 	bodhveda := &Client{
 		client:        client,
