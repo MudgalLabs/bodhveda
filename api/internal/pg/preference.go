@@ -4,6 +4,7 @@ import (
 	"context"
 	"fmt"
 
+	"github.com/jackc/pgx/v5"
 	"github.com/jackc/pgx/v5/pgxpool"
 	"github.com/mudgallabs/bodhveda/internal/model/dto"
 	"github.com/mudgallabs/bodhveda/internal/model/entity"
@@ -336,4 +337,30 @@ func (r *PreferenceRepo) Delete(ctx context.Context, projectID int, preferenceID
 	}
 
 	return nil
+}
+
+func (r *PreferenceRepo) DoesProjectPreferenceExist(ctx context.Context, projectID int, target dto.Target) (bool, error) {
+	sql := `
+		SELECT true
+		FROM preference
+		WHERE project_id = $1
+		  AND recipient_external_id IS NULL
+		  AND channel = $2
+		  AND topic = $3
+		  AND event = $4
+		LIMIT 1;
+	`
+
+	var exists bool
+
+	err := r.db.QueryRow(ctx, sql, projectID, target.Channel, target.Topic, target.Event).Scan(&exists)
+	if err != nil {
+		if err == pgx.ErrNoRows {
+			return false, nil
+		}
+
+		return false, fmt.Errorf("query: %w", err)
+	}
+
+	return exists, nil
 }

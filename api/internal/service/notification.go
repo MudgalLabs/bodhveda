@@ -3,6 +3,7 @@ package service
 import (
 	"context"
 	"encoding/json"
+	"errors"
 	"fmt"
 
 	"github.com/hibiken/asynq"
@@ -58,6 +59,17 @@ func (s *NotificationService) Send(ctx context.Context, payload dto.SendNotifica
 			return nil, "", service.ErrInternalServerError, fmt.Errorf("send direct notification: %w", err)
 		}
 	} else {
+		// Check if a project preference exists that matches the target.
+		// If not, we should return an error as no recipients would be able to receive this broadcast.
+		prefExists, err := s.preferenceRepo.DoesProjectPreferenceExist(ctx, payload.ProjectID, *payload.Target)
+		if err != nil {
+			return nil, "", service.ErrInternalServerError, fmt.Errorf("check if project preference exists: %w", err)
+		}
+
+		if !prefExists {
+			return nil, "", service.ErrBadRequest, errors.New("No project preference exists that matches the target. Create a project preference first.")
+		}
+
 		result.Broadcast, err = s.sendBroadcastNotification(ctx, payload)
 		if err != nil {
 			return nil, "", service.ErrInternalServerError, fmt.Errorf("send broadcast notification: %w", err)

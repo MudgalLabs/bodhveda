@@ -15,6 +15,7 @@ type PreferenceRepository interface {
 }
 
 type PreferenceReader interface {
+	DoesProjectPreferenceExist(ctx context.Context, projectID int, target dto.Target) (bool, error)
 	ListPreferences(ctx context.Context, projectID int, kind enum.PreferenceKind) ([]*entity.Preference, error)
 	ShouldDirectNotificationBeDelivered(ctx context.Context, projectID int, recipientExtID string, target dto.Target) (bool, error)
 	ListEligibleRecipientExtIDsForBroadcast(ctx context.Context, projectID int, target dto.Target) ([]string, error)
