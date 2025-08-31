@@ -29,17 +29,16 @@ func newHTTPClient(apiKey, baseURL string, debug bool) *httpClient {
 
 func (client *httpClient) Do(ctx context.Context, method, path string, body any, out any) error {
 	var bodyReader io.Reader
+	var reqBody []byte
+	var err error
 
 	if body != nil {
-		data, err := json.Marshal(body)
+		reqBody, err = json.Marshal(body)
 		if err != nil {
 			return err
 		}
 
-		bodyReader = bytes.NewReader(data)
-		if client.debug {
-			logBodyTruncated("Request", data)
-		}
+		bodyReader = bytes.NewReader(reqBody)
 	}
 
 	req, err := http.NewRequestWithContext(ctx, method, client.baseURL+path, bodyReader)
@@ -51,14 +50,18 @@ func (client *httpClient) Do(ctx context.Context, method, path string, body any,
 	req.Header.Set("Authorization", "Bearer "+client.apiKey)
 
 	if client.debug {
-		log.Printf("[DEBUG] Request: %s %s\n", method, client.baseURL+path)
+		log.Printf("[Bodhveda DEBUG] Request: %s %s\n", method, client.baseURL+path)
 
 		for k, v := range req.Header {
 			if k == "Authorization" {
-				log.Printf("[DEBUG] Request Header: %s: %s\n", k, "[REDACTED]")
+				log.Printf("[Bodhveda DEBUG] Request Header: %s: %s\n", k, "[REDACTED]")
 			} else {
-				log.Printf("[DEBUG] Request Header: %s: %v\n", k, v)
+				log.Printf("[Bodhveda DEBUG] Request Header: %s: %v\n", k, v)
 			}
+		}
+
+		if client.debug {
+			logBodyTruncated("Request", reqBody)
 		}
 	}
 
@@ -73,7 +76,7 @@ func (client *httpClient) Do(ctx context.Context, method, path string, body any,
 	duration := time.Since(start)
 
 	if client.debug {
-		fmt.Printf("[DEBUG] Request Duration: %s\n", duration)
+		fmt.Printf("[Bodhveda DEBUG] Request Duration: %s\n", duration)
 	}
 
 	respBody, err := io.ReadAll(resp.Body)
@@ -82,7 +85,7 @@ func (client *httpClient) Do(ctx context.Context, method, path string, body any,
 	}
 
 	if client.debug {
-		log.Printf("[DEBUG] Response Status: %s\n", resp.Status)
+		log.Printf("[Bodhveda DEBUG] Response Status: %s\n", resp.Status)
 		logBodyTruncated("Request", respBody)
 	}
 
@@ -133,5 +136,5 @@ func logBodyTruncated(prefix string, content []byte) {
 		bodyToLog = bodyToLog[:maxLogSize] + "...[truncated]"
 	}
 
-	log.Printf("[DEBUG] %s Body: %s\n", prefix, bodyToLog)
+	log.Printf("[Bodhveda DEBUG] %s Body: %s\n", prefix, bodyToLog)
 }
