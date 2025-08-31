@@ -91,7 +91,7 @@ export function NotificationList() {
                 </div>
 
                 {isDirect ? (
-                    <Table
+                    <NotificationTable
                         key="direct"
                         data={data?.data?.notifications || []}
                         totalItems={data?.data?.pagination.total_items || 0}
@@ -144,8 +144,9 @@ export function NotificationList() {
 
 const columns: ColumnDef<Notification>[] = [
     {
-        accessorKey: "id",
-        header: () => <DataTableColumnHeader title="ID" />,
+        id: "#",
+        header: () => <DataTableColumnHeader title="#" />,
+        cell: ({ row }) => row.index + 1,
     },
     {
         accessorKey: "recipient_id",
@@ -184,7 +185,7 @@ const columns: ColumnDef<Notification>[] = [
     },
 ];
 
-interface TableProps {
+interface NotificationTableProps {
     data: Notification[];
     totalItems: number;
     state: DataTableState;
@@ -192,7 +193,7 @@ interface TableProps {
     isFetching?: boolean;
 }
 
-function Table(props: TableProps) {
+function NotificationTable(props: NotificationTableProps) {
     const { data, totalItems, state, onStateChange, isFetching } = props;
     return (
         <DataTableSmart
@@ -217,8 +218,9 @@ function Table(props: TableProps) {
 
 const broadcastColumns: ColumnDef<BroadcastListItem>[] = [
     {
-        accessorKey: "id",
-        header: () => <DataTableColumnHeader title="ID" />,
+        id: "#",
+        header: () => <DataTableColumnHeader title="#" />,
+        cell: ({ row }) => row.index + 1,
     },
     {
         accessorKey: "target.channel",

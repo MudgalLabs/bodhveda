@@ -1,4 +1,4 @@
-import { useMemo, useState } from "react";
+import { useCallback, useEffect, useMemo, useState } from "react";
 import {
     Button,
     cn,
@@ -79,11 +79,17 @@ export function SendNotificationModal({
             };
         }
 
-        sendNotification({
-            recipient_id: state.recipient_id ? state.recipient_id : null,
-            target,
-            payload: JSON.parse(state.payload),
-        });
+        try {
+            const parsedPayload = JSON.parse(state.payload);
+
+            sendNotification({
+                recipient_id: state.recipient_id ? state.recipient_id : null,
+                target,
+                payload: parsedPayload,
+            });
+        } catch {
+            toast.error("Payload must be a valid JSON");
+        }
     };
 
     const disablePayloadButton = useMemo(() => {
@@ -114,13 +120,22 @@ export function SendNotificationModal({
         return false;
     }, [disablePayloadButton, state.payload]);
 
+    useEffect(() => {
+        if (!open) {
+            setKind("direct");
+            setState(INITIAL_STATE);
+        }
+    }, [open]);
+
     return (
         <Dialog open={open} onOpenChange={setOpen}>
             <DialogTrigger asChild>{renderTrigger()}</DialogTrigger>
-            <DialogContent>
+            <DialogContent className="sm:max-w-4xl!">
                 <DialogHeader>
                     <DialogTitle>Send Notification</DialogTitle>
                 </DialogHeader>
+
+                <div className="h-2" />
 
                 <MultiStep.Root>
                     <MultiStep.StepperContainer>
@@ -153,6 +168,8 @@ export function SendNotificationModal({
                             }}
                         </MultiStep.Stepper>
                     </MultiStep.StepperContainer>
+
+                    <div className="h-2" />
 
                     <MultiStep.Content>
                         <MultiStep.Step id="target-step">
@@ -246,7 +263,9 @@ function TargetStep({
 }) {
     return (
         <div className="space-y-4">
-            <NotificationKindToggle kind={kind} setKind={setKind} />
+            <WithLabel Label={<Label required>Notification kind</Label>}>
+                <NotificationKindToggle kind={kind} setKind={setKind} />
+            </WithLabel>
 
             {!isBroadcast && (
                 <WithLabel Label={<Label required>Recipient ID</Label>}>
@@ -326,20 +345,61 @@ function PayloadStep({
     const placeholder = `{
     "key": "value"
 }`;
+    const isPayloadValidJSON = useMemo(() => {
+        if (state.payload.trim() === "") {
+            return true;
+        }
+
+        try {
+            JSON.parse(state.payload);
+            return true;
+        } catch {
+            return false;
+        }
+    }, [state.payload]);
+
+    const beautifyJSON = useCallback(() => {
+        try {
+            const parsed = JSON.parse(state.payload);
+            const beautified = JSON.stringify(parsed, null, 4);
+            setState((prev) => ({
+                ...prev,
+                payload: beautified,
+            }));
+        } catch {
+            // Do nothing if invalid JSON.
+        }
+    }, [state.payload, setState]);
 
     return (
         <WithLabel
             Label={
-                <span className="flex-x">
-                    <Label required>Payload</Label>
-                    <Tooltip content="The JSON payload to send with the notification. Must be a valid JSON value.">
-                        <IconInfo />
-                    </Tooltip>
+                <span className="flex-x justify-between">
+                    <span className="flex-x">
+                        <Label required>Payload</Label>
+                        <Tooltip
+                            content={
+                                <>
+                                    <p>
+                                        The payload to send with the
+                                        notification.
+                                    </p>
+                                    <p>Must be valid JSON.</p>
+                                </>
+                            }
+                        >
+                            <IconInfo />
+                        </Tooltip>
+                    </span>
+
+                    <Button variant="ghost" size="small" onClick={beautifyJSON}>
+                        Beautify
+                    </Button>
                 </span>
             }
         >
             <Textarea
-                className="w-full! h-30"
+                className="w-full! h-60"
                 placeholder={placeholder}
                 value={state.payload}
                 onChange={(e) =>
@@ -348,6 +408,8 @@ function PayloadStep({
                         payload: e.target.value,
                     }))
                 }
+                error={!isPayloadValidJSON}
+                errorMsg="Payload is not a valid JSON"
             />
         </WithLabel>
     );
