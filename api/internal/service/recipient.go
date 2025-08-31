@@ -164,6 +164,10 @@ func (s *RecipientService) BatchCreate(ctx context.Context, payloads []dto.Creat
 		return nil, service.ErrInvalidInput, fmt.Errorf("no recipients provided")
 	}
 
+	if len(payloads) > 1000 {
+		return nil, service.ErrInvalidInput, fmt.Errorf("batch size exceeds limit of 1000")
+	}
+
 	var (
 		recipients = []*entity.Recipient{}
 		created    = []dto.BatchCreateRecipientCreated{}
