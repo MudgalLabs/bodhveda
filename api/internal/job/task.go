@@ -122,6 +122,8 @@ func (processor *BroadcastDeliveryProcessor) ProcessTask(ctx context.Context, t 
 			logger.Get().Error(err)
 			return err
 		}
+
+		logger.Get().Infof("BroadcastDeliveryProcessor: Successfully completed broadcast %d", payload.BroadcastID)
 	}
 
 	return nil
@@ -212,6 +214,7 @@ func (processor *PrepareBroadcastBatchesProcessor) ProcessTask(ctx context.Conte
 		}
 	}
 
+	logger.Get().Infof("PrepareBroadcastBatchesProcessor: Successfully processed task for broadcast %d with %d recipients", broadcast.ID, len(recipientExtIDs))
 	return nil
 }
 
@@ -270,6 +273,7 @@ func (processor *DeleteRecipientDataProcessor) ProcessTask(ctx context.Context, 
 	}
 	l.Infof("Deleted recipient %s in project %d", payload.RecipientExtID, payload.ProjectID)
 
+	l.Infof("DeleteRecipientDataProcessor: Successfully deleted all data for recipient %s in project %d", payload.RecipientExtID, payload.ProjectID)
 	return nil
 }
 
@@ -376,5 +380,6 @@ func (processor *DeleteProjectDataProcessor) ProcessTask(ctx context.Context, t 
 	}
 	l.Infof("Deleted project %d", payload.ProjectID)
 
+	l.Infof("DeleteProjectDataProcessor: Successfully deleted all data for project %d", payload.ProjectID)
 	return nil
 }

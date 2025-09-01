@@ -9,10 +9,8 @@ import (
 	"syscall"
 	"time"
 
-	"github.com/hibiken/asynq"
 	"github.com/mudgallabs/bodhveda/internal/app"
 	"github.com/mudgallabs/bodhveda/internal/env"
-	"github.com/mudgallabs/bodhveda/internal/job"
 	"github.com/mudgallabs/tantra/logger"
 )
 
@@ -20,39 +18,15 @@ func main() {
 	app.Init()
 	defer app.Close()
 
-	asynqServer, err := job.NewAsynqServer()
-	if err != nil {
-		logger.Get().Errorf("failed to create asynq server: %v", err)
-		panic(err)
-	}
-
-	asynqMux := asynq.NewServeMux()
-	asynqMux.Handle(job.TaskTypePrepareBroadcastBatches, job.NewPrepareBroadcastBatchesProcessor(
-		app.DB, app.ASYNQCLIENT, app.APP.Repository.Preference, app.APP.Repository.Broadcast,
-		app.APP.Repository.BroadcastBatch,
-	))
-	asynqMux.Handle(job.TaskTypeBroadcastDelivery, job.NewBroadcastDeliveryProcessor(
-		app.DB, app.APP.Repository.Notification, app.APP.Repository.Broadcast, app.APP.Repository.BroadcastBatch,
-	))
-	asynqMux.Handle(job.TaskTypeDeleteRecipientData, job.NewDeleteRecipientDataProcessor(
-		app.APP.Repository.Preference, app.APP.Repository.Notification,
-		app.APP.Repository.Recipient,
-	))
-	asynqMux.Handle(job.TaskTypeDeleteProjectData, job.NewDeleteProjectDataProcessor(
-		app.APP.Repository.APIKey, app.APP.Repository.Broadcast, app.APP.Repository.BroadcastBatch,
-		app.APP.Repository.Notification, app.APP.Repository.Preference, app.APP.Repository.Project,
-		app.APP.Repository.Recipient,
-	))
-
 	router := initRouter()
 
-	err = run(router, asynqServer, asynqMux)
+	err := run(router)
 	if err != nil {
 		panic(err)
 	}
 }
 
-func run(router http.Handler, asynqServer *asynq.Server, asynqMux *asynq.ServeMux) error {
+func run(router http.Handler) error {
 	l := logger.Get()
 	httpSrv := &http.Server{
 		Addr:         ":1338",
@@ -72,14 +46,6 @@ func run(router http.Handler, asynqServer *asynq.Server, asynqMux *asynq.ServeMu
 		}
 	}()
 
-	// Start Asynq server
-	go func() {
-		l.Infow("Asynq server started")
-		if err := asynqServer.Run(asynqMux); err != nil {
-			shutdown <- err
-		}
-	}()
-
 	// Listen for termination signals
 	go func() {
 		quit := make(chan os.Signal, 1)
@@ -95,9 +61,6 @@ func run(router http.Handler, asynqServer *asynq.Server, asynqMux *asynq.ServeMu
 		if err := httpSrv.Shutdown(ctx); err != nil {
 			l.Errorw("Error shutting down HTTP server", "error", err)
 		}
-
-		// Stop processing tasks gracefully
-		asynqServer.Shutdown()
 
 		shutdown <- nil
 	}()

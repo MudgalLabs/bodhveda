@@ -47,6 +47,7 @@ services:
         volumes:
             - ./volumes/api_logs:/app/logs
         restart: unless-stopped
+        command: ["./bodhveda"]
         depends_on:
             db:
                 condition: service_healthy
@@ -54,6 +55,44 @@ services:
             redis:
                 condition: service_healthy
                 restart: true
+    worker:
+        container_name: bodhveda_worker
+        image: ceoshikhar/bodhveda_api:beta
+        build:
+            dockerfile: api.dockerfile
+            args:
+                TARGETOS: ${TARGETOS}
+                TARGETARCH: ${TARGETARCH}
+        environment:
+            BODHVEDA_API_ENV: production
+            BODHVEDA_API_LOG_LEVEL: ${BODHVEDA_API_LOG_LEVEL}
+            BODHVEDA_API_LOG_FILE: ./logs/${BODHVEDA_API_LOG_FILE}
+            BODHVEDA_DB_URL: ${BODHVEDA_DB_URL}
+            BODHVEDA_REDIS_URL: ${BODHVEDA_REDIS_URL}
+            BODHVEDA_WEB_URL: ${BODHVEDA_WEB_URL}
+            # BODHVEDA_ENABLE_SIGN_UP: ${BODHVEDA_ENABLE_SIGN_UP}
+            # BODHVEDA_ENABLE_SIGN_IN: ${BODHVEDA_ENABLE_SIGN_IN}
+            BODHVEDA_ENABLE_GOOGLE_OAUTH: ${BODHVEDA_ENABLE_GOOGLE_OAUTH}
+            BODHVEDA_GOOGLE_REDIRECT_URL: ${BODHVEDA_GOOGLE_REDIRECT_URL}
+            BODHVEDA_GOOGLE_CLIENT_ID: ${BODHVEDA_GOOGLE_CLIENT_ID}
+            BODHVEDA_GOOGLE_CLIENT_SECRET: ${BODHVEDA_GOOGLE_CLIENT_SECRET}
+            BODHVEDA_API_CIPHER_KEY: ${BODHVEDA_API_CIPHER_KEY}
+            BODHVEDA_API_HASH_KEY: ${BODHVEDA_API_HASH_KEY}
+            TZ: ${TZ}
+        networks:
+            - bodhveda_network
+            - caddy_net
+        volumes:
+            - ./volumes/api_logs:/app/logs
+        restart: unless-stopped
+        depends_on:
+            db:
+                condition: service_healthy
+                restart: true
+            redis:
+                condition: service_healthy
+                restart: true
+        command: ["./worker"]
 
     redis:
         container_name: bodhveda_redis

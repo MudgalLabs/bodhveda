@@ -18,9 +18,16 @@ RUN go mod download
 COPY ./api .
 
 # Build the binary with optimizations and embed timezone data
+# RUN CGO_ENABLED=0 GOOS=${TARGETOS} GOARCH=${TARGETARCH} go build \
+#     -ldflags='-w -s -extldflags "-static"' \
+#     -o bin/bodhveda ./cmd/api
+
 RUN CGO_ENABLED=0 GOOS=${TARGETOS} GOARCH=${TARGETARCH} go build \
     -ldflags='-w -s -extldflags "-static"' \
-    -o bin/bodhveda ./cmd/api
+    -o bin/bodhveda ./cmd/api && \
+    CGO_ENABLED=0 GOOS=${TARGETOS} GOARCH=${TARGETARCH} go build \
+    -ldflags='-w -s -extldflags "-static"' \
+    -o bin/worker ./cmd/worker
 
 FROM alpine:3.22
 
@@ -30,8 +37,9 @@ ENV TZ=UTC
 COPY --from=builder /usr/share/zoneinfo /usr/share/zoneinfo
 # Copy the binary from builder stage
 COPY --from=builder /app/bin/bodhveda .
-# Open port
+COPY --from=builder /app/bin/worker .
+# Open port for the API
 EXPOSE 1338
 
 # Start API
-CMD ["./bodhveda"]
+# CMD ["./bodhveda"]
