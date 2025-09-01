@@ -186,11 +186,11 @@ const columns: ColumnDef<RecipientListItem>[] = [
                                 <div className="space-y-2">
                                     <span className="flex-x">
                                         <IconTarget size={16} />
-                                        <strong>Direct notifications</strong>
+                                        Direct notifications
                                     </span>
                                     <span className="flex-x">
                                         <IconMegaphone size={16} />
-                                        <strong>Broadcast notifications</strong>
+                                        Broadcast notifications
                                     </span>
                                 </div>
                             }
