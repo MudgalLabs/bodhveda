@@ -15,6 +15,7 @@ import {
     formatDate,
     Tag,
     formatDuration,
+    LoadingScreen,
 } from "netra";
 
 import {
@@ -32,9 +33,10 @@ import {
 
 export function NotificationList() {
     const projectID = useGetProjectIDFromParams();
-    const [kind, setKind] = useState<NotificationKind>("direct");
-    const isDirect = kind === "direct";
-    const isBroadcast = kind === "broadcast";
+    const [notificationKind, setNotificationKind] =
+        useState<NotificationKind>("direct");
+    const isViewingNotifications = notificationKind === "direct";
+    const isViewingBroadcasts = notificationKind === "broadcast";
 
     const [directTableState, setDirectTableState] = useState<DataTableState>({
         columnVisibility: {},
@@ -42,9 +44,14 @@ export function NotificationList() {
         sorting: [],
     });
 
-    const { data, isFetching, isError } = useNotifications(
+    const {
+        data: notificationsData,
+        isFetching: isFetchingNotifications,
+        isLoading: isLoadingNotifications,
+        isError: isErrorNotifications,
+    } = useNotifications(
         projectID,
-        kind,
+        notificationKind,
         directTableState.pagination.pageIndex + 1,
         directTableState.pagination.pageSize
     );
@@ -58,8 +65,9 @@ export function NotificationList() {
 
     const {
         data: broadcastsData,
-        isFetching: isBroadcastsFetching,
-        isError: isBroadcastsError,
+        isFetching: isFetchingBroadcasts,
+        isLoading: isLoadingBroadcasts,
+        isError: isErrorBroadcasts,
     } = useBroadcasts(
         projectID,
         broadcastTableState.pagination.pageIndex + 1,
@@ -67,66 +75,66 @@ export function NotificationList() {
     );
 
     const content = useMemo(() => {
-        if (isError && isDirect) {
-            return <ErrorMessage errorMsg="Error loading notifications" />;
+        if (isViewingNotifications) {
+            if (isErrorNotifications) {
+                return <ErrorMessage errorMsg="Error loading notifications" />;
+            }
+
+            if (isLoadingNotifications) {
+                return <LoadingScreen />;
+            }
+
+            return (
+                <NotificationTable
+                    key="direct"
+                    data={notificationsData?.data?.notifications || []}
+                    totalItems={
+                        notificationsData?.data?.pagination.total_items || 0
+                    }
+                    state={directTableState}
+                    onStateChange={setDirectTableState}
+                    isFetching={isFetchingNotifications}
+                />
+            );
+        } else if (isViewingBroadcasts) {
+            if (isErrorBroadcasts && isViewingBroadcasts) {
+                return <ErrorMessage errorMsg="Error loading broadcasts" />;
+            }
+
+            if (isLoadingBroadcasts) {
+                return <LoadingScreen />;
+            }
+
+            return (
+                <BroadcastsTable
+                    key="broadcast"
+                    data={broadcastsData?.data?.broadcasts || []}
+                    totalItems={
+                        broadcastsData?.data?.pagination.total_items || 0
+                    }
+                    state={broadcastTableState}
+                    onStateChange={setBroadcastTableState}
+                    isFetching={isFetchingBroadcasts}
+                />
+            );
         }
 
-        if (isBroadcastsError && isBroadcast) {
-            return <ErrorMessage errorMsg="Error loading broadcasts" />;
-        }
-
-        return (
-            <>
-                <div className="flex justify-between mb-4">
-                    <NotificationKindToggle kind={kind} setKind={setKind} />
-
-                    <SendNotificationModal
-                        renderTrigger={() => (
-                            <Button>
-                                <IconSend size={16} />
-                                Send Notification
-                            </Button>
-                        )}
-                    />
-                </div>
-
-                {isDirect ? (
-                    <NotificationTable
-                        key="direct"
-                        data={data?.data?.notifications || []}
-                        totalItems={data?.data?.pagination.total_items || 0}
-                        state={directTableState}
-                        onStateChange={setDirectTableState}
-                        isFetching={isFetching}
-                    />
-                ) : (
-                    <BroadcastsTable
-                        key="broadcast"
-                        data={broadcastsData?.data?.broadcasts || []}
-                        totalItems={
-                            broadcastsData?.data?.pagination.total_items || 0
-                        }
-                        state={broadcastTableState}
-                        onStateChange={setBroadcastTableState}
-                        isFetching={isBroadcastsFetching}
-                    />
-                )}
-            </>
-        );
+        return null;
     }, [
-        isError,
-        isDirect,
-        isBroadcastsError,
-        isBroadcast,
-        kind,
-        data?.data?.notifications,
-        data?.data?.pagination.total_items,
+        isViewingNotifications,
+        isViewingBroadcasts,
+        isErrorNotifications,
+        isLoadingNotifications,
+        notificationsData?.data?.notifications,
+        notificationsData?.data?.pagination.total_items,
         directTableState,
-        isFetching,
+        isFetchingNotifications,
+        isErrorBroadcasts,
+        isLoadingBroadcasts,
         broadcastsData?.data?.broadcasts,
         broadcastsData?.data?.pagination.total_items,
         broadcastTableState,
-        isBroadcastsFetching,
+        isFetchingBroadcasts,
     ]);
 
     return (
@@ -134,8 +142,26 @@ export function NotificationList() {
             <PageHeading>
                 <IconBell size={18} />
                 <h1>Notifications</h1>
-                {(isFetching || isBroadcastsFetching) && <Loading />}
+                {(isFetchingNotifications || isFetchingBroadcasts) && (
+                    <Loading />
+                )}
             </PageHeading>
+
+            <div className="flex justify-between mb-4">
+                <NotificationKindToggle
+                    kind={notificationKind}
+                    setKind={setNotificationKind}
+                />
+
+                <SendNotificationModal
+                    renderTrigger={() => (
+                        <Button>
+                            <IconSend size={16} />
+                            Send Notification
+                        </Button>
+                    )}
+                />
+            </div>
 
             {content}
         </div>

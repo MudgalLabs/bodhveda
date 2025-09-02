@@ -22,6 +22,7 @@ import {
     IconTarget,
     IconTrash,
     Loading,
+    LoadingScreen,
     PageHeading,
     toast,
     Tooltip,
@@ -44,7 +45,7 @@ export function RecipientList() {
         sorting: [],
     });
 
-    const { data, isFetching, isError } = useGetRecipients(
+    const { data, isFetching, isLoading, isError } = useGetRecipients(
         id,
         tableState.pagination.pageIndex + 1,
         tableState.pagination.pageSize
@@ -53,6 +54,10 @@ export function RecipientList() {
     const content = useMemo(() => {
         if (isError) {
             return <ErrorMessage errorMsg="Error loading recipients" />;
+        }
+
+        if (isLoading) {
+            return <LoadingScreen />;
         }
 
         return (
@@ -69,6 +74,7 @@ export function RecipientList() {
         data?.data?.recipients,
         isError,
         isFetching,
+        isLoading,
         tableState,
     ]);
 

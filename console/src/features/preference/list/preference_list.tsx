@@ -17,6 +17,7 @@ import {
     IconTrash,
     IconUsers,
     Loading,
+    LoadingScreen,
     PageHeading,
     ToggleGroup,
     ToggleGroupItem,
@@ -36,11 +37,18 @@ export function ProjectPreferenceList() {
     const [kind, setKind] = useState<PreferenceKind>("project");
     const isProject = kind === "project";
 
-    const { data, isLoading, isError } = useGetPreferences(id, kind);
+    const { data, isLoading, isFetching, isError } = useGetPreferences(
+        id,
+        kind
+    );
 
     const content = useMemo(() => {
         if (isError) {
             return <ErrorMessage errorMsg="Error loading preferences" />;
+        }
+
+        if (isLoading) {
+            return <LoadingScreen />;
         }
 
         if (!data) return null;
@@ -60,14 +68,14 @@ export function ProjectPreferenceList() {
         }
 
         return null;
-    }, [data, isError, isProject]);
+    }, [data, isError, isLoading, isProject]);
 
     return (
         <div>
             <PageHeading>
                 <IconUsers size={18} />
                 <h1>Preferences</h1>
-                {isLoading && <Loading />}
+                {isFetching && <Loading />}
             </PageHeading>
 
             <div className="flex justify-between mb-4">

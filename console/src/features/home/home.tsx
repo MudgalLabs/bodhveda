@@ -10,6 +10,7 @@ import {
     IconTarget,
     IconUsers,
     Loading,
+    LoadingScreen,
     PageHeading,
 } from "netra";
 
@@ -21,11 +22,15 @@ import { ReactNode, useMemo } from "react";
 
 export function Home() {
     const projectID = useGetProjectIDFromParams();
-    const { data: projects, isLoading, isError } = useGetProjects();
+    const { data: projects, isLoading, isFetching, isError } = useGetProjects();
 
     const content = useMemo(() => {
         if (isError) {
             return <ErrorMessage errorMsg="Error loading notifications" />;
+        }
+
+        if (isLoading) {
+            return <LoadingScreen />;
         }
 
         if (!projects) return null;
@@ -58,14 +63,14 @@ export function Home() {
                 />
             </div>
         );
-    }, [isError, projectID, projects]);
+    }, [isError, isLoading, projectID, projects]);
 
     return (
         <div>
             <PageHeading>
                 <IconHouse size={18} />
                 <h1>Home</h1>
-                {isLoading && <Loading />}
+                {isFetching && <Loading />}
             </PageHeading>
 
             {content}

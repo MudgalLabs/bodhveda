@@ -17,6 +17,7 @@ import {
     IconPlus,
     IconTrash,
     Loading,
+    LoadingScreen,
     PageHeading,
 } from "netra";
 
@@ -29,24 +30,28 @@ import { DeleteAPIKeyModal } from "../components/delete_api_key_modal";
 export function APIKeyList() {
     const id = useGetProjectIDFromParams();
 
-    const { data, isLoading, isError } = useGetAPIKeys(id);
+    const { data, isLoading, isFetching, isError } = useGetAPIKeys(id);
 
     const content = useMemo(() => {
         if (isError) {
             return <ErrorMessage errorMsg="Error loading API keys" />;
         }
 
+        if (isLoading) {
+            return <LoadingScreen />;
+        }
+
         if (!data) return null;
 
         return <ListTable data={data.data} />;
-    }, [data, isError]);
+    }, [data, isError, isLoading]);
 
     return (
         <div>
             <PageHeading>
                 <IconKey size={18} />
                 <h1>API Keys</h1>
-                {isLoading && <Loading />}
+                {isFetching && <Loading />}
             </PageHeading>
 
             <div className="flex justify-end mb-4">
