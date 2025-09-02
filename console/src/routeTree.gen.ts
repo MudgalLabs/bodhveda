@@ -18,6 +18,7 @@ import { Route as ProjectsIdRecipientsRouteImport } from './routes/projects/$id/
 import { Route as ProjectsIdPreferencesRouteImport } from './routes/projects/$id/preferences'
 import { Route as ProjectsIdNotificationsRouteImport } from './routes/projects/$id/notifications'
 import { Route as ProjectsIdHomeRouteImport } from './routes/projects/$id/home'
+import { Route as ProjectsIdBillingRouteImport } from './routes/projects/$id/billing'
 import { Route as ProjectsIdApiKeysRouteImport } from './routes/projects/$id/api-keys'
 
 const ProjectsRoute = ProjectsRouteImport.update({
@@ -65,6 +66,11 @@ const ProjectsIdHomeRoute = ProjectsIdHomeRouteImport.update({
   path: '/home',
   getParentRoute: () => ProjectsIdRoute,
 } as any)
+const ProjectsIdBillingRoute = ProjectsIdBillingRouteImport.update({
+  id: '/billing',
+  path: '/billing',
+  getParentRoute: () => ProjectsIdRoute,
+} as any)
 const ProjectsIdApiKeysRoute = ProjectsIdApiKeysRouteImport.update({
   id: '/api-keys',
   path: '/api-keys',
@@ -78,6 +84,7 @@ export interface FileRoutesByFullPath {
   '/projects/$id': typeof ProjectsIdRouteWithChildren
   '/projects/': typeof ProjectsIndexRoute
   '/projects/$id/api-keys': typeof ProjectsIdApiKeysRoute
+  '/projects/$id/billing': typeof ProjectsIdBillingRoute
   '/projects/$id/home': typeof ProjectsIdHomeRoute
   '/projects/$id/notifications': typeof ProjectsIdNotificationsRoute
   '/projects/$id/preferences': typeof ProjectsIdPreferencesRoute
@@ -89,6 +96,7 @@ export interface FileRoutesByTo {
   '/projects/$id': typeof ProjectsIdRouteWithChildren
   '/projects': typeof ProjectsIndexRoute
   '/projects/$id/api-keys': typeof ProjectsIdApiKeysRoute
+  '/projects/$id/billing': typeof ProjectsIdBillingRoute
   '/projects/$id/home': typeof ProjectsIdHomeRoute
   '/projects/$id/notifications': typeof ProjectsIdNotificationsRoute
   '/projects/$id/preferences': typeof ProjectsIdPreferencesRoute
@@ -102,6 +110,7 @@ export interface FileRoutesById {
   '/projects/$id': typeof ProjectsIdRouteWithChildren
   '/projects/': typeof ProjectsIndexRoute
   '/projects/$id/api-keys': typeof ProjectsIdApiKeysRoute
+  '/projects/$id/billing': typeof ProjectsIdBillingRoute
   '/projects/$id/home': typeof ProjectsIdHomeRoute
   '/projects/$id/notifications': typeof ProjectsIdNotificationsRoute
   '/projects/$id/preferences': typeof ProjectsIdPreferencesRoute
@@ -116,6 +125,7 @@ export interface FileRouteTypes {
     | '/projects/$id'
     | '/projects/'
     | '/projects/$id/api-keys'
+    | '/projects/$id/billing'
     | '/projects/$id/home'
     | '/projects/$id/notifications'
     | '/projects/$id/preferences'
@@ -127,6 +137,7 @@ export interface FileRouteTypes {
     | '/projects/$id'
     | '/projects'
     | '/projects/$id/api-keys'
+    | '/projects/$id/billing'
     | '/projects/$id/home'
     | '/projects/$id/notifications'
     | '/projects/$id/preferences'
@@ -139,6 +150,7 @@ export interface FileRouteTypes {
     | '/projects/$id'
     | '/projects/'
     | '/projects/$id/api-keys'
+    | '/projects/$id/billing'
     | '/projects/$id/home'
     | '/projects/$id/notifications'
     | '/projects/$id/preferences'
@@ -216,6 +228,13 @@ declare module '@tanstack/react-router' {
       preLoaderRoute: typeof ProjectsIdHomeRouteImport
       parentRoute: typeof ProjectsIdRoute
     }
+    '/projects/$id/billing': {
+      id: '/projects/$id/billing'
+      path: '/billing'
+      fullPath: '/projects/$id/billing'
+      preLoaderRoute: typeof ProjectsIdBillingRouteImport
+      parentRoute: typeof ProjectsIdRoute
+    }
     '/projects/$id/api-keys': {
       id: '/projects/$id/api-keys'
       path: '/api-keys'
@@ -228,6 +247,7 @@ declare module '@tanstack/react-router' {
 
 interface ProjectsIdRouteChildren {
   ProjectsIdApiKeysRoute: typeof ProjectsIdApiKeysRoute
+  ProjectsIdBillingRoute: typeof ProjectsIdBillingRoute
   ProjectsIdHomeRoute: typeof ProjectsIdHomeRoute
   ProjectsIdNotificationsRoute: typeof ProjectsIdNotificationsRoute
   ProjectsIdPreferencesRoute: typeof ProjectsIdPreferencesRoute
@@ -236,6 +256,7 @@ interface ProjectsIdRouteChildren {
 
 const ProjectsIdRouteChildren: ProjectsIdRouteChildren = {
   ProjectsIdApiKeysRoute: ProjectsIdApiKeysRoute,
+  ProjectsIdBillingRoute: ProjectsIdBillingRoute,
   ProjectsIdHomeRoute: ProjectsIdHomeRoute,
   ProjectsIdNotificationsRoute: ProjectsIdNotificationsRoute,
   ProjectsIdPreferencesRoute: ProjectsIdPreferencesRoute,

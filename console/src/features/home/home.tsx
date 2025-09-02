@@ -12,6 +12,7 @@ import {
     Loading,
     LoadingScreen,
     PageHeading,
+    useDocumentTitle,
 } from "netra";
 
 import {
@@ -21,6 +22,8 @@ import {
 import { ReactNode, useMemo } from "react";
 
 export function Home() {
+    useDocumentTitle("Home  • Bodhveda");
+
     const projectID = useGetProjectIDFromParams();
     const { data: projects, isLoading, isFetching, isError } = useGetProjects();
 

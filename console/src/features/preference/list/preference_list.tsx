@@ -21,6 +21,7 @@ import {
     PageHeading,
     ToggleGroup,
     ToggleGroupItem,
+    useDocumentTitle,
 } from "netra";
 import { useGetProjectIDFromParams } from "@/features/project/project_hooks";
 import { useGetPreferences } from "@/features/preference/preference_hooks";
@@ -33,6 +34,8 @@ import {
 import { DeleteProjectPreferenceModal } from "../components/delete_project_preference_modal";
 
 export function ProjectPreferenceList() {
+    useDocumentTitle("Preferences  • Bodhveda");
+
     const id = useGetProjectIDFromParams();
     const [kind, setKind] = useState<PreferenceKind>("project");
     const isProject = kind === "project";

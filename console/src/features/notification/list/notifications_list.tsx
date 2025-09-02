@@ -16,6 +16,7 @@ import {
     Tag,
     formatDuration,
     LoadingScreen,
+    useDocumentTitle,
 } from "netra";
 
 import {
@@ -32,6 +33,8 @@ import {
 } from "@/features/notification/notification_hooks";
 
 export function NotificationList() {
+    useDocumentTitle("Notifications  • Bodhveda");
+
     const projectID = useGetProjectIDFromParams();
     const [notificationKind, setNotificationKind] =
         useState<NotificationKind>("direct");
@@ -175,6 +178,12 @@ const columns: ColumnDef<Notification>[] = [
         cell: ({ row }) => row.index + 1,
     },
     {
+        accessorKey: "created_at",
+        header: () => <DataTableColumnHeader title="Sent" />,
+        cell: ({ row }) =>
+            formatDate(new Date(row.original.created_at), { time: true }),
+    },
+    {
         accessorKey: "recipient_id",
         header: () => <DataTableColumnHeader title="Recipient ID" />,
     },
@@ -202,12 +211,6 @@ const columns: ColumnDef<Notification>[] = [
         accessorKey: "state.opened",
         header: () => <DataTableColumnHeader title="Opened" />,
         cell: ({ row }) => (row.original.state.opened ? "Yes" : "No"),
-    },
-    {
-        accessorKey: "created_at",
-        header: () => <DataTableColumnHeader title="Sent" />,
-        cell: ({ row }) =>
-            formatDate(new Date(row.original.created_at), { time: true }),
     },
 ];
 
@@ -249,6 +252,12 @@ const broadcastColumns: ColumnDef<BroadcastListItem>[] = [
         cell: ({ row }) => row.index + 1,
     },
     {
+        accessorKey: "created_at",
+        header: () => <DataTableColumnHeader title="Sent" />,
+        cell: ({ row }) =>
+            formatDate(new Date(row.original.created_at), { time: true }),
+    },
+    {
         accessorKey: "target.channel",
         header: () => <DataTableColumnHeader title="Channel" />,
         cell: ({ row }) => row.original.target.channel,
@@ -274,12 +283,6 @@ const broadcastColumns: ColumnDef<BroadcastListItem>[] = [
     {
         accessorKey: "opened_count",
         header: () => <DataTableColumnHeader title="Opened" />,
-    },
-    {
-        accessorKey: "created_at",
-        header: () => <DataTableColumnHeader title="Sent" />,
-        cell: ({ row }) =>
-            formatDate(new Date(row.original.created_at), { time: true }),
     },
     {
         id: "status",

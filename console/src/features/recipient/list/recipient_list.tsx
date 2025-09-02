@@ -26,6 +26,7 @@ import {
     PageHeading,
     toast,
     Tooltip,
+    useDocumentTitle,
 } from "netra";
 import { useGetProjectIDFromParams } from "@/features/project/project_hooks";
 import {
@@ -34,9 +35,11 @@ import {
 } from "@/features/recipient/recipient_hooks";
 import { CreateRecipientModal } from "@/features/recipient/list/create_recipient_modal";
 import { RecipientListItem } from "@/features/recipient/recipient_types";
-import { EditRecipientModal } from "./edit_recipient_modal";
+import { EditRecipientModal } from "@/features/recipient/list/edit_recipient_modal";
 
 export function RecipientList() {
+    useDocumentTitle("Recipients  • Bodhveda");
+
     const id = useGetProjectIDFromParams();
 
     const [tableState, setTableState] = useState<DataTableState>({

@@ -14,6 +14,7 @@ import {
     useSidebar,
     SidebarItem,
     useIsMobile,
+    IconCreditCard,
 } from "netra";
 import { useGetProjectIDFromParams } from "@/features/project/project_hooks";
 import { Branding } from "@/components/branding";
@@ -49,6 +50,19 @@ export const Sidebar = () => {
                             hideText={!isOpen || isMobile}
                             hideBetaTag={!isOpen || isMobile}
                         />
+
+                        <div className="h-4" />
+
+                        <Link to="/projects" className="link-unstyled ">
+                            <SidebarItem
+                                label="Back to Projects"
+                                icon={<IconArrowLeft size={18} />}
+                                open={isOpen}
+                                isActive={
+                                    activeRoute === `/projects/${id}/projects`
+                                }
+                            />
+                        </Link>
                     </div>
 
                     <Link
@@ -127,12 +141,16 @@ export const Sidebar = () => {
             </div>
 
             <div className="mb-4 space-y-2">
-                <Link to="/projects" className="link-unstyled ">
+                <Link
+                    to="/projects/$id/billing"
+                    params={{ id }}
+                    className="link-unstyled "
+                >
                     <SidebarItem
-                        label="Back to Projects"
-                        icon={<IconArrowLeft size={18} />}
+                        label="Billing"
+                        icon={<IconCreditCard size={18} />}
                         open={isOpen}
-                        isActive={activeRoute === `/projects/${id}/projects`}
+                        isActive={activeRoute === `/projects/${id}/billing`}
                     />
                 </Link>
 

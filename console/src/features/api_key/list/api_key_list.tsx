@@ -19,6 +19,7 @@ import {
     Loading,
     LoadingScreen,
     PageHeading,
+    useDocumentTitle,
 } from "netra";
 
 import { useGetProjectIDFromParams } from "@/features/project/project_hooks";
@@ -28,6 +29,8 @@ import { APIKey, apiKeyScopeToString } from "@/features/api_key/api_key_types";
 import { DeleteAPIKeyModal } from "../components/delete_api_key_modal";
 
 export function APIKeyList() {
+    useDocumentTitle("API Keys  • Bodhveda");
+
     const id = useGetProjectIDFromParams();
 
     const { data, isLoading, isFetching, isError } = useGetAPIKeys(id);

@@ -17,6 +17,7 @@ import {
     LoadingScreen,
     PageHeading,
     Tooltip,
+    useDocumentTitle,
 } from "netra";
 import { Link } from "@tanstack/react-router";
 
@@ -25,6 +26,8 @@ import { useGetProjects } from "@/features/project/project_hooks";
 import { DeleteProjectModal } from "@/features/project/components/delete_project_modal";
 
 export function ProjectList() {
+    useDocumentTitle("Projects  • Bodhveda");
+
     const { data, isLoading, isError } = useGetProjects();
 
     const content = useMemo(() => {
