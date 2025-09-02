@@ -43,6 +43,16 @@ export function useSendNotification(
             queryClient.invalidateQueries({
                 queryKey: ["useGetProjects"],
             });
+            queryClient.invalidateQueries({
+                predicate: (query) =>
+                    Array.isArray(query.queryKey) &&
+                    query.queryKey[0] === "useGetNotification",
+            });
+            queryClient.invalidateQueries({
+                predicate: (query) =>
+                    Array.isArray(query.queryKey) &&
+                    query.queryKey[0] === "useGetBroadcasts",
+            });
             onSuccess?.(...args);
         },
         ...rest,

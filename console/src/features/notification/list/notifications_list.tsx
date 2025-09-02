@@ -14,6 +14,7 @@ import {
     Loading,
     formatDate,
     Tag,
+    formatDuration,
 } from "netra";
 
 import {
@@ -28,7 +29,6 @@ import {
     useNotifications,
     useBroadcasts,
 } from "@/features/notification/notification_hooks";
-import { formatDuration } from "@/lib/utils";
 
 export function NotificationList() {
     const projectID = useGetProjectIDFromParams();
@@ -268,7 +268,7 @@ const broadcastColumns: ColumnDef<BroadcastListItem>[] = [
                 <span className="flex-x">
                     <Tag variant="success">Delivered</Tag>
                     <span className="text-xs text-text-muted">
-                        {formatDuration(completedAt, createdAt)}
+                        {formatDuration(createdAt, completedAt)}
                     </span>
                 </span>
             ) : (
