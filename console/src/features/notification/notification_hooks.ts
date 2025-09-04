@@ -15,7 +15,7 @@ import {
     ListNotificationsResult,
     NotificationKind,
     SendNotificationPayload,
-    SendNotificationResponse,
+    SendNotificationResult,
 } from "@/features/notification/notification_types";
 
 export function useSendNotification(
@@ -26,7 +26,7 @@ export function useSendNotification(
     const queryClient = useQueryClient();
 
     return useMutation<
-        APIRes<SendNotificationResponse>,
+        APIRes<SendNotificationResult>,
         unknown,
         SendNotificationPayload
     >({

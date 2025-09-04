@@ -63,7 +63,7 @@ export const CreateProjectPreferenceModal: FC<
         });
     };
 
-    const rule = useMemo(() => {
+    const targetFormatted = useMemo(() => {
         let str = "";
         if (channel.trim()) str += channel.trim();
         if (topic.trim()) str += ` : ${topic.trim()}`;
@@ -177,9 +177,9 @@ export const CreateProjectPreferenceModal: FC<
 
                     <DialogFooter className="flex-x justify-between!">
                         <div>
-                            {rule && (
+                            {targetFormatted && (
                                 <p>
-                                    <strong>Rule:</strong> {rule}
+                                    <strong>Target:</strong> {targetFormatted}
                                 </p>
                             )}
                         </div>

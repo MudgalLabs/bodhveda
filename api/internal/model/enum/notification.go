@@ -19,3 +19,13 @@ func ParseNotificationKind(s string) NotificationKind {
 		return NotificationKindDirect
 	}
 }
+
+type NotificationStatus string
+
+const (
+	NotificationStatusEnqueued      NotificationStatus = "enqueued"
+	NotificationStatusMuted         NotificationStatus = "muted"
+	NotificationStatusDelivered     NotificationStatus = "delivered"
+	NotificationStatusQuotaExceeded NotificationStatus = "quota_exceeded"
+	NotificationStatusFailed        NotificationStatus = "failed"
+)

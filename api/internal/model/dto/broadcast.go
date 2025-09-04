@@ -5,16 +5,18 @@ import (
 	"time"
 
 	"github.com/mudgallabs/bodhveda/internal/model/entity"
+	"github.com/mudgallabs/bodhveda/internal/model/enum"
 	"github.com/mudgallabs/tantra/query"
 )
 
 type Broadcast struct {
-	ID          int             `json:"id"`
-	Payload     json.RawMessage `json:"payload"`
-	Target      Target          `json:"target"`
-	CompletedAt *time.Time      `json:"completed_at,omitempty"`
-	CreatedAt   time.Time       `json:"created_at"`
-	UpdatedAt   time.Time       `json:"updated_at"`
+	ID          int                  `json:"id"`
+	Payload     json.RawMessage      `json:"payload"`
+	Target      Target               `json:"target"`
+	Status      enum.BroadcastStatus `json:"status"`
+	CompletedAt *time.Time           `json:"completed_at,omitempty"`
+	CreatedAt   time.Time            `json:"created_at"`
+	UpdatedAt   time.Time            `json:"updated_at"`
 }
 
 func FromBroadcast(broadcast *entity.Broadcast) *Broadcast {
@@ -30,6 +32,7 @@ func FromBroadcast(broadcast *entity.Broadcast) *Broadcast {
 			Topic:   broadcast.Topic,
 			Event:   broadcast.Event,
 		},
+		Status:      broadcast.Status,
 		CompletedAt: broadcast.CompletedAt,
 		CreatedAt:   broadcast.CreatedAt,
 		UpdatedAt:   broadcast.UpdatedAt,

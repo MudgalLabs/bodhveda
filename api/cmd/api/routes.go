@@ -164,7 +164,10 @@ func initRouter() http.Handler {
 		r.Route("/users", func(r chi.Router) {
 			r.Use(middleware.AuthMiddleware)
 
-			r.Get("/me", handler.GetUserMeHandler(app.APP.Service.UserProfile))
+			r.Route("/me", func(r chi.Router) {
+				r.Get("/", handler.GetUserMe(app.APP.Service.UserProfile))
+				r.Get("/billing", handler.GetUserMeBilling(app.APP.Service.Billing))
+			})
 		})
 	})
 

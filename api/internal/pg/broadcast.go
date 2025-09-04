@@ -27,20 +27,20 @@ func NewBroadcastRepo(db *pgxpool.Pool) repository.BroadcastRepository {
 func (r *BroadcastRepo) Create(ctx context.Context, broadcast *entity.Broadcast) (*entity.Broadcast, error) {
 	sql := `
 		INSERT INTO broadcast (
-			project_id, payload, channel, topic, event, completed_at, created_at, updated_at
+			project_id, payload, channel, topic, event, completed_at, created_at, updated_at, status
 		)
-		VALUES ($1, $2, $3, $4, $5, $6, $7, $8)
-		RETURNING id, project_id, payload, channel, topic, event, completed_at, created_at, updated_at
+		VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9)
+		RETURNING id, project_id, payload, channel, topic, event, completed_at, created_at, updated_at, status
 	`
 	row := r.db.QueryRow(ctx, sql, broadcast.ProjectID, broadcast.Payload, broadcast.Channel, broadcast.Topic,
-		broadcast.Event, broadcast.CompletedAt, broadcast.CreatedAt, broadcast.UpdatedAt,
+		broadcast.Event, broadcast.CompletedAt, broadcast.CreatedAt, broadcast.UpdatedAt, broadcast.Status,
 	)
 
 	var newBroadcast entity.Broadcast
 
 	err := row.Scan(&newBroadcast.ID, &newBroadcast.ProjectID, &newBroadcast.Payload, &newBroadcast.Channel,
 		&newBroadcast.Topic, &newBroadcast.Event, &newBroadcast.CompletedAt, &newBroadcast.CreatedAt,
-		&newBroadcast.UpdatedAt,
+		&newBroadcast.UpdatedAt, &newBroadcast.Status,
 	)
 	if err != nil {
 		return nil, fmt.Errorf("scan broadcast: %w", err)
@@ -51,7 +51,8 @@ func (r *BroadcastRepo) Create(ctx context.Context, broadcast *entity.Broadcast)
 
 func (r *BroadcastRepo) GetByID(ctx context.Context, id int) (*entity.Broadcast, error) {
 	sql := `
-		SELECT id, project_id, payload, channel, topic, event, completed_at, created_at, updated_at
+		SELECT id, project_id, payload, channel, topic, event, completed_at, created_at,
+		updated_at, status
 		FROM broadcast
 		WHERE id = $1
 	`
@@ -60,7 +61,7 @@ func (r *BroadcastRepo) GetByID(ctx context.Context, id int) (*entity.Broadcast,
 	var broadcast entity.Broadcast
 
 	err := row.Scan(&broadcast.ID, &broadcast.ProjectID, &broadcast.Payload, &broadcast.Channel, &broadcast.Topic,
-		&broadcast.Event, &broadcast.CompletedAt, &broadcast.CreatedAt, &broadcast.UpdatedAt)
+		&broadcast.Event, &broadcast.CompletedAt, &broadcast.CreatedAt, &broadcast.UpdatedAt, &broadcast.Status)
 	if err != nil {
 		return nil, fmt.Errorf("scan broadcast by id: %w", err)
 	}
@@ -71,12 +72,13 @@ func (r *BroadcastRepo) GetByID(ctx context.Context, id int) (*entity.Broadcast,
 func (r *BroadcastRepo) Update(ctx context.Context, broadcast *entity.Broadcast) error {
 	sql := `
 		UPDATE broadcast
-		SET payload = $2, channel = $3, topic = $4, event = $5, completed_at = $6, updated_at = $7
+		SET payload = $2, channel = $3, topic = $4, event = $5, completed_at = $6,
+		updated_at = $7, status = $8
 		WHERE id = $1
 	`
 	_, err := r.db.Exec(
 		ctx, sql, broadcast.ID, broadcast.Payload, broadcast.Channel, broadcast.Topic, broadcast.Event,
-		broadcast.CompletedAt, broadcast.UpdatedAt,
+		broadcast.CompletedAt, broadcast.UpdatedAt, broadcast.Status,
 	)
 	return err
 }
@@ -97,7 +99,7 @@ func (r *BroadcastRepo) DeleteForProject(ctx context.Context, projectID int) (in
 func (r *BroadcastRepo) List(ctx context.Context, projectID int, pagination query.Pagination) ([]*dto.BroadcastListItem, int, error) {
 	sql := `
 		SELECT 
-			id, payload, channel, topic, event, completed_at, created_at, updated_at
+			id, payload, channel, topic, event, completed_at, created_at, updated_at, status
 		FROM broadcast
 	`
 	b := dbx.NewSQLBuilder(sql)
@@ -120,6 +122,7 @@ func (r *BroadcastRepo) List(ctx context.Context, projectID int, pagination quer
 		err := rows.Scan(
 			&broadcast.ID, &broadcast.Payload, &broadcast.Target.Channel, &broadcast.Target.Topic,
 			&broadcast.Target.Event, &broadcast.CompletedAt, &broadcast.CreatedAt, &broadcast.UpdatedAt,
+			&broadcast.Status,
 		)
 		if err != nil {
 			return nil, 0, fmt.Errorf("scan: %w", err)

@@ -26,7 +26,7 @@ func SendNotification(s *service.NotificationService) http.HandlerFunc {
 
 		payload.ProjectID = apiKey.ProjectID
 
-		result, message, errKind, err := s.Send(ctx, payload)
+		result, message, errKind, err := s.Send(ctx, apiKey.UserID, payload)
 		if err != nil {
 			httpx.ServiceErrResponse(w, r, errKind, err)
 			return
@@ -39,6 +39,8 @@ func SendNotification(s *service.NotificationService) http.HandlerFunc {
 func SendNotificationConsole(s *service.NotificationService) http.HandlerFunc {
 	return func(w http.ResponseWriter, r *http.Request) {
 		ctx := r.Context()
+		userID := middleware.GetUserIDFromContext(ctx)
+
 		projectID, err := httpx.ParamInt(r, "project_id")
 		if err != nil {
 			httpx.BadRequestResponse(w, r, errors.New("Invalid project ID"))
@@ -53,7 +55,7 @@ func SendNotificationConsole(s *service.NotificationService) http.HandlerFunc {
 
 		payload.ProjectID = projectID
 
-		result, message, errKind, err := s.Send(ctx, payload)
+		result, message, errKind, err := s.Send(ctx, userID, payload)
 		if err != nil {
 			httpx.ServiceErrResponse(w, r, errKind, err)
 			return

@@ -1,12 +1,12 @@
+import { Target } from "@/features//notification/notification_types";
+
 export type PreferenceKind = "project" | "recipient";
 
 export interface ProjectPreference {
     id: number;
+    target: Target;
     label: string;
     default_enabled: boolean;
-    channel: string;
-    topic: string;
-    event: string;
     created_at: string;
     updated_at: string;
 
@@ -23,10 +23,8 @@ export interface CreateProjectPreferencePayload {
 
 export interface RecipientPreference {
     id: number;
+    target: Target;
     recipient_id: string;
-    channel: string;
-    topic: string;
-    event: string;
     enabled: boolean;
     created_at: string;
     updated_at: string;

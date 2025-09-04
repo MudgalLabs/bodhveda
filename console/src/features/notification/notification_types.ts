@@ -2,6 +2,19 @@ import { PaginationMeta } from "@/lib/types";
 
 export type NotificationKind = "direct" | "broadcast";
 
+export type NotificationStatus =
+    | "enqueued"
+    | "muted"
+    | "delivered"
+    | "quota_exceeded"
+    | "failed";
+
+export type BroadcastStatus =
+    | "enqueued"
+    | "completed"
+    | "quota_exceeded"
+    | "failed";
+
 export interface Notification {
     id: number;
     recipient_id: string;
@@ -9,6 +22,8 @@ export interface Notification {
     broadcast_id: number | null;
     target: Target;
     state: NotificationState;
+    status: NotificationStatus;
+    completed_at?: string;
     created_at: string;
     updated_at: string;
 }
@@ -17,6 +32,7 @@ export interface Broadcast {
     id: number;
     payload: string;
     target: Target;
+    status: BroadcastStatus;
     completed_at?: string;
     created_at: string;
     updated_at: string;
@@ -45,7 +61,7 @@ export interface NotificationsOverviewResult {
     total_broadcast_sent: number;
 }
 
-export interface SendNotificationResponse {
+export interface SendNotificationResult {
     notification: Notification | null;
     broadcast: Broadcast | null;
 }

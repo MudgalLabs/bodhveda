@@ -13,10 +13,10 @@ import {
     IconBell,
     Loading,
     formatDate,
-    Tag,
     formatDuration,
     LoadingScreen,
     useDocumentTitle,
+    IconInfo,
 } from "netra";
 
 import {
@@ -31,6 +31,9 @@ import {
     useNotifications,
     useBroadcasts,
 } from "@/features/notification/notification_hooks";
+import { StatusTag } from "@/components/status_tag";
+import { targetToString } from "@/lib/utils";
+import { TargetInfoTooltip } from "@/components/target_info_tooltip";
 
 export function NotificationList() {
     useDocumentTitle("Notifications  • Bodhveda");
@@ -188,19 +191,19 @@ const columns: ColumnDef<Notification>[] = [
         header: () => <DataTableColumnHeader title="Recipient ID" />,
     },
     {
-        accessorKey: "channel",
-        header: () => <DataTableColumnHeader title="Channel" />,
-        cell: ({ row }) => row.original.target.channel,
-    },
-    {
-        accessorKey: "topic",
-        header: () => <DataTableColumnHeader title="Topic" />,
-        cell: ({ row }) => row.original.target.topic,
-    },
-    {
-        accessorKey: "event",
-        header: () => <DataTableColumnHeader title="Event" />,
-        cell: ({ row }) => row.original.target.event,
+        accessorKey: "target",
+        header: () => (
+            <DataTableColumnHeader
+                title={
+                    <TargetInfoTooltip>
+                        <span className="flex-x w-fit">
+                            Target <IconInfo />
+                        </span>
+                    </TargetInfoTooltip>
+                }
+            />
+        ),
+        cell: ({ row }) => targetToString(row.original.target),
     },
     {
         accessorKey: "state.read",
@@ -211,6 +214,30 @@ const columns: ColumnDef<Notification>[] = [
         accessorKey: "state.opened",
         header: () => <DataTableColumnHeader title="Opened" />,
         cell: ({ row }) => (row.original.state.opened ? "Yes" : "No"),
+    },
+    {
+        accessorKey: "status",
+        header: () => <DataTableColumnHeader title="Status" />,
+        cell: ({ row }) => {
+            const completedAt = row.original.completed_at
+                ? new Date(row.original.completed_at)
+                : null;
+            const createdAt = new Date(row.original.created_at);
+
+            return completedAt ? (
+                <span className="flex-x">
+                    <StatusTag status={row.original.status} />
+                    <span className="text-xs text-text-muted">
+                        {formatDuration(createdAt, completedAt)}
+                    </span>
+                </span>
+            ) : (
+                <span className="flex-x gap-x-4">
+                    <StatusTag status={row.original.status} />
+                    <Loading size={18} />
+                </span>
+            );
+        },
     },
 ];
 
@@ -258,19 +285,19 @@ const broadcastColumns: ColumnDef<BroadcastListItem>[] = [
             formatDate(new Date(row.original.created_at), { time: true }),
     },
     {
-        accessorKey: "target.channel",
-        header: () => <DataTableColumnHeader title="Channel" />,
-        cell: ({ row }) => row.original.target.channel,
-    },
-    {
-        accessorKey: "target.topic",
-        header: () => <DataTableColumnHeader title="Topic" />,
-        cell: ({ row }) => row.original.target.topic,
-    },
-    {
-        accessorKey: "target.event",
-        header: () => <DataTableColumnHeader title="Event" />,
-        cell: ({ row }) => row.original.target.event,
+        accessorKey: "target",
+        header: () => (
+            <DataTableColumnHeader
+                title={
+                    <TargetInfoTooltip>
+                        <span className="flex-x w-fit">
+                            Target <IconInfo />
+                        </span>
+                    </TargetInfoTooltip>
+                }
+            />
+        ),
+        cell: ({ row }) => targetToString(row.original.target),
     },
     {
         accessorKey: "delivered_count",
@@ -285,7 +312,7 @@ const broadcastColumns: ColumnDef<BroadcastListItem>[] = [
         header: () => <DataTableColumnHeader title="Opened" />,
     },
     {
-        id: "status",
+        accessorKey: "status",
         header: () => <DataTableColumnHeader title="Status" />,
         cell: ({ row }) => {
             const completedAt = row.original.completed_at
@@ -295,14 +322,14 @@ const broadcastColumns: ColumnDef<BroadcastListItem>[] = [
 
             return completedAt ? (
                 <span className="flex-x">
-                    <Tag variant="success">Delivered</Tag>
+                    <StatusTag status={row.original.status} />
                     <span className="text-xs text-text-muted">
                         {formatDuration(createdAt, completedAt)}
                     </span>
                 </span>
             ) : (
                 <span className="flex-x gap-x-4">
-                    <Tag>Delivering</Tag>
+                    <StatusTag status={row.original.status} />
                     <Loading size={18} />
                 </span>
             );

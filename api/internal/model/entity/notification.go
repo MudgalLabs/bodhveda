@@ -3,6 +3,8 @@ package entity
 import (
 	"encoding/json"
 	"time"
+
+	"github.com/mudgallabs/bodhveda/internal/model/enum"
 )
 
 type Notification struct {
@@ -16,11 +18,13 @@ type Notification struct {
 	Event          string
 	ReadAt         *time.Time
 	OpenedAt       *time.Time
+	Status         enum.NotificationStatus
+	CompletedAt    *time.Time
 	CreatedAt      time.Time
 	UpdatedAt      time.Time
 }
 
-func NewNotification(projectID int, recipientExtID string, payload json.RawMessage, broadcastID *int, channel string, topic string, event string) *Notification {
+func NewNotification(projectID int, recipientExtID string, payload json.RawMessage, broadcastID *int, channel, topic, event string) *Notification {
 	now := time.Now().UTC()
 
 	return &Notification{
@@ -33,6 +37,8 @@ func NewNotification(projectID int, recipientExtID string, payload json.RawMessa
 		Event:          event,
 		ReadAt:         nil,
 		OpenedAt:       nil,
+		Status:         enum.NotificationStatusEnqueued,
+		CompletedAt:    nil,
 		CreatedAt:      now,
 		UpdatedAt:      now,
 	}

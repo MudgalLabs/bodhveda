@@ -11,9 +11,7 @@ import (
 type ProjectPreference struct {
 	ID        int       `json:"id"`
 	ProjectID int       `json:"project_id"`
-	Channel   string    `json:"channel"`
-	Topic     string    `json:"topic"`
-	Event     string    `json:"event"`
+	Target    Target    `json:"target"`
 	Enabled   bool      `json:"default_enabled"`
 	Label     string    `json:"label"`
 	CreatedAt time.Time `json:"created_at"`
@@ -68,9 +66,11 @@ func FromPreferenceForProject(e *entity.Preference) *ProjectPreference {
 	return &ProjectPreference{
 		ID:        e.ID,
 		ProjectID: *e.ProjectID,
-		Channel:   e.Channel,
-		Topic:     e.Topic,
-		Event:     e.Event,
+		Target: Target{
+			Channel: e.Channel,
+			Topic:   e.Topic,
+			Event:   e.Event,
+		},
 		Enabled:   e.Enabled,
 		Label:     *e.Label,
 		CreatedAt: e.CreatedAt,
@@ -82,9 +82,7 @@ type RecipientPreference struct {
 	ID             int       `json:"id"`
 	ProjectID      int       `json:"project_id"`
 	RecipientExtID string    `json:"recipient_id"`
-	Channel        string    `json:"channel"`
-	Topic          string    `json:"topic"`
-	Event          string    `json:"event"`
+	Target         Target    `json:"target"`
 	Enabled        bool      `json:"enabled"`
 	CreatedAt      time.Time `json:"created_at"`
 	UpdatedAt      time.Time `json:"updated_at"`
@@ -139,12 +137,14 @@ func FromPreferenceForRecipient(e *entity.Preference) *RecipientPreference {
 		ID:             e.ID,
 		ProjectID:      *e.ProjectID,
 		RecipientExtID: *e.RecipientExtID,
-		Channel:        e.Channel,
-		Topic:          e.Topic,
-		Event:          e.Event,
-		Enabled:        e.Enabled,
-		CreatedAt:      e.CreatedAt,
-		UpdatedAt:      e.UpdatedAt,
+		Target: Target{
+			Channel: e.Channel,
+			Topic:   e.Topic,
+			Event:   e.Event,
+		},
+		Enabled:   e.Enabled,
+		CreatedAt: e.CreatedAt,
+		UpdatedAt: e.UpdatedAt,
 	}
 }
 

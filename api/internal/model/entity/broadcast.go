@@ -3,6 +3,8 @@ package entity
 import (
 	"encoding/json"
 	"time"
+
+	"github.com/mudgallabs/bodhveda/internal/model/enum"
 )
 
 type Broadcast struct {
@@ -12,6 +14,7 @@ type Broadcast struct {
 	Channel     string
 	Topic       string
 	Event       string
+	Status      enum.BroadcastStatus
 	CompletedAt *time.Time
 	CreatedAt   time.Time
 	UpdatedAt   time.Time
@@ -25,6 +28,7 @@ func NewBroadcast(projectID int, payload json.RawMessage, channel string, topic 
 		Channel:     channel,
 		Topic:       topic,
 		Event:       event,
+		Status:      enum.BroadcastStatusEnqueued,
 		CompletedAt: nil,
 		CreatedAt:   now,
 		UpdatedAt:   now,

@@ -55,6 +55,7 @@ export const API_ROUTES = {
     },
     user: {
         me: "/console/users/me",
+        billing: "/console/users/me/billing",
     },
 };
 

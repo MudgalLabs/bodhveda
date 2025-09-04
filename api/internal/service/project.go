@@ -6,7 +6,7 @@ import (
 	"fmt"
 
 	"github.com/hibiken/asynq"
-	"github.com/mudgallabs/bodhveda/internal/job"
+	"github.com/mudgallabs/bodhveda/internal/job/task"
 	"github.com/mudgallabs/bodhveda/internal/model/dto"
 	"github.com/mudgallabs/bodhveda/internal/model/entity"
 	"github.com/mudgallabs/bodhveda/internal/model/repository"
@@ -102,7 +102,7 @@ func (s *ProjectService) Delete(ctx context.Context, userID, projectID int) (ser
 		return service.ErrInternalServerError, fmt.Errorf("marshal delete project data payload: %w", err)
 	}
 
-	task := asynq.NewTask(job.TaskTypeDeleteProjectData, payload)
+	task := asynq.NewTask(task.TaskTypeDeleteProjectData, payload)
 	_, err = s.asynqClient.Enqueue(task, asynq.MaxRetry(3))
 	if err != nil {
 		return service.ErrInternalServerError, fmt.Errorf("enqueue delete project data task: %w", err)

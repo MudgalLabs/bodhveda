@@ -76,7 +76,7 @@ func (client *httpClient) Do(ctx context.Context, method, path string, body any,
 	duration := time.Since(start)
 
 	if client.debug {
-		fmt.Printf("[Bodhveda DEBUG] Request Duration: %s\n", duration)
+		log.Printf("[Bodhveda DEBUG] Request Duration: %s\n", duration)
 	}
 
 	respBody, err := io.ReadAll(resp.Body)

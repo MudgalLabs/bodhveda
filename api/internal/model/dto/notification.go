@@ -12,14 +12,16 @@ import (
 )
 
 type Notification struct {
-	ID             int               `json:"id"`
-	RecipientExtID string            `json:"recipient_id"`
-	Payload        json.RawMessage   `json:"payload"`
-	BroadcastID    *int              `json:"broadcast_id"`
-	Target         Target            `json:"target"`
-	State          NotificationState `json:"state"`
-	CreatedAt      time.Time         `json:"created_at"`
-	UpdatedAt      time.Time         `json:"updated_at"`
+	ID             int                     `json:"id"`
+	RecipientExtID string                  `json:"recipient_id"`
+	Payload        json.RawMessage         `json:"payload"`
+	BroadcastID    *int                    `json:"broadcast_id"`
+	Target         Target                  `json:"target"`
+	State          NotificationState       `json:"state"`
+	Status         enum.NotificationStatus `json:"status"`
+	CompletedAt    *time.Time              `json:"completed_at,omitempty"`
+	CreatedAt      time.Time               `json:"created_at"`
+	UpdatedAt      time.Time               `json:"updated_at"`
 }
 
 type NotificationState struct {
@@ -47,6 +49,8 @@ func FromNotification(notification *entity.Notification) *Notification {
 			Opened: notification.OpenedAt != nil,
 		},
 		BroadcastID: notification.BroadcastID,
+		Status:      notification.Status,
+		CompletedAt: notification.CompletedAt,
 		CreatedAt:   notification.CreatedAt,
 		UpdatedAt:   notification.UpdatedAt,
 	}
@@ -189,7 +193,13 @@ type NotificationIDsPayload struct {
 }
 
 type PrepareBroadcastBatchesPayload struct {
+	UserID    int
 	Broadcast *entity.Broadcast
+}
+
+type NotificationDeliveryTaskPayload struct {
+	UserID       int
+	Notification *entity.Notification
 }
 
 type BroadcastDeliveryTaskPayload struct {

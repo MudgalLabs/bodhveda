@@ -21,7 +21,7 @@ func NewBroadcastBatch(broadcastID, recipients int) *BroadcastBatch {
 	now := time.Now().UTC()
 	return &BroadcastBatch{
 		BroadcastID: broadcastID,
-		Status:      enum.BroadcastBatchStatusPending,
+		Status:      enum.BroadcastBatchStatusEnqueued,
 		Recipients:  recipients,
 		Attempt:     0,
 		Duration:    0,

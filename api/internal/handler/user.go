@@ -8,7 +8,7 @@ import (
 	"github.com/mudgallabs/tantra/httpx"
 )
 
-func GetUserMeHandler(s *user_profile.Service) http.HandlerFunc {
+func GetUserMe(s *user_profile.Service) http.HandlerFunc {
 	return func(w http.ResponseWriter, r *http.Request) {
 		ctx := r.Context()
 		userID := middleware.GetUserIDFromContext(ctx)

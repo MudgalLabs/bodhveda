@@ -31,20 +31,24 @@ func (r *NotificationRepo) Create(ctx context.Context, notification *entity.Noti
 	sql := `
 		INSERT INTO notification (
 			project_id, recipient_external_id, payload, broadcast_id, channel,
-			topic, event, read_at, opened_at, created_at, updated_at
+			topic, event, read_at, opened_at, created_at, updated_at, completed_at, status
 		)
-		VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11)
-		RETURNING id, project_id, recipient_external_id, payload, broadcast_id, channel, topic, event, read_at, opened_at, created_at, updated_at
+		VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, $12, $13)
+		RETURNING id, project_id, recipient_external_id, payload, broadcast_id, channel, topic, event,
+		read_at, opened_at, created_at, updated_at, completed_at, status
 	`
 
 	row := r.db.QueryRow(ctx, sql, notification.ProjectID, notification.RecipientExtID, notification.Payload,
 		notification.BroadcastID, notification.Channel, notification.Topic, notification.Event,
-		notification.ReadAt, notification.OpenedAt, notification.CreatedAt, notification.UpdatedAt)
+		notification.ReadAt, notification.OpenedAt, notification.CreatedAt, notification.UpdatedAt,
+		notification.CompletedAt, notification.Status,
+	)
 
 	var newNotification entity.Notification
 	err := row.Scan(&newNotification.ID, &newNotification.ProjectID, &newNotification.RecipientExtID,
 		&newNotification.Payload, &newNotification.BroadcastID, &newNotification.Channel, &newNotification.Topic,
-		&newNotification.Event, &newNotification.ReadAt, &newNotification.OpenedAt, &newNotification.CreatedAt, &newNotification.UpdatedAt,
+		&newNotification.Event, &newNotification.ReadAt, &newNotification.OpenedAt, &newNotification.CreatedAt,
+		&newNotification.UpdatedAt, &newNotification.CompletedAt, &newNotification.Status,
 	)
 	if err != nil {
 		return nil, fmt.Errorf("insert notification: %w", err)
@@ -68,12 +72,14 @@ func (r *NotificationRepo) BatchCreateTx(ctx context.Context, tx pgx.Tx, notific
 			n.OpenedAt,
 			n.CreatedAt,
 			n.UpdatedAt,
+			n.CompletedAt,
+			n.Status,
 		}
 	}
 
 	_, err := tx.CopyFrom(ctx, pgx.Identifier{"notification"}, []string{
 		"project_id", "recipient_external_id", "payload", "broadcast_id",
-		"channel", "topic", "event", "read_at", "opened_at", "created_at", "updated_at",
+		"channel", "topic", "event", "read_at", "opened_at", "created_at", "updated_at", "completed_at", "status",
 	}, pgx.CopyFromRows(rows))
 
 	return err
@@ -115,7 +121,7 @@ func (r *NotificationRepo) ListForRecipient(ctx context.Context, projectID int, 
 	}
 
 	b := dbx.NewSQLBuilder(`
-		SELECT id, project_id, recipient_external_id, payload, broadcast_id, channel, topic, event, read_at, opened_at, created_at, updated_at
+		SELECT id, project_id, recipient_external_id, payload, broadcast_id, channel, topic, event, read_at, opened_at, created_at, updated_at, completed_at, status
 		FROM notification
 	`)
 	b.AddCompareFilter("project_id", dbx.OperatorEQ, projectID)
@@ -145,7 +151,10 @@ func (r *NotificationRepo) ListForRecipient(ctx context.Context, projectID int, 
 	for rows.Next() {
 		var notification entity.Notification
 
-		err := rows.Scan(&notification.ID, &notification.ProjectID, &notification.RecipientExtID, &notification.Payload, &notification.BroadcastID, &notification.Channel, &notification.Topic, &notification.Event, &notification.ReadAt, &notification.OpenedAt, &notification.CreatedAt, &notification.UpdatedAt)
+		err := rows.Scan(&notification.ID, &notification.ProjectID, &notification.RecipientExtID,
+			&notification.Payload, &notification.BroadcastID, &notification.Channel, &notification.Topic,
+			&notification.Event, &notification.ReadAt, &notification.OpenedAt, &notification.CreatedAt,
+			&notification.UpdatedAt, &notification.CompletedAt, &notification.Status)
 		if err != nil {
 			return nil, nil, fmt.Errorf("scan: %w", err)
 		}
@@ -198,38 +207,6 @@ func (r *NotificationRepo) UnreadCountForRecipient(ctx context.Context, projectI
 	}
 
 	return count, nil
-}
-
-func (r *NotificationRepo) MarkAsReadForRecipient(ctx context.Context, projectID int, recipientExtID string, notificationIDs []int) (int, error) {
-	now := time.Now().UTC()
-	sb := dbx.NewSQLBuilder("UPDATE notification")
-	sb.SetColumn("read_at", now)
-	sb.SetColumn("updated_at", now)
-	sb.AddCompareFilter("project_id", dbx.OperatorEQ, projectID)
-	sb.AddCompareFilter("recipient_external_id", dbx.OperatorEQ, recipientExtID)
-
-	if notificationIDs == nil {
-		// Mark all as read for the recipient
-	} else if len(notificationIDs) == 0 {
-		return 0, nil
-	} else {
-		// Mark only specific notifications as read
-		ids := make([]any, len(notificationIDs))
-		for i, id := range notificationIDs {
-			ids[i] = id
-		}
-		sb.AddArrayFilter("id", ids)
-	}
-
-	sb.AppendWhere("read_at IS NULL")
-
-	sql, args := sb.Build()
-	res, err := r.db.Exec(ctx, sql, args...)
-	if err != nil {
-		return 0, fmt.Errorf("update notifications as read: %w", err)
-	}
-
-	return int(res.RowsAffected()), nil
 }
 
 func (r *NotificationRepo) UpdateForRecipient(ctx context.Context, projectID int, recipientExtID string, payload dto.UpdateRecipientNotificationsPayload) (int, error) {
@@ -316,7 +293,7 @@ func (r *NotificationRepo) DeleteForProject(ctx context.Context, projectID int) 
 
 func (r *NotificationRepo) ListNotifications(ctx context.Context, projectID int, kind enum.NotificationKind, pagination query.Pagination) ([]*entity.Notification, int, error) {
 	sql := `
-		SELECT id, project_id, recipient_external_id, payload, broadcast_id, channel, topic, event, read_at, opened_at, created_at, updated_at
+		SELECT id, project_id, recipient_external_id, payload, broadcast_id, channel, topic, event, read_at, opened_at, created_at, updated_at, completed_at, status
 		FROM notification
 	`
 
@@ -346,7 +323,10 @@ func (r *NotificationRepo) ListNotifications(ctx context.Context, projectID int,
 	for rows.Next() {
 		var notification entity.Notification
 
-		err := rows.Scan(&notification.ID, &notification.ProjectID, &notification.RecipientExtID, &notification.Payload, &notification.BroadcastID, &notification.Channel, &notification.Topic, &notification.Event, &notification.ReadAt, &notification.OpenedAt, &notification.CreatedAt, &notification.UpdatedAt)
+		err := rows.Scan(&notification.ID, &notification.ProjectID, &notification.RecipientExtID,
+			&notification.Payload, &notification.BroadcastID, &notification.Channel, &notification.Topic,
+			&notification.Event, &notification.ReadAt, &notification.OpenedAt, &notification.CreatedAt,
+			&notification.UpdatedAt, &notification.CompletedAt, &notification.Status)
 		if err != nil {
 			return nil, 0, fmt.Errorf("scan: %w", err)
 		}
@@ -366,4 +346,19 @@ func (r *NotificationRepo) ListNotifications(ctx context.Context, projectID int,
 	}
 
 	return notifications, total, nil
+}
+
+func (r *NotificationRepo) Update(ctx context.Context, notification *entity.Notification) error {
+	sql := `
+		UPDATE notification
+		SET payload = $3, channel = $4, topic = $5, event = $6, read_at = $7, opened_at = $8,
+		updated_at = $9, completed_at = $10, status = $11
+		WHERE id = $1 AND project_id = $2
+	`
+	_, err := r.db.Exec(ctx, sql,
+		notification.ID, notification.ProjectID, notification.Payload, notification.Channel,
+		notification.Topic, notification.Event, notification.ReadAt, notification.OpenedAt,
+		notification.UpdatedAt, notification.CompletedAt, notification.Status,
+	)
+	return err
 }

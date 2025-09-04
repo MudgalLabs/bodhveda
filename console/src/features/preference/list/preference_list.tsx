@@ -13,6 +13,7 @@ import {
     formatDate,
     formatNumber,
     IconEllipsis,
+    IconInfo,
     IconPlus,
     IconTrash,
     IconUsers,
@@ -32,6 +33,8 @@ import {
     RecipientPreference,
 } from "@/features/preference/preference_type";
 import { DeleteProjectPreferenceModal } from "../components/delete_project_preference_modal";
+import { TargetInfoTooltip } from "@/components/target_info_tooltip";
+import { targetToString } from "@/lib/utils";
 
 export function ProjectPreferenceList() {
     useDocumentTitle("Preferences  • Bodhveda");
@@ -176,25 +179,19 @@ const projectPreferenceColumns: ColumnDef<ProjectPreference>[] = [
             row.original.default_enabled ? "Enabled" : "Disabled",
     },
     {
-        accessorKey: "channel",
-        header: () => <DataTableColumnHeader title="Channel" />,
-        cell: ({ row }) => (
-            <span className="select-text!">{row.original.channel}</span>
+        accessorKey: "target",
+        header: () => (
+            <DataTableColumnHeader
+                title={
+                    <TargetInfoTooltip>
+                        <span className="flex-x w-fit">
+                            Target <IconInfo />
+                        </span>
+                    </TargetInfoTooltip>
+                }
+            />
         ),
-    },
-    {
-        accessorKey: "topic",
-        header: () => <DataTableColumnHeader title="Topic" />,
-        cell: ({ row }) => (
-            <span className="select-text!">{row.original.topic}</span>
-        ),
-    },
-    {
-        accessorKey: "event",
-        header: () => <DataTableColumnHeader title="Event" />,
-        cell: ({ row }) => (
-            <span className="select-text!">{row.original.event}</span>
-        ),
+        cell: ({ row }) => targetToString(row.original.target),
     },
     {
         accessorKey: "created_at",
@@ -231,16 +228,19 @@ const recipientPreferenceColumns: ColumnDef<RecipientPreference>[] = [
         cell: ({ row }) => (row.original.enabled ? "Enabled" : "Disabled"),
     },
     {
-        accessorKey: "channel",
-        header: () => <DataTableColumnHeader title="Channel" />,
-    },
-    {
-        accessorKey: "topic",
-        header: () => <DataTableColumnHeader title="Topic" />,
-    },
-    {
-        accessorKey: "event",
-        header: () => <DataTableColumnHeader title="Event" />,
+        accessorKey: "target",
+        header: () => (
+            <DataTableColumnHeader
+                title={
+                    <TargetInfoTooltip>
+                        <span className="flex-x w-fit">
+                            Target <IconInfo />
+                        </span>
+                    </TargetInfoTooltip>
+                }
+            />
+        ),
+        cell: ({ row }) => targetToString(row.original.target),
     },
     {
         accessorKey: "created_at",

@@ -7,7 +7,7 @@ import (
 	"fmt"
 
 	"github.com/hibiken/asynq"
-	jobs "github.com/mudgallabs/bodhveda/internal/job"
+	"github.com/mudgallabs/bodhveda/internal/job/task"
 	"github.com/mudgallabs/bodhveda/internal/model/dto"
 	"github.com/mudgallabs/bodhveda/internal/model/entity"
 	"github.com/mudgallabs/bodhveda/internal/model/repository"
@@ -22,6 +22,7 @@ type NotificationService struct {
 	broadcastRepo      repository.BroadcastRepository
 	broadcastBatchRepo repository.BroadcastBatchRepository
 
+	billingService   *BillingService
 	recipientService *RecipientService
 
 	asynqClient *asynq.Client
@@ -30,7 +31,8 @@ type NotificationService struct {
 func NewNotificationService(
 	repo repository.NotificationRepository, recipientRepo repository.RecipientRepository,
 	preferenceRepo repository.PreferenceRepository, broadcastRepo repository.BroadcastRepository,
-	broadcastBatchRepo repository.BroadcastBatchRepository, recipientService *RecipientService,
+	broadcastBatchRepo repository.BroadcastBatchRepository,
+	billingService *BillingService, recipientService *RecipientService,
 	asynqClient *asynq.Client,
 ) *NotificationService {
 	return &NotificationService{
@@ -39,13 +41,15 @@ func NewNotificationService(
 		preferenceRepo:     preferenceRepo,
 		broadcastRepo:      broadcastRepo,
 		broadcastBatchRepo: broadcastBatchRepo,
-		recipientService:   recipientService,
+
+		billingService:   billingService,
+		recipientService: recipientService,
 
 		asynqClient: asynqClient,
 	}
 }
 
-func (s *NotificationService) Send(ctx context.Context, payload dto.SendNotificationPayload) (*dto.SendNotificationResult, string, service.Error, error) {
+func (s *NotificationService) Send(ctx context.Context, userID int, payload dto.SendNotificationPayload) (*dto.SendNotificationResult, string, service.Error, error) {
 	err := payload.Validate()
 	if err != nil {
 		return nil, "", service.ErrInvalidInput, err
@@ -54,7 +58,7 @@ func (s *NotificationService) Send(ctx context.Context, payload dto.SendNotifica
 	result := &dto.SendNotificationResult{}
 
 	if payload.IsDirect() {
-		result.Notification, err = s.sendDirectNotification(ctx, payload)
+		result.Notification, err = s.sendDirectNotification(ctx, userID, payload)
 		if err != nil {
 			return nil, "", service.ErrInternalServerError, fmt.Errorf("send direct notification: %w", err)
 		}
@@ -70,7 +74,7 @@ func (s *NotificationService) Send(ctx context.Context, payload dto.SendNotifica
 			return nil, "", service.ErrBadRequest, errors.New("No project preference exists that matches the target. Create a project preference first.")
 		}
 
-		result.Broadcast, err = s.sendBroadcastNotification(ctx, payload)
+		result.Broadcast, err = s.sendBroadcastNotification(ctx, userID, payload)
 		if err != nil {
 			return nil, "", service.ErrInternalServerError, fmt.Errorf("send broadcast notification: %w", err)
 		}
@@ -92,7 +96,7 @@ func (s *NotificationService) Send(ctx context.Context, payload dto.SendNotifica
 	return result, message, service.ErrNone, nil
 }
 
-func (s *NotificationService) sendDirectNotification(ctx context.Context, payload dto.SendNotificationPayload) (*dto.Notification, error) {
+func (s *NotificationService) sendDirectNotification(ctx context.Context, userID int, payload dto.SendNotificationPayload) (*dto.Notification, error) {
 	// This is to ensure that we can send notifications to recipients that are not yet created.
 	_, _, err := s.recipientService.CreateIfNotExists(ctx, dto.CreateRecipientPayload{
 		ProjectID:  payload.ProjectID,
@@ -103,43 +107,44 @@ func (s *NotificationService) sendDirectNotification(ctx context.Context, payloa
 		return nil, fmt.Errorf("create recipient: %w", err)
 	}
 
+	var channel, topic, event string
+	if payload.Target != nil {
+		channel = payload.Target.Channel
+		topic = payload.Target.Topic
+		event = payload.Target.Event
+	}
+
 	notification := entity.NewNotification(
 		payload.ProjectID,
 		*payload.RecipientExtID,
 		payload.Payload,
 		nil,
-		"",
-		"",
-		"",
+		channel,
+		topic,
+		event,
 	)
 
-	if payload.Target != nil {
-		notification.Channel = payload.Target.Channel
-		notification.Topic = payload.Target.Topic
-		notification.Event = payload.Target.Event
-	}
-
-	shouldDeliver, err := s.preferenceRepo.ShouldDirectNotificationBeDelivered(ctx, notification.ProjectID, notification.RecipientExtID, dto.TargetFromNotification(notification))
-	if err != nil {
-		return nil, err
-	}
-
-	if !shouldDeliver {
-		// Can return nil here, as the notification will not be delivered.
-		// The result will have nil `notification` field in `SendNotificationResult`.
-		return nil, nil
-	}
-
-	// Creating a notification = sending it.
 	notification, err = s.repo.Create(ctx, notification)
 	if err != nil {
 		return nil, fmt.Errorf("create notification: %w", err)
 	}
 
+	taskPayload, err := json.Marshal(dto.NotificationDeliveryTaskPayload{UserID: userID, Notification: notification})
+	if err != nil {
+		return nil, fmt.Errorf("marshal notification delivery task payload: %w", err)
+	}
+
+	task := asynq.NewTask(task.TaskTypeNotificationDelivery, taskPayload)
+
+	_, err = s.asynqClient.Enqueue(task, asynq.MaxRetry(5))
+	if err != nil {
+		return nil, fmt.Errorf("enqueue notification delivery task: %w", err)
+	}
+
 	return dto.FromNotification(notification), nil
 }
 
-func (s *NotificationService) sendBroadcastNotification(ctx context.Context, payload dto.SendNotificationPayload) (*dto.Broadcast, error) {
+func (s *NotificationService) sendBroadcastNotification(ctx context.Context, userID int, payload dto.SendNotificationPayload) (*dto.Broadcast, error) {
 	broadcast := entity.NewBroadcast(
 		payload.ProjectID,
 		payload.Payload,
@@ -153,12 +158,12 @@ func (s *NotificationService) sendBroadcastNotification(ctx context.Context, pay
 		return nil, fmt.Errorf("create broadcast: %w", err)
 	}
 
-	taskPayload, err := json.Marshal(dto.PrepareBroadcastBatchesPayload{Broadcast: broadcast})
+	taskPayload, err := json.Marshal(dto.PrepareBroadcastBatchesPayload{UserID: userID, Broadcast: broadcast})
 	if err != nil {
-		return nil, fmt.Errorf("marshal prepare broadcast batches payload: %w", err)
+		return nil, fmt.Errorf("marshal prepare broadcast batches task payload: %w", err)
 	}
 
-	task := asynq.NewTask(jobs.TaskTypePrepareBroadcastBatches, taskPayload)
+	task := asynq.NewTask(task.TaskTypePrepareBroadcastBatches, taskPayload)
 
 	_, err = s.asynqClient.Enqueue(task, asynq.MaxRetry(5))
 	if err != nil {

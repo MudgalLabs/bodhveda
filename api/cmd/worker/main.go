@@ -8,6 +8,8 @@ import (
 	"github.com/hibiken/asynq"
 	"github.com/mudgallabs/bodhveda/internal/app"
 	"github.com/mudgallabs/bodhveda/internal/job"
+	"github.com/mudgallabs/bodhveda/internal/job/processor"
+	"github.com/mudgallabs/bodhveda/internal/job/task"
 	"github.com/mudgallabs/tantra/logger"
 )
 
@@ -23,21 +25,25 @@ func main() {
 
 	asynqMux := asynq.NewServeMux()
 
-	asynqMux.Handle(job.TaskTypePrepareBroadcastBatches, job.NewPrepareBroadcastBatchesProcessor(
-		app.DB, app.ASYNQCLIENT, app.APP.Repository.Preference, app.APP.Repository.Broadcast,
-		app.APP.Repository.BroadcastBatch,
+	asynqMux.Handle(task.TaskTypeNotificationDelivery, processor.NewNotificationDeliveryProcessor(
+		app.DB, app.APP.Repository.Notification, app.APP.Repository.Preference, app.APP.Service.Billing,
 	))
 
-	asynqMux.Handle(job.TaskTypeBroadcastDelivery, job.NewBroadcastDeliveryProcessor(
+	asynqMux.Handle(task.TaskTypePrepareBroadcastBatches, processor.NewPrepareBroadcastBatchesProcessor(
+		app.DB, app.ASYNQCLIENT, app.APP.Repository.Preference, app.APP.Repository.Broadcast,
+		app.APP.Repository.BroadcastBatch, app.APP.Service.Billing,
+	))
+
+	asynqMux.Handle(task.TaskTypeBroadcastDelivery, processor.NewBroadcastDeliveryProcessor(
 		app.DB, app.APP.Repository.Notification, app.APP.Repository.Broadcast, app.APP.Repository.BroadcastBatch,
 	))
 
-	asynqMux.Handle(job.TaskTypeDeleteRecipientData, job.NewDeleteRecipientDataProcessor(
+	asynqMux.Handle(task.TaskTypeDeleteRecipientData, processor.NewDeleteRecipientDataProcessor(
 		app.APP.Repository.Preference, app.APP.Repository.Notification,
 		app.APP.Repository.Recipient,
 	))
 
-	asynqMux.Handle(job.TaskTypeDeleteProjectData, job.NewDeleteProjectDataProcessor(
+	asynqMux.Handle(task.TaskTypeDeleteProjectData, processor.NewDeleteProjectDataProcessor(
 		app.APP.Repository.APIKey, app.APP.Repository.Broadcast, app.APP.Repository.BroadcastBatch,
 		app.APP.Repository.Notification, app.APP.Repository.Preference, app.APP.Repository.Project,
 		app.APP.Repository.Recipient,

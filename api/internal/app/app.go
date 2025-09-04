@@ -30,6 +30,7 @@ type App struct {
 // All the services.
 type services struct {
 	APIKey       *service.APIKeyService
+	Billing      *service.BillingService
 	Broadcast    *service.BroadcastService
 	Notification *service.NotificationService
 	Preference   *service.PreferenceService
@@ -50,6 +51,8 @@ type repositories struct {
 	Preference     repository.PreferenceRepository
 	Project        repository.ProjectRepository
 	Recipient      repository.RecipientRepository
+	UsageLog       repository.UsageLogRepository
+	UsageAggregate repository.UsageAggregateRepository
 
 	UserIdentity user_identity.ReadWriter
 	UserProfile  user_profile.ReadWriter
@@ -90,27 +93,35 @@ func Init() {
 	preferenceRepository := pg.NewPreferenceRepo(db)
 	projectRepository := pg.NewProjectRepo(db)
 	recipientRepository := pg.NewRecipientRepo(db)
-	userProfileRepository := user_profile.NewRepository(db)
+	usageLogRepository := pg.NewUsageLogRepo(db)
+	usageAggregateRepository := pg.NewUsageAggregateRepo(db)
+	userSubscriptionRepository := pg.NewUserSubscriptionRepo(db)
+
 	userIdentityRepository := user_identity.NewRepository(db)
+	userProfileRepository := user_profile.NewRepository(db)
 
 	// REFACTOR: Why not we define handlers as methods on the `app` struct?
 	apikeyService := service.NewAPIKeyService(apikeyRepository, projectRepository)
+	billingService := service.NewBillingService(db, projectRepository, userSubscriptionRepository,
+		usageLogRepository, usageAggregateRepository)
 	broadcastService := service.NewBroadcastService(broadcastRepository)
 	preferenceService := service.NewProjectPreferenceService(preferenceRepository, recipientRepository)
 	recipientService := service.NewRecipientService(recipientRepository, ASYNQCLIENT)
 	notificationService := service.NewNotificationService(notificationRepository, recipientRepository,
-		preferenceRepository, broadcastRepository, broadcastBatchRepository, recipientService, ASYNQCLIENT)
+		preferenceRepository, broadcastRepository, broadcastBatchRepository, billingService, recipientService, ASYNQCLIENT)
 	projectService := service.NewProjectService(projectRepository, notificationService, recipientService, ASYNQCLIENT)
 	userIdentityService := user_identity.NewService(userIdentityRepository, userProfileRepository)
 	userProfileService := user_profile.NewService(userProfileRepository)
 
 	services := services{
 		APIKey:       apikeyService,
+		Billing:      billingService,
 		Broadcast:    broadcastService,
 		Notification: notificationService,
 		Preference:   preferenceService,
 		Project:      projectService,
 		Recipient:    recipientService,
+
 		UserIdentity: userIdentityService,
 		UserProfile:  userProfileService,
 	}
@@ -123,8 +134,11 @@ func Init() {
 		Preference:     preferenceRepository,
 		Project:        projectRepository,
 		Recipient:      recipientRepository,
-		UserIdentity:   userIdentityRepository,
-		UserProfile:    userProfileRepository,
+		UsageLog:       usageLogRepository,
+		UsageAggregate: usageAggregateRepository,
+
+		UserIdentity: userIdentityRepository,
+		UserProfile:  userProfileRepository,
 	}
 
 	APP = &App{

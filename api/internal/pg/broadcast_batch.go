@@ -64,7 +64,7 @@ func (r *BroadcastBatchRepo) PendingCount(ctx context.Context, broadcastID int) 
 		WHERE broadcast_id = $1 AND status = $2
 	`
 	var count int
-	err := r.db.QueryRow(ctx, sql, broadcastID, enum.BroadcastBatchStatusPending).Scan(&count)
+	err := r.db.QueryRow(ctx, sql, broadcastID, enum.BroadcastBatchStatusEnqueued).Scan(&count)
 	return count, err
 }
 
