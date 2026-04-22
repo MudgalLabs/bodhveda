@@ -1,13 +1,12 @@
 package entity
 
 import (
-	"strings"
 	"time"
 )
 
 type Recipient struct {
 	ID         int
-	ExternalID string // Unique recipient ID from the client's system.
+	ExternalID string // Unique recipient ID from the client's system. Stored lowercase; callers normalize via DTO Validate.
 	ProjectID  int
 	Name       string
 	CreatedAt  time.Time
@@ -17,7 +16,7 @@ type Recipient struct {
 func NewRecipient(projectID int, externalID, name string) *Recipient {
 	now := time.Now().UTC()
 	return &Recipient{
-		ExternalID: strings.ToLower(externalID),
+		ExternalID: externalID,
 		ProjectID:  projectID,
 		Name:       name,
 		CreatedAt:  now,

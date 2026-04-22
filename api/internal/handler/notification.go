@@ -4,6 +4,7 @@ import (
 	"encoding/json"
 	"errors"
 	"net/http"
+	"strings"
 
 	"github.com/mudgallabs/bodhveda/internal/middleware"
 	"github.com/mudgallabs/bodhveda/internal/model/dto"
@@ -70,7 +71,7 @@ func ListForRecipient(s *service.NotificationService) http.HandlerFunc {
 		ctx := r.Context()
 		apiKey := middleware.GetAPIKeyFromContext(ctx)
 
-		recipientExtID := httpx.ParamStr(r, "recipient_external_id")
+		recipientExtID := strings.ToLower(httpx.ParamStr(r, "recipient_external_id"))
 		if recipientExtID == "" {
 			httpx.BadRequestResponse(w, r, errors.New("recipient_id required"))
 			return
@@ -104,7 +105,7 @@ func UnreadCountForRecipient(s *service.NotificationService) http.HandlerFunc {
 		ctx := r.Context()
 		apiKey := middleware.GetAPIKeyFromContext(ctx)
 
-		recipientExtID := httpx.ParamStr(r, "recipient_external_id")
+		recipientExtID := strings.ToLower(httpx.ParamStr(r, "recipient_external_id"))
 		if recipientExtID == "" {
 			httpx.BadRequestResponse(w, r, errors.New("recipient_id required"))
 			return
@@ -125,7 +126,7 @@ func UpdateRecipientNotifications(s *service.NotificationService) http.HandlerFu
 		ctx := r.Context()
 		apiKey := middleware.GetAPIKeyFromContext(ctx)
 
-		recipientExtID := httpx.ParamStr(r, "recipient_external_id")
+		recipientExtID := strings.ToLower(httpx.ParamStr(r, "recipient_external_id"))
 		if recipientExtID == "" {
 			httpx.BadRequestResponse(w, r, errors.New("recipient_id required"))
 			return
@@ -152,7 +153,7 @@ func DeleteRecipientNotifications(s *service.NotificationService) http.HandlerFu
 		ctx := r.Context()
 		apiKey := middleware.GetAPIKeyFromContext(ctx)
 
-		recipientExtID := httpx.ParamStr(r, "recipient_external_id")
+		recipientExtID := strings.ToLower(httpx.ParamStr(r, "recipient_external_id"))
 		if recipientExtID == "" {
 			httpx.BadRequestResponse(w, r, errors.New("recipient_id required"))
 			return

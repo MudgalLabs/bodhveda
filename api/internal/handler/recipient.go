@@ -3,6 +3,7 @@ package handler
 import (
 	"errors"
 	"net/http"
+	"strings"
 
 	"github.com/mudgallabs/bodhveda/internal/middleware"
 	"github.com/mudgallabs/bodhveda/internal/model/dto"
@@ -100,7 +101,7 @@ func GetRecipient(s *service.RecipientService) http.HandlerFunc {
 			httpx.UnauthorizedResponse(w, r, "API key required", errors.New("API key required"))
 			return
 		}
-		recipientExtID := httpx.ParamStr(r, "recipient_external_id")
+		recipientExtID := strings.ToLower(httpx.ParamStr(r, "recipient_external_id"))
 		if recipientExtID == "" {
 			httpx.BadRequestResponse(w, r, errors.New("recipient_external_id required"))
 			return
@@ -154,7 +155,7 @@ func UpdateRecipient(s *service.RecipientService) http.HandlerFunc {
 			return
 		}
 
-		recipientExtID := httpx.ParamStr(r, "recipient_external_id")
+		recipientExtID := strings.ToLower(httpx.ParamStr(r, "recipient_external_id"))
 		if recipientExtID == "" {
 			httpx.BadRequestResponse(w, r, errors.New("recipient_external_id required"))
 			return
@@ -185,7 +186,7 @@ func UpdateRecipientConsole(s *service.RecipientService) http.HandlerFunc {
 			return
 		}
 
-		recipientExtID := httpx.ParamStr(r, "recipient_external_id")
+		recipientExtID := strings.ToLower(httpx.ParamStr(r, "recipient_external_id"))
 		if recipientExtID == "" {
 			httpx.BadRequestResponse(w, r, errors.New("recipient_external_id required"))
 			return
@@ -215,7 +216,7 @@ func DeleteRecipient(s *service.RecipientService) http.HandlerFunc {
 			httpx.UnauthorizedResponse(w, r, "API key required", errors.New("API key required"))
 			return
 		}
-		recipientExtID := httpx.ParamStr(r, "recipient_external_id")
+		recipientExtID := strings.ToLower(httpx.ParamStr(r, "recipient_external_id"))
 		if recipientExtID == "" {
 			httpx.BadRequestResponse(w, r, errors.New("recipient_external_id required"))
 			return
@@ -238,7 +239,7 @@ func DeleteRecipientConsole(s *service.RecipientService) http.HandlerFunc {
 			return
 		}
 
-		recipientExtID := httpx.ParamStr(r, "recipient_external_id")
+		recipientExtID := strings.ToLower(httpx.ParamStr(r, "recipient_external_id"))
 		if recipientExtID == "" {
 			httpx.BadRequestResponse(w, r, errors.New("recipient_external_id required"))
 			return

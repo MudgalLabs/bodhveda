@@ -1,6 +1,7 @@
 package dto
 
 import (
+	"strings"
 	"time"
 
 	"github.com/mudgallabs/bodhveda/internal/model/entity"
@@ -32,6 +33,9 @@ func (p *CreateRecipientPayload) Validate() error {
 
 	if p.ExternalID == "" {
 		errs.Add(apires.NewApiError("ID is required", "ID cannot be empty", "id", p.ExternalID))
+	} else {
+		// Recipient external IDs are stored lowercase so lookups are case-insensitive.
+		p.ExternalID = strings.ToLower(p.ExternalID)
 	}
 
 	if p.Name != nil && *p.Name == "" {

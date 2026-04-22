@@ -2,6 +2,7 @@ package dto
 
 import (
 	"encoding/json"
+	"strings"
 	"time"
 
 	"github.com/mudgallabs/bodhveda/internal/model/entity"
@@ -114,6 +115,9 @@ func (p *SendNotificationPayload) Validate() error {
 
 	if p.RecipientExtID != nil && *p.RecipientExtID == "" {
 		errs.Add(apires.NewApiError("Recipient ID cannot be empty if provided", "Recipient ID cannot be empty if this field is provided. Omit the field if you want to send a broadcast notification.", "recipient_id", p.RecipientExtID))
+	} else if p.RecipientExtID != nil {
+		lowered := strings.ToLower(*p.RecipientExtID)
+		p.RecipientExtID = &lowered
 	}
 
 	// If RecipientExtID is nil, then it's a broadcast notification.

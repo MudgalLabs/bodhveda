@@ -1,6 +1,7 @@
 package dto
 
 import (
+	"strings"
 	"time"
 
 	"github.com/mudgallabs/bodhveda/internal/model/entity"
@@ -107,6 +108,8 @@ func (p *UpsertRecipientPreferencePayload) Validate() error {
 
 	if p.RecipientExtID == "" {
 		errs.Add(apires.NewApiError("Recipient is required", "Recipient ID cannot be empty", "recipient_id", p.RecipientExtID))
+	} else {
+		p.RecipientExtID = strings.ToLower(p.RecipientExtID)
 	}
 
 	if p.Channel == "" {

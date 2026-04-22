@@ -261,7 +261,7 @@ func CreateRecipientIfNotExists(next http.Handler) http.Handler {
 			return
 		}
 
-		recipientExtID := httpx.ParamStr(r, "recipient_external_id")
+		recipientExtID := strings.ToLower(httpx.ParamStr(r, "recipient_external_id"))
 		if recipientExtID == "" {
 			httpx.BadRequestResponse(w, r, errors.New("recipient_external_id required"))
 			return
