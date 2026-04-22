@@ -17,9 +17,10 @@ dev:
 	tmux new-session -d -s bodhveda \
 		"cd console && npm run dev" \; \
 		split-window -v -t 0 "cd api && air -c air.toml" \; \
+		split-window -h -t 1 "cd api && air -c air.worker.toml" \; \
 		select-pane -t 0 \; \
 		split-window -h -t 0 "bash" \; \
-		select-pane -t 2 \; \
+		select-pane -t 1 \; \
 		send-keys "clear" C-m
 
 	tmux attach -t bodhveda
