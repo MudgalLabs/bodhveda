@@ -1,0 +1,91 @@
+name: Deploy
+
+on:
+    push:
+        branches: [main]
+
+jobs:
+    build-api:
+        name: Build & push api image
+        runs-on: ubuntu-latest
+        steps:
+            - name: Checkout
+              uses: actions/checkout@v4
+
+            - name: Set up Docker Buildx
+              uses: docker/setup-buildx-action@v3
+
+            - name: Log in to DockerHub
+              uses: docker/login-action@v3
+              with:
+                  username: ${{ secrets.DOCKERHUB_USERNAME }}
+                  password: ${{ secrets.DOCKERHUB_TOKEN }}
+
+            - name: Extract metadata
+              id: meta
+              uses: docker/metadata-action@v5
+              with:
+                  images: ${{ secrets.DOCKERHUB_USERNAME }}/bodhveda_api
+                  tags: |
+                      type=raw,value=latest
+                      type=sha,prefix=,format=short
+
+            - name: Build and push
+              uses: docker/build-push-action@v6
+              with:
+                  context: .
+                  file: api.dockerfile
+                  push: true
+                  tags: ${{ steps.meta.outputs.tags }}
+                  labels: ${{ steps.meta.outputs.labels }}
+                  cache-from: type=gha,scope=api
+                  cache-to: type=gha,mode=max,scope=api
+
+    deploy:
+        name: Deploy to VPS
+        needs: [build-api]
+        runs-on: ubuntu-latest
+        steps:
+            - name: Deploy via SSH
+              uses: appleboy/ssh-action@v1
+              with:
+                  host: ${{ secrets.VPS_HOST }}
+                  username: ${{ secrets.VPS_USER }}
+                  key: ${{ secrets.VPS_SSH_KEY }}
+                  port: ${{ secrets.VPS_PORT || 22 }}
+                  envs: DOCKERHUB_USERNAME
+                  script: |
+                      set -euo pipefail
+
+                      cd ${{ secrets.VPS_APP_DIR }}
+
+                      echo "--- Pulling latest code ---"
+                      git pull origin main
+
+                      echo "--- Logging in to DockerHub ---"
+                      echo "${{ secrets.DOCKERHUB_TOKEN }}" | docker login -u "${{ secrets.DOCKERHUB_USERNAME }}" --password-stdin
+
+                      echo "--- Pulling latest images ---"
+                      DOCKERHUB_USERNAME="${{ secrets.DOCKERHUB_USERNAME }}" \
+                        docker compose -f compose.yaml -f compose.deploy.yaml pull api worker migrate
+
+                      echo "--- Ensuring DB and Redis are up ---"
+                      DOCKERHUB_USERNAME="${{ secrets.DOCKERHUB_USERNAME }}" \
+                        docker compose -f compose.yaml -f compose.deploy.yaml up -d db redis
+
+                      echo "--- Running migrations ---"
+                      DOCKERHUB_USERNAME="${{ secrets.DOCKERHUB_USERNAME }}" \
+                        docker compose -f compose.yaml -f compose.deploy.yaml run --rm migrate
+
+                      echo "--- Restarting api (minimal downtime) ---"
+                      DOCKERHUB_USERNAME="${{ secrets.DOCKERHUB_USERNAME }}" \
+                        docker compose -f compose.yaml -f compose.deploy.yaml up -d --no-deps --pull never api
+
+                      echo "--- Restarting worker ---"
+                      DOCKERHUB_USERNAME="${{ secrets.DOCKERHUB_USERNAME }}" \
+                        docker compose -f compose.yaml -f compose.deploy.yaml up -d --no-deps --pull never worker
+
+                      echo "--- Cleaning up old images ---"
+                      docker image prune -f
+
+                      echo "--- Done ---"

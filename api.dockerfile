@@ -29,6 +29,13 @@ RUN CGO_ENABLED=0 GOOS=${TARGETOS} GOARCH=${TARGETARCH} go build \
     -ldflags='-w -s -extldflags "-static"' \
     -o bin/worker ./cmd/worker
 
+# Build goose binary (cross-compile safe via isolated build module)
+RUN mkdir -p /tmp/goose-build && cd /tmp/goose-build && \
+    go mod init goose-build && \
+    go get github.com/pressly/goose/v3/cmd/goose@v3.22.1 && \
+    CGO_ENABLED=0 GOOS=${TARGETOS} GOARCH=${TARGETARCH} go build \
+    -ldflags='-w -s' -o /app/bin/goose github.com/pressly/goose/v3/cmd/goose
+
 FROM alpine:3.22
 
 WORKDIR /app
@@ -38,6 +45,9 @@ COPY --from=builder /usr/share/zoneinfo /usr/share/zoneinfo
 # Copy the binary from builder stage
 COPY --from=builder /app/bin/bodhveda .
 COPY --from=builder /app/bin/worker .
+# Copy goose binary and migrations (used by the migrate compose service)
+COPY --from=builder /app/bin/goose .
+COPY ./migrations ./migrations
 # Open port for the API
 EXPOSE 1338
 

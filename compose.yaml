@@ -94,6 +94,20 @@ services:
                 restart: true
         command: ["./worker"]
 
+    migrate:
+        container_name: bodhveda_migrate
+        image: ceoshikhar/bodhveda_api:beta
+        environment:
+            BODHVEDA_DB_URL: ${BODHVEDA_DB_URL}
+        networks:
+            - bodhveda_network
+        depends_on:
+            db:
+                condition: service_healthy
+        restart: "no"
+        entrypoint: ["sh", "-c"]
+        command: ['./goose -dir ./migrations postgres "$$BODHVEDA_DB_URL" up']
+
     redis:
         container_name: bodhveda_redis
         env_file:

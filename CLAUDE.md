@@ -14,7 +14,7 @@ This file provides guidance to Claude Code (claude.ai/code) when working with co
 - `sdk/js/` — JS SDKs: `core` (vanilla, published as `bodhveda` on npm) and `react`.
 - `migrations/` — Goose-flavored SQL migrations (`-- +goose Up`/`StatementBegin`).
 - `docs/` — Mintlify docs site (`docs.json`, MDX under `docs/` and `api-reference/`).
-- `compose.yaml` — local dev stack (db, redis, asynqmon). `deploy.compose.yaml` — production stack (api, worker, db, redis; no asynqmon).
+- `compose.yaml` — base stack: db, redis, api, worker, migrate, plus dev-only console and asynqmon. `compose.deploy.yaml` — production overlay that only overrides `image:` on api/worker/migrate to the DockerHub-published image. Deploy runs `docker compose -f compose.yaml -f compose.deploy.yaml ...` and targets services explicitly (so console/asynqmon are never started in prod).
 - `Makefile` — orchestrates local dev via `tmux`.
 
 ## Common commands

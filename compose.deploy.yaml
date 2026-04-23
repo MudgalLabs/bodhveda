@@ -1,0 +1,9 @@
+services:
+    api:
+        image: ${DOCKERHUB_USERNAME}/bodhveda_api:latest
+
+    worker:
+        image: ${DOCKERHUB_USERNAME}/bodhveda_api:latest
+
+    migrate:
+        image: ${DOCKERHUB_USERNAME}/bodhveda_api:latest
