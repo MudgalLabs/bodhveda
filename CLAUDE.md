@@ -4,7 +4,7 @@ This file provides guidance to Claude Code (claude.ai/code) when working with co
 
 ## What this repo is
 
-[Bodhveda](https://bodhveda.com) is an open-source notification platform (AGPLv3) by Mudgal Labs. It sends direct or broadcast notifications to recipients, respects per-recipient preferences, and exposes an inbox-style API. The repo is a monorepo containing the backend API + worker, the web Console, the SDKs, the docs site, and the deployment compose files.
+[Bodhveda](https://bodhveda.com) is an open-source notification platform (AGPLv3) built by [ceoshikhar.com](https://ceoshikhar.com). It sends direct or broadcast notifications to recipients, respects per-recipient preferences, and exposes an inbox-style API. The repo is a monorepo containing the backend API + worker, the web Console, the SDKs, the docs site, and the deployment compose files.
 
 ## Top-level layout
 

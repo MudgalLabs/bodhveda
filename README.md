@@ -46,5 +46,13 @@
 [AGPL v3](LICENSE) because notifications should be free to own, run, and customize.
 
 <p align="center">
-  Built with 💙 by <a href="https://mudgallabs.com" target="_blank">Mudgal Labs</a>
+  <a href="https://ceoshikhar.com" target="_blank">
+    <img src="https://ceoshikhar.com/images/me.png" width="64" height="64" alt="Shikhar" style="border-radius:9999px" />
+  </a>
+  <br />
+  <sub>Built by</sub>
+  <br />
+  <a href="https://ceoshikhar.com" target="_blank"><b>ceoshikhar.com</b></a>
+  <br />
+  <sub><i>I build things. Sometimes they're good.</i></sub>
 </p>

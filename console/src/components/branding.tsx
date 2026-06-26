@@ -49,7 +49,7 @@ export const Branding: FC<BrandingProps> = (props) => {
                     onClick={(e) => e.stopPropagation()}
                     className="text-balance"
                 >
-                    Bodhveda is in Beta. Please help us make it better by
+                    Bodhveda is in Beta. Please help me make it better by
                     reporting issues or suggesting features on{" "}
                     <a
                         href="https://github.com/MudgalLabs/bodhveda"
@@ -58,8 +58,8 @@ export const Branding: FC<BrandingProps> = (props) => {
                     >
                         GitHub
                     </a>{" "}
-                    or by writing to us{" "}
-                    <a href="mailto:hey@bodhveda.com">hey@bodhveda.com</a>.
+                    or by writing to me at{" "}
+                    <a href="mailto:hey@ceoshikhar.com">hey@ceoshikhar.com</a>.
                 </p>
             }
         >

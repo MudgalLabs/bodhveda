@@ -87,7 +87,7 @@
         "links": [
             {
                 "label": "Support",
-                "href": "mailto:support@bodhveda.com"
+                "href": "mailto:hey@ceoshikhar.com"
             }
         ],
         "primary": {
@@ -112,7 +112,7 @@
         "socials": {
             "discord": "https://discord.gg/Wg9ebJSAAG",
             "github": "https://github.com/MudgalLabs/bodhveda",
-            "linkedin": "https://www.linkedin.com/company/mudgallabs"
+            "website": "https://ceoshikhar.com"
         }
     }
 }
