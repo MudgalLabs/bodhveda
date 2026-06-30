@@ -47,7 +47,7 @@
 
 <p align="center">
   <a href="https://ceoshikhar.com" target="_blank">
-    <img src="https://ceoshikhar.com/images/me.png" width="64" height="64" alt="Shikhar" style="border-radius:9999px" />
+    <img src="https://ceoshikhar.com/images/me.jpg" width="64" height="64" alt="Shikhar" style="border-radius:9999px" />
   </a>
   <br />
   <sub>Built by</sub>

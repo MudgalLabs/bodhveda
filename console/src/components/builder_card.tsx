@@ -24,7 +24,7 @@ export const BuilderCard: FC<BuilderCardProps> = ({
     name = "ceoshikhar.com",
     tagline = "I build things. Sometimes they're good.",
     href = "https://ceoshikhar.com",
-    avatarSrc = "https://ceoshikhar.com/images/me.png",
+    avatarSrc = "https://ceoshikhar.com/images/me.jpg",
 }) => {
     return (
         <a
