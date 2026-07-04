@@ -171,7 +171,7 @@ func DeleteRecipientNotifications(s *service.NotificationService) http.HandlerFu
 			return
 		}
 
-		httpx.SuccessResponse(w, r, http.StatusOK, "", map[string]int{"notifications_deleted": updated})
+		httpx.SuccessResponse(w, r, http.StatusOK, "", map[string]int{"deleted_count": updated})
 	}
 }
 

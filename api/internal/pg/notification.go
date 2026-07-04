@@ -126,6 +126,10 @@ func (r *NotificationRepo) ListForRecipient(ctx context.Context, projectID int, 
 	`)
 	b.AddCompareFilter("project_id", dbx.OperatorEQ, projectID)
 	b.AddCompareFilter("recipient_external_id", dbx.OperatorEQ, recipientExtID)
+	// Only surface notifications that were actually delivered (or are still in
+	// flight). 'muted' (preference opt-out) and 'quota_exceeded' were never
+	// delivered, so they must not appear in the recipient feed.
+	b.AppendWhere("status NOT IN ('muted', 'quota_exceeded')")
 
 	if cursor.BeforeIsValid() && !cursor.AfterIsValid() {
 		b.AddCompareFilter("id", dbx.OperatorLT, cursor.Before)
@@ -198,6 +202,7 @@ func (r *NotificationRepo) UnreadCountForRecipient(ctx context.Context, projectI
 	sql := `
 		SELECT COUNT(*) FROM notification
 		WHERE project_id = $1 AND recipient_external_id = $2 AND read_at IS NULL
+		  AND status NOT IN ('muted', 'quota_exceeded')
 	`
 	var count int
 

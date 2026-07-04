@@ -241,7 +241,11 @@ func (s *PreferenceService) CheckRecipientTargetSubscription(ctx context.Context
 		}
 	}
 
-	// 3. Not found, default to enabled=false, inherited=true
+	// 3. Not found: default to enabled=true, inherited=true.
+	// This must match the delivery default in
+	// PreferenceRepo.ShouldDirectNotificationBeDelivered, which delivers when no
+	// preference is found. If this reported false, a settings UI reading current
+	// state would render every untoggled target as OFF while sends still deliver.
 	return &dto.PreferenceTargetStateDTO{
 		Target: dto.PreferenceTarget{
 			Target: dto.Target{
@@ -251,7 +255,7 @@ func (s *PreferenceService) CheckRecipientTargetSubscription(ctx context.Context
 			},
 		},
 		State: dto.PreferenceState{
-			Enabled:   false,
+			Enabled:   true,
 			Inherited: true,
 		},
 	}, service.ErrNone, nil
