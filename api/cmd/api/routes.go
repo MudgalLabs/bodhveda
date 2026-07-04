@@ -67,8 +67,19 @@ func initRouter() http.Handler {
 		})
 
 		r.Route("/recipients", func(r chi.Router) {
+			r.With(middleware.VerifyAPIKeyHasFullScope).Group(func(r chi.Router) {
+				r.Post("/", handler.CreateRecipient(app.APP.Service.Recipient))
+				r.Post("/batch", handler.BatchCreateRecipients(app.APP.Service.Recipient))
+			})
+
 			r.Route("/{recipient_external_id}", func(r chi.Router) {
 				r.Use(middleware.CreateRecipientIfNotExists)
+
+				r.With(middleware.VerifyAPIKeyHasFullScope).Group(func(r chi.Router) {
+					r.Get("/", handler.GetRecipient(app.APP.Service.Recipient))
+					r.Patch("/", handler.UpdateRecipient(app.APP.Service.Recipient))
+					r.Delete("/", handler.DeleteRecipient(app.APP.Service.Recipient))
+				})
 
 				r.Route("/notifications", func(r chi.Router) {
 					r.Get("/", handler.ListForRecipient(app.APP.Service.Notification))
@@ -82,14 +93,6 @@ func initRouter() http.Handler {
 					r.Patch("/", handler.UpdateRecipientPreferenceForTarget(app.APP.Service.Preference))
 					r.Get("/check", handler.CheckRecipientPreferenceForTarget(app.APP.Service.Preference))
 				})
-			})
-
-			r.With(middleware.VerifyAPIKeyHasFullScope).Group(func(r chi.Router) {
-				r.Post("/", handler.CreateRecipient(app.APP.Service.Recipient))
-				r.Post("/batch", handler.BatchCreateRecipients(app.APP.Service.Recipient))
-				r.Get("/", handler.GetRecipient(app.APP.Service.Recipient))
-				r.Patch("/", handler.UpdateRecipient(app.APP.Service.Recipient))
-				r.Delete("/", handler.DeleteRecipient(app.APP.Service.Recipient))
 			})
 		})
 	})
