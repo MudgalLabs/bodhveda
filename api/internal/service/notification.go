@@ -10,6 +10,7 @@ import (
 	"github.com/mudgallabs/bodhveda/internal/job/task"
 	"github.com/mudgallabs/bodhveda/internal/model/dto"
 	"github.com/mudgallabs/bodhveda/internal/model/entity"
+	"github.com/mudgallabs/bodhveda/internal/model/enum"
 	"github.com/mudgallabs/bodhveda/internal/model/repository"
 	"github.com/mudgallabs/tantra/query"
 	"github.com/mudgallabs/tantra/service"
@@ -65,7 +66,10 @@ func (s *NotificationService) Send(ctx context.Context, userID int, payload dto.
 	} else {
 		// Check if a project preference exists that matches the target.
 		// If not, we should return an error as no recipients would be able to receive this broadcast.
-		prefExists, err := s.preferenceRepo.DoesProjectPreferenceExist(ctx, payload.ProjectID, *payload.Target)
+		// Broadcasts are in-app only in v1 (email is direct-only — see the HARD
+		// RULE in agent-docs/overview.md), so the catalog precondition is checked
+		// against the in_app medium.
+		prefExists, err := s.preferenceRepo.DoesProjectPreferenceExist(ctx, payload.ProjectID, *payload.Target, enum.MediumInApp)
 		if err != nil {
 			return nil, "", service.ErrInternalServerError, fmt.Errorf("check if project preference exists: %w", err)
 		}

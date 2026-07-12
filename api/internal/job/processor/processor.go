@@ -51,7 +51,9 @@ func (processor *NotificationDeliveryProcessor) ProcessTask(ctx context.Context,
 
 	notification := payload.Notification
 
-	shouldDeliver, err := processor.preferenceRepo.ShouldDirectNotificationBeDelivered(ctx, notification.ProjectID, notification.RecipientExtID, dto.TargetFromNotification(notification))
+	// The worker's delivery step is the in-app inbox write; gate it on the
+	// in_app medium (preserves legacy behavior: deliver unless muted).
+	shouldDeliver, err := processor.preferenceRepo.ShouldDirectNotificationBeDelivered(ctx, notification.ProjectID, notification.RecipientExtID, dto.TargetFromNotification(notification), enum.MediumInApp)
 	if err != nil {
 		return err
 	}
@@ -127,7 +129,8 @@ func (processor *PrepareBroadcastBatchesProcessor) ProcessTask(ctx context.Conte
 
 	broadcast := payload.Broadcast
 
-	recipientExtIDs, err := processor.preferenceRepo.ListEligibleRecipientExtIDsForBroadcast(ctx, broadcast.ProjectID, dto.TargetFromBroadcast(broadcast))
+	// Broadcasts fan out in-app only (email is direct-only).
+	recipientExtIDs, err := processor.preferenceRepo.ListEligibleRecipientExtIDsForBroadcast(ctx, broadcast.ProjectID, dto.TargetFromBroadcast(broadcast), enum.MediumInApp)
 	if err != nil {
 		err = fmt.Errorf("list eligible recipient external IDs: %w", err)
 		logger.Get().Error(err)

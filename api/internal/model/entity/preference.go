@@ -16,15 +16,19 @@ type Preference struct {
 	// Ex: Comment on your post (channel="posts", topic="any", event="new_comment").
 	// `none` means this rule does not have any topic.
 	// Ex: Announcements for new features (channel="annoucements", topic="none", event="new_feature").
-	Topic     string
-	Event     string
+	Topic string
+	Event string
+	// Medium is the delivery transport this preference gates (in_app, email, ...).
+	// Legacy rows backfill to "in_app". A project-level (recipient NULL) row is a
+	// catalog entry declaring that (target, medium) may fire.
+	Medium    string
 	Enabled   bool
 	Label     *string // Nullable, if null then this is a recipient preference.
 	CreatedAt time.Time
 	UpdatedAt time.Time
 }
 
-func NewPreference(projectID *int, recipientExtID *string, channel string, topic string, event string, label *string, enabled bool) *Preference {
+func NewPreference(projectID *int, recipientExtID *string, channel string, topic string, event string, medium string, label *string, enabled bool) *Preference {
 	now := time.Now().UTC()
 
 	return &Preference{
@@ -33,6 +37,7 @@ func NewPreference(projectID *int, recipientExtID *string, channel string, topic
 		Channel:        channel,
 		Topic:          topic,
 		Event:          event,
+		Medium:         medium,
 		Label:          label,
 		Enabled:        enabled,
 		CreatedAt:      now,

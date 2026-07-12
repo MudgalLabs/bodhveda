@@ -449,7 +449,7 @@ handler→service→pg pattern; don't refactor domains mid-phase (see top of doc
 
 - Phase 0 — Design & decisions — **DONE** (this doc + `design/multi-medium-delivery.md`).
 - Phase 1 — Recipient contacts (`recipient_contact` table) — **DONE** (see "Phase 1 — deviations" below)
-- Phase 2 — Medium model + per-medium preferences + catalog gating — **TODO**
+- Phase 2 — Medium model + per-medium preferences + catalog gating — **DONE** (see "Phase 2 — deviations" below)
 - Phase 3 — Project email provider settings (Resend creds + from-identity) — **TODO**
 - Phase 4 — Email delivery core (adapter + `email:delivery` worker + `notification_delivery` + send `email` block; DIRECT-only) — **TODO**
 - Phase 5 — Delivery status via Resend webhooks — **TODO**
@@ -562,6 +562,59 @@ Update Phase 1 status to DONE and note deviations.
   of `in_app`; per-medium gating returns the right decision; a `(target, medium)` not in the
   catalog is treated as unavailable; console shows two toggles; legacy in-app behavior is
   unchanged (legacy prefs backfilled to `in_app`).
+
+#### Phase 2 — deviations (as built)
+
+Migration: `migrations/20260712130000_add_medium_to_preference.sql` (Goose, `NO TRANSACTION`;
+apply manually with goose — no runner is wired in). Backend follows the existing layered
+`handler → service → pg` split; no domain was refactored.
+
+- **Shared enum lives in `enum/medium.go` (extended in place, not a new file).** Phase 1's
+  contacts enum gained `MediumInApp` plus `Valid()` (all five — matches the
+  `preference.medium` CHECK), `Active()` (in_app + email — the only transports that fire in
+  v1), and `DefaultMedium = in_app`. `ValidContactMedium()` (email/sms/web_push/mobile_push,
+  no in_app) is unchanged — contacts and preferences are overlapping-but-distinct subsets.
+- **Gating queries take a `medium enum.Medium` parameter** rather than gaining new
+  method names. `ShouldDirectNotificationBeDelivered`, `DoesProjectPreferenceExist`, and
+  `ListEligibleRecipientExtIDsForBroadcast` all filter the preference cascade by medium.
+  The direct-delivery default is **medium-dependent**: `in_app` defaults to DELIVER (legacy
+  "deliver unless muted", no catalog required); every other medium defaults to NOT deliver —
+  it fires only when cataloged (a project-level row exists) or the recipient explicitly
+  enabled it. That default *is* the catalog gate for non-in_app transports. `in_app` behavior
+  is byte-for-byte preserved (backfill + in_app default true + all existing call sites pass
+  `enum.MediumInApp`).
+- **Broadcast stays in-app only (HARD RULE).** The broadcast precondition
+  (`DoesProjectPreferenceExist`) and fan-out (`ListEligibleRecipientExtIDsForBroadcast`) call
+  sites pass `enum.MediumInApp`. No broadcast/email machinery was added; the pipeline is
+  untouched.
+- **`ON CONFLICT` moved in lock-step with the index rebuild.** `pg/preference.go`'s
+  recipient upsert now targets `(project_id, recipient_external_id, channel, topic, event,
+  medium) WHERE recipient_external_id IS NOT NULL`. A duplicate `(target, medium)` project
+  preference 409s on the rebuilt `project_pref_unique` (verified live: same target with
+  in_app + email coexists; a second email row is rejected).
+- **API is backward compatible — omitted `medium` ⇒ `in_app`.** Every preference
+  payload (`CreateProjectPreference`, `UpsertRecipientPreference`,
+  `PatchRecipientPreferenceTarget`, `CheckRecipientTarget`) normalizes a missing/blank medium
+  to `in_app` and validates it is `Active()` (in_app|email); the check endpoint reads it from
+  the `medium` query param. Response DTOs (project + recipient + the recipient-facing
+  target/state shapes) all carry `medium`. This keeps the current (un-bumped) SDKs working:
+  they send no medium and transparently operate on in-app, exactly as before.
+- **Catalog creation is restricted to *active* mediums (in_app, email).** The
+  `preference.medium` CHECK accepts all five (scaffolding for web_push/sms/mobile_push), but
+  the DTO validation rejects cataloging a medium that can't fire yet.
+- **Console: multi-select medium in the create-preference modal + a Medium column.** The
+  create modal declares which mediums a target offers (In-App / Email, `type="multiple"`
+  ToggleGroup) and creates one project preference per selected medium (one `POST` each — the
+  backend stores a row per `(target, medium)`). The project and recipient preference tables
+  gained a "Medium" column. A full recipient-facing per-target toggle **grid** was NOT built —
+  the developer console has no recipient *detail* preference screen today (recipient prefs are
+  a read-only list); the recipient-side In-App/Email toggles are exercised through the
+  preference API (SDK-consumed), which is what Resurface will use.
+- **SDKs untouched this phase.** Consistent with Phase 1 (SDK publishing is deliberately
+  bundled with the email-medium launch), the Go/JS SDK preference types were left as-is; the
+  server's omitted-medium→in_app default keeps them functioning.
+- **Untouched (as scoped):** provider config, adapters, sending, delivery records, and the
+  broadcast pipeline. No email leaves the system.
 
 ```
 Read agent-docs/overview.md in full first, plus the "Altered: preference" DDL in

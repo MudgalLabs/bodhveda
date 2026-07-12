@@ -37,6 +37,7 @@ func (s *PreferenceService) CreateProjectPreference(ctx context.Context, payload
 		payload.Channel,
 		payload.Topic,
 		payload.Event,
+		payload.Medium,
 		&payload.Label,
 		payload.Enabled,
 	)
@@ -62,7 +63,9 @@ func (s *PreferenceService) ListProjectPreferences(ctx context.Context, projectI
 	for _, pref := range prefs {
 		target := dto.TargetFromPreference(pref)
 
-		recipients, err := s.repo.ListEligibleRecipientExtIDsForBroadcast(ctx, projectID, target)
+		// Subscriber count is per (target, medium) — count recipients opted in to
+		// this catalog entry's own medium.
+		recipients, err := s.repo.ListEligibleRecipientExtIDsForBroadcast(ctx, projectID, target, enum.Medium(pref.Medium))
 		if err != nil {
 			return nil, service.ErrInternalServerError, fmt.Errorf("repo list eligible recipients: %w", err)
 		}
@@ -110,6 +113,7 @@ func (s *PreferenceService) UpsertRecipientPreference(ctx context.Context, paylo
 		payload.Channel,
 		payload.Topic,
 		payload.Event,
+		payload.Medium,
 		nil,
 		payload.Enabled,
 	)
@@ -129,13 +133,14 @@ func (s *PreferenceService) UpdateRecipientPreferenceTarget(ctx context.Context,
 		return nil, service.ErrInvalidInput, err
 	}
 
-	// Upsert recipient-level preference for this target
+	// Upsert recipient-level preference for this (target, medium).
 	pref := entity.NewPreference(
 		&projectID,
 		&recipientExtID,
 		req.Target.Channel,
 		req.Target.Topic,
 		req.Target.Event,
+		req.Medium,
 		nil,
 		req.State.Enabled,
 	)
@@ -168,20 +173,20 @@ func (s *PreferenceService) GetRecipientProjectPreferences(ctx context.Context, 
 		return nil, service.ErrInternalServerError, fmt.Errorf("repo list recipient preferences: %w", err)
 	}
 
-	// 3. Build a map for quick lookup of recipient-level preferences by (channel, topic, event)
-	type prefKey struct{ Channel, Topic, Event string }
+	// 3. Build a map for quick lookup of recipient-level preferences by (channel, topic, event, medium)
+	type prefKey struct{ Channel, Topic, Event, Medium string }
 	recipientPrefMap := make(map[prefKey]*entity.Preference)
 	for _, pref := range recipientPrefs {
 		// Only consider preferences for the given recipient
 		if pref.RecipientExtID != nil && *pref.RecipientExtID == recipientExtID {
-			recipientPrefMap[prefKey{pref.Channel, pref.Topic, pref.Event}] = pref
+			recipientPrefMap[prefKey{pref.Channel, pref.Topic, pref.Event, pref.Medium}] = pref
 		}
 	}
 
 	result := []*dto.PreferenceTargetStateDTO{}
 	// 4. For each project-level preference, check if there is a recipient-level override
 	for _, projPref := range projectPrefs {
-		key := prefKey{projPref.Channel, projPref.Topic, projPref.Event}
+		key := prefKey{projPref.Channel, projPref.Topic, projPref.Event, projPref.Medium}
 
 		item := dto.PreferenceTargetStateDTO{
 			Target: dto.PreferenceTargetDTOFromPreference(projPref),
@@ -221,20 +226,20 @@ func (s *PreferenceService) CheckRecipientTargetSubscription(ctx context.Context
 		return nil, service.ErrInternalServerError, err
 	}
 	for _, pref := range recipientPrefs {
-		if pref.Channel == payload.Channel && pref.Topic == payload.Topic && pref.Event == payload.Event {
+		if pref.Channel == payload.Channel && pref.Topic == payload.Topic && pref.Event == payload.Event && pref.Medium == payload.Medium {
 			result := dto.PreferenceTargetStateDTOFromPreference(pref, false)
 			result.Target.Label = nil // Recipient-level preferences do not have labels.
 			return result, service.ErrNone, nil
 		}
 	}
 
-	// 2. Try project-level preference for this target
+	// 2. Try project-level preference for this (target, medium)
 	projectPrefs, err := s.repo.ListPreferences(ctx, projectID, enum.PreferenceKindProject)
 	if err != nil {
 		return nil, service.ErrInternalServerError, err
 	}
 	for _, pref := range projectPrefs {
-		if pref.Channel == payload.Channel && pref.Topic == payload.Topic && pref.Event == payload.Event {
+		if pref.Channel == payload.Channel && pref.Topic == payload.Topic && pref.Event == payload.Event && pref.Medium == payload.Medium {
 			result := dto.PreferenceTargetStateDTOFromPreference(pref, false)
 			result.Target.Label = nil // Recipient-level preferences do not have labels.
 			return result, service.ErrNone, nil
@@ -249,6 +254,7 @@ func (s *PreferenceService) CheckRecipientTargetSubscription(ctx context.Context
 				Topic:   payload.Topic,
 				Event:   payload.Event,
 			},
+			Medium: payload.Medium,
 		},
 		State: dto.PreferenceState{
 			Enabled:   false,

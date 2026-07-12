@@ -5,14 +5,36 @@ import (
 	"time"
 
 	"github.com/mudgallabs/bodhveda/internal/model/entity"
+	"github.com/mudgallabs/bodhveda/internal/model/enum"
 	"github.com/mudgallabs/tantra/apires"
 	"github.com/mudgallabs/tantra/service"
 )
+
+// normalizeMedium trims/lowercases a request-supplied medium and falls back to
+// the default (in_app) when omitted, keeping the preference API backward
+// compatible for callers that predate mediums.
+func normalizeMedium(m string) enum.Medium {
+	m = strings.ToLower(strings.TrimSpace(m))
+	if m == "" {
+		return enum.DefaultMedium
+	}
+	return enum.Medium(m)
+}
+
+// validateMedium reports whether m is an active preference medium (in_app or
+// email in v1). When invalid, ok is false and the returned ApiError describes it.
+func validateMedium(m enum.Medium) (apires.ApiError, bool) {
+	if !m.Active() {
+		return apires.NewApiError("Invalid medium", "Medium must be one of: in_app, email", "medium", string(m)), false
+	}
+	return apires.ApiError{}, true
+}
 
 type ProjectPreference struct {
 	ID        int       `json:"id"`
 	ProjectID int       `json:"project_id"`
 	Target    Target    `json:"target"`
+	Medium    string    `json:"medium"`
 	Enabled   bool      `json:"default_enabled"`
 	Label     string    `json:"label"`
 	CreatedAt time.Time `json:"created_at"`
@@ -25,6 +47,9 @@ type CreateProjectPreferencePayload struct {
 	Channel string `json:"channel"`
 	Topic   string `json:"topic"`
 	Event   string `json:"event"`
+	// Medium defaults to in_app when omitted. A project preference is a catalog
+	// entry: it declares that this (target, medium) may fire.
+	Medium  string `json:"medium"`
 	Label   string `json:"label"`
 	Enabled bool   `json:"default_enabled"`
 }
@@ -34,6 +59,11 @@ func (p *CreateProjectPreferencePayload) Validate() error {
 
 	if p.ProjectID <= 0 {
 		errs.Add(apires.NewApiError("Project is required", "Project ID must be a positive integer", "project_id", p.ProjectID))
+	}
+
+	p.Medium = string(normalizeMedium(p.Medium))
+	if apiErr, ok := validateMedium(enum.Medium(p.Medium)); !ok {
+		errs.Add(apiErr)
 	}
 
 	if p.Channel == "" {
@@ -72,6 +102,7 @@ func FromPreferenceForProject(e *entity.Preference) *ProjectPreference {
 			Topic:   e.Topic,
 			Event:   e.Event,
 		},
+		Medium:    e.Medium,
 		Enabled:   e.Enabled,
 		Label:     *e.Label,
 		CreatedAt: e.CreatedAt,
@@ -84,6 +115,7 @@ type RecipientPreference struct {
 	ProjectID      int       `json:"project_id"`
 	RecipientExtID string    `json:"recipient_id"`
 	Target         Target    `json:"target"`
+	Medium         string    `json:"medium"`
 	Enabled        bool      `json:"enabled"`
 	CreatedAt      time.Time `json:"created_at"`
 	UpdatedAt      time.Time `json:"updated_at"`
@@ -96,7 +128,9 @@ type UpsertRecipientPreferencePayload struct {
 	Channel        string `json:"channel"`
 	Topic          string `json:"topic"`
 	Event          string `json:"event"`
-	Enabled        bool   `json:"enabled"`
+	// Medium defaults to in_app when omitted.
+	Medium  string `json:"medium"`
+	Enabled bool   `json:"enabled"`
 }
 
 func (p *UpsertRecipientPreferencePayload) Validate() error {
@@ -104,6 +138,11 @@ func (p *UpsertRecipientPreferencePayload) Validate() error {
 
 	if p.ProjectID <= 0 {
 		errs.Add(apires.NewApiError("Project is required", "Project ID must be a positive integer", "project_id", p.ProjectID))
+	}
+
+	p.Medium = string(normalizeMedium(p.Medium))
+	if apiErr, ok := validateMedium(enum.Medium(p.Medium)); !ok {
+		errs.Add(apiErr)
 	}
 
 	if p.RecipientExtID == "" {
@@ -145,6 +184,7 @@ func FromPreferenceForRecipient(e *entity.Preference) *RecipientPreference {
 			Topic:   e.Topic,
 			Event:   e.Event,
 		},
+		Medium:    e.Medium,
 		Enabled:   e.Enabled,
 		CreatedAt: e.CreatedAt,
 		UpdatedAt: e.UpdatedAt,
@@ -177,7 +217,8 @@ func FromProjectPreferenceList(list []*entity.ProjectPreferenceListItem) []*Proj
 
 type PreferenceTarget struct {
 	Target
-	Label *string `json:"label,omitempty"`
+	Medium string  `json:"medium"`
+	Label  *string `json:"label,omitempty"`
 }
 
 type PreferenceState struct {
@@ -196,6 +237,9 @@ type PreferenceTargetStatesResultDTO struct {
 
 type PatchRecipientPreferenceTargetPayload struct {
 	Target PreferenceTarget `json:"target"`
+	// Medium defaults to in_app when omitted. It sits alongside target so the
+	// recipient can toggle in-app and email for the same target independently.
+	Medium string `json:"medium"`
 	State  struct {
 		Enabled bool `json:"enabled"`
 	} `json:"state"`
@@ -203,6 +247,11 @@ type PatchRecipientPreferenceTargetPayload struct {
 
 func (p *PatchRecipientPreferenceTargetPayload) Validate() error {
 	var errs service.InputValidationErrors
+
+	p.Medium = string(normalizeMedium(p.Medium))
+	if apiErr, ok := validateMedium(enum.Medium(p.Medium)); !ok {
+		errs.Add(apiErr)
+	}
 
 	if p.Target.Channel == "" {
 		errs.Add(apires.NewApiError("Channel is required", "Channel cannot be empty", "channel", p.Target.Channel))
@@ -228,7 +277,8 @@ func PreferenceTargetDTOFromPreference(e *entity.Preference) PreferenceTarget {
 			Topic:   e.Topic,
 			Event:   e.Event,
 		},
-		Label: e.Label,
+		Medium: e.Medium,
+		Label:  e.Label,
 	}
 }
 
@@ -244,10 +294,17 @@ func PreferenceTargetStateDTOFromPreference(e *entity.Preference, inherited bool
 
 type CheckRecipientTargetPayload struct {
 	Target
+	// Medium defaults to in_app when omitted (query param `medium`).
+	Medium string `json:"medium" schema:"medium"`
 }
 
 func (q *CheckRecipientTargetPayload) Validate() error {
 	var errs service.InputValidationErrors
+
+	q.Medium = string(normalizeMedium(q.Medium))
+	if apiErr, ok := validateMedium(enum.Medium(q.Medium)); !ok {
+		errs.Add(apiErr)
+	}
 
 	if q.Channel == "" {
 		errs.Add(apires.NewApiError("Channel is required", "Channel cannot be empty", "channel", q.Channel))
