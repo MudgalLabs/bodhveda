@@ -14,6 +14,7 @@ import { Route as IndexRouteImport } from './routes/index'
 import { Route as ProjectsIndexRouteImport } from './routes/projects/index'
 import { Route as ProjectsIdRouteImport } from './routes/projects/$id'
 import { Route as AuthSignInRouteImport } from './routes/auth/sign-in'
+import { Route as ProjectsIdSettingsRouteImport } from './routes/projects/$id/settings'
 import { Route as ProjectsIdRecipientsRouteImport } from './routes/projects/$id/recipients'
 import { Route as ProjectsIdPreferencesRouteImport } from './routes/projects/$id/preferences'
 import { Route as ProjectsIdNotificationsRouteImport } from './routes/projects/$id/notifications'
@@ -45,6 +46,11 @@ const AuthSignInRoute = AuthSignInRouteImport.update({
   id: '/auth/sign-in',
   path: '/auth/sign-in',
   getParentRoute: () => rootRouteImport,
+} as any)
+const ProjectsIdSettingsRoute = ProjectsIdSettingsRouteImport.update({
+  id: '/settings',
+  path: '/settings',
+  getParentRoute: () => ProjectsIdRoute,
 } as any)
 const ProjectsIdRecipientsRoute = ProjectsIdRecipientsRouteImport.update({
   id: '/recipients',
@@ -89,6 +95,7 @@ export interface FileRoutesByFullPath {
   '/projects/$id/notifications': typeof ProjectsIdNotificationsRoute
   '/projects/$id/preferences': typeof ProjectsIdPreferencesRoute
   '/projects/$id/recipients': typeof ProjectsIdRecipientsRoute
+  '/projects/$id/settings': typeof ProjectsIdSettingsRoute
 }
 export interface FileRoutesByTo {
   '/': typeof IndexRoute
@@ -101,6 +108,7 @@ export interface FileRoutesByTo {
   '/projects/$id/notifications': typeof ProjectsIdNotificationsRoute
   '/projects/$id/preferences': typeof ProjectsIdPreferencesRoute
   '/projects/$id/recipients': typeof ProjectsIdRecipientsRoute
+  '/projects/$id/settings': typeof ProjectsIdSettingsRoute
 }
 export interface FileRoutesById {
   __root__: typeof rootRouteImport
@@ -115,6 +123,7 @@ export interface FileRoutesById {
   '/projects/$id/notifications': typeof ProjectsIdNotificationsRoute
   '/projects/$id/preferences': typeof ProjectsIdPreferencesRoute
   '/projects/$id/recipients': typeof ProjectsIdRecipientsRoute
+  '/projects/$id/settings': typeof ProjectsIdSettingsRoute
 }
 export interface FileRouteTypes {
   fileRoutesByFullPath: FileRoutesByFullPath
@@ -130,6 +139,7 @@ export interface FileRouteTypes {
     | '/projects/$id/notifications'
     | '/projects/$id/preferences'
     | '/projects/$id/recipients'
+    | '/projects/$id/settings'
   fileRoutesByTo: FileRoutesByTo
   to:
     | '/'
@@ -142,6 +152,7 @@ export interface FileRouteTypes {
     | '/projects/$id/notifications'
     | '/projects/$id/preferences'
     | '/projects/$id/recipients'
+    | '/projects/$id/settings'
   id:
     | '__root__'
     | '/'
@@ -155,6 +166,7 @@ export interface FileRouteTypes {
     | '/projects/$id/notifications'
     | '/projects/$id/preferences'
     | '/projects/$id/recipients'
+    | '/projects/$id/settings'
   fileRoutesById: FileRoutesById
 }
 export interface RootRouteChildren {
@@ -199,6 +211,13 @@ declare module '@tanstack/react-router' {
       fullPath: '/auth/sign-in'
       preLoaderRoute: typeof AuthSignInRouteImport
       parentRoute: typeof rootRouteImport
+    }
+    '/projects/$id/settings': {
+      id: '/projects/$id/settings'
+      path: '/settings'
+      fullPath: '/projects/$id/settings'
+      preLoaderRoute: typeof ProjectsIdSettingsRouteImport
+      parentRoute: typeof ProjectsIdRoute
     }
     '/projects/$id/recipients': {
       id: '/projects/$id/recipients'
@@ -252,6 +271,7 @@ interface ProjectsIdRouteChildren {
   ProjectsIdNotificationsRoute: typeof ProjectsIdNotificationsRoute
   ProjectsIdPreferencesRoute: typeof ProjectsIdPreferencesRoute
   ProjectsIdRecipientsRoute: typeof ProjectsIdRecipientsRoute
+  ProjectsIdSettingsRoute: typeof ProjectsIdSettingsRoute
 }
 
 const ProjectsIdRouteChildren: ProjectsIdRouteChildren = {
@@ -261,6 +281,7 @@ const ProjectsIdRouteChildren: ProjectsIdRouteChildren = {
   ProjectsIdNotificationsRoute: ProjectsIdNotificationsRoute,
   ProjectsIdPreferencesRoute: ProjectsIdPreferencesRoute,
   ProjectsIdRecipientsRoute: ProjectsIdRecipientsRoute,
+  ProjectsIdSettingsRoute: ProjectsIdSettingsRoute,
 }
 
 const ProjectsIdRouteWithChildren = ProjectsIdRoute._addFileChildren(

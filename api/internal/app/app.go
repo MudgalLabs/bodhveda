@@ -35,6 +35,7 @@ type services struct {
 	Notification     *service.NotificationService
 	Preference       *service.PreferenceService
 	Project          *service.ProjectService
+	ProjectEmail     *service.ProjectEmailSettingsService
 	Recipient        *service.RecipientService
 	RecipientContact *service.RecipientContactService
 
@@ -51,6 +52,7 @@ type repositories struct {
 	Notification     repository.NotificationRepository
 	Preference       repository.PreferenceRepository
 	Project          repository.ProjectRepository
+	ProjectEmail     repository.ProjectEmailSettingsRepository
 	Recipient        repository.RecipientRepository
 	RecipientContact repository.RecipientContactRepository
 	UsageLog         repository.UsageLogRepository
@@ -94,6 +96,7 @@ func Init() {
 	notificationRepository := pg.NewNotificationRepo(db)
 	preferenceRepository := pg.NewPreferenceRepo(db)
 	projectRepository := pg.NewProjectRepo(db)
+	projectEmailSettingsRepository := pg.NewProjectEmailSettingsRepo(db)
 	recipientRepository := pg.NewRecipientRepo(db)
 	recipientContactRepository := pg.NewRecipientContactRepo(db)
 	usageLogRepository := pg.NewUsageLogRepo(db)
@@ -114,6 +117,7 @@ func Init() {
 	notificationService := service.NewNotificationService(notificationRepository, recipientRepository,
 		preferenceRepository, broadcastRepository, broadcastBatchRepository, billingService, recipientService, ASYNQCLIENT)
 	projectService := service.NewProjectService(projectRepository, notificationService, recipientService, ASYNQCLIENT)
+	projectEmailSettingsService := service.NewProjectEmailSettingsService(projectEmailSettingsRepository)
 	userIdentityService := user_identity.NewService(userIdentityRepository, userProfileRepository)
 	userProfileService := user_profile.NewService(userProfileRepository)
 
@@ -124,6 +128,7 @@ func Init() {
 		Notification:     notificationService,
 		Preference:       preferenceService,
 		Project:          projectService,
+		ProjectEmail:     projectEmailSettingsService,
 		Recipient:        recipientService,
 		RecipientContact: recipientContactService,
 
@@ -138,6 +143,7 @@ func Init() {
 		Notification:     notificationRepository,
 		Preference:       preferenceRepository,
 		Project:          projectRepository,
+		ProjectEmail:     projectEmailSettingsRepository,
 		Recipient:        recipientRepository,
 		RecipientContact: recipientContactRepository,
 		UsageLog:         usageLogRepository,

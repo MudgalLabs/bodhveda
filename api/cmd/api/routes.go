@@ -147,6 +147,11 @@ func initRouter() http.Handler {
 					r.Get("/", handler.ListBroadcasts(app.APP.Service.Broadcast))
 				})
 
+				r.Route("/email-settings", func(r chi.Router) {
+					r.Get("/", handler.GetProjectEmailSettings(app.APP.Service.ProjectEmail))
+					r.Put("/", handler.UpsertProjectEmailSettings(app.APP.Service.ProjectEmail))
+				})
+
 				r.Route("/notifications", func(r chi.Router) {
 					r.Get("/", handler.List(app.APP.Service.Notification))
 					r.Post("/send", handler.SendNotificationConsole(app.APP.Service.Notification))

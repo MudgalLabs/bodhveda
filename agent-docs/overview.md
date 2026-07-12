@@ -450,7 +450,7 @@ handler→service→pg pattern; don't refactor domains mid-phase (see top of doc
 - Phase 0 — Design & decisions — **DONE** (this doc + `design/multi-medium-delivery.md`).
 - Phase 1 — Recipient contacts (`recipient_contact` table) — **DONE** (see "Phase 1 — deviations" below)
 - Phase 2 — Medium model + per-medium preferences + catalog gating — **DONE** (see "Phase 2 — deviations" below)
-- Phase 3 — Project email provider settings (Resend creds + from-identity) — **TODO**
+- Phase 3 — Project email provider settings (Resend creds + from-identity) — **DONE** (see "Phase 3 — deviations" below)
 - Phase 4 — Email delivery core (adapter + `email:delivery` worker + `notification_delivery` + send `email` block; DIRECT-only) — **TODO**
 - Phase 5 — Delivery status via Resend webhooks — **TODO**
 - Phase 6 — Unsubscribe (List-Unsubscribe header + public endpoint) — **TODO**
@@ -651,6 +651,54 @@ address) and a `provider` discriminator for future adapters. Add console UI + co
 set/rotate/mask it. Do NOT wire sending or webhooks yet. Update Phase 3 status to DONE when
 finished.
 ```
+
+#### Phase 3 — deviations (as built)
+
+Migration: `migrations/20260712140000_add_project_email_settings.sql` (Goose; apply manually
+with goose — no runner is wired in). Backend follows the existing layered `handler → service →
+pg` split; no domain was refactored.
+
+- **One row per project (`project_id` is the PK), written via upsert.** The
+  `project_email_settings` table holds `provider` (TEXT, CHECK `IN ('resend')`, default
+  `'resend'`), `secret` BYTEA + `nonce` BYTEA (AES-GCM ciphertext of the Resend API key,
+  encrypted exactly like an `api_key` token via tantra `cipher.Encrypt`/`Decrypt` over
+  `env.CipherKey`), `from_name`, `from_address`, timestamps. FK
+  `project_id → project(id) ON DELETE CASCADE` (so deleting a project drops its settings).
+- **Secret is never returned in plaintext.** The response DTO carries only `secret_masked`
+  — the last 4 chars behind `••••••••` (`dto.MaskSecret`). The plaintext is decrypted
+  **only** server-side to derive that mask (`service.toMaskedDTO`) and, later, to send
+  (`entity.DecryptSecret`, Phase 4). It's never logged.
+- **Provider discriminator is a real enum** (`enum/email_provider.go`,
+  `EmailProviderResend` + `DefaultEmailProvider` + `Valid()`), matching the table CHECK. Only
+  `resend` is accepted in v1; the type exists so more adapters slot in without a re-migration.
+- **Console-only surface (no Developer API).** Provider config is an owner/console concern,
+  not something a recipient- or full-scope API key touches. Routes live under
+  `/console/projects/{project_id}/email-settings`: `GET` (returns the masked settings, or
+  `data: null` when unconfigured) and `PUT` (upsert). Gated by the existing
+  `VerifyUserOwnsThisProject`.
+- **Single `PUT` upsert does set + rotate + identity-edit.** The secret is **required on
+  first configuration** and **optional afterwards**: an update that omits (or blanks) `secret`
+  keeps the existing encrypted key and only changes provider/from-identity (the service loads
+  the existing row, carries `secret`/`nonce` forward, and preserves `created_at`); supplying a
+  new secret rotates it (fresh encrypt + new nonce). `DTO.SetHasExisting` drives the
+  "required only when first configuring" validation.
+- **`from_address` is normalized** (trimmed + lowercased, must contain `@`); `from_name`
+  trimmed + required.
+- **Console UI:** an "Email" sidebar item (route `/projects/$id/settings`, `IconSend`) opens
+  a single settings form (`features/email_settings/`) — provider select (Resend only), a
+  write-only API-key `PasswordInput` (placeholder tells you it's kept if left blank once
+  configured; shows the masked hint in an Alert), and from name/address. Mirrors the
+  api-key/create modal's field patterns. No dedicated modal — a plain page form fits a
+  once-per-project config better than the recipient-contacts modal style.
+- **Tests:** `service/project_email_settings_test.go` (in-memory fake repo — encrypt-at-rest,
+  last-4 masking, no-plaintext-leak, rotate, keep-secret-on-identity-only-update,
+  first-config-requires-secret, get-when-unconfigured) and `pg/project_email_settings_test.go`
+  (real-Postgres round-trip of the insert/`ON CONFLICT` upsert/`Get`/`ErrNotFound` SQL, gated
+  on `TEST_DB_URL`, self-cleaning). Both pass.
+- **SDKs untouched** (consistent with Phases 1–2 — provider config is console-only anyway;
+  the SDK bump is bundled with the Phase 7 launch).
+- **Untouched (as scoped):** no sending (Phase 4), no webhooks (Phase 5). The stored creds are
+  not yet read by any send path.
 
 ### Phase 4 — Email delivery core (DIRECT-only)
 

@@ -79,6 +79,13 @@ export const API_ROUTES = {
             delete: (projectId: string | number, prefenceID: number) =>
                 `/console/projects/${projectId}/preferences/${prefenceID}`,
         },
+
+        email_settings: {
+            get: (projectId: string | number) =>
+                `/console/projects/${projectId}/email-settings`,
+            upsert: (projectId: string | number) =>
+                `/console/projects/${projectId}/email-settings`,
+        },
     },
     user: {
         me: "/console/users/me",
