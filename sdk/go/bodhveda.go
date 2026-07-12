@@ -45,6 +45,7 @@ func NewClient(apiKey string, opts *ClientOptions) *Client {
 			client:        client,
 			Notifications: &RecipientsNotifications{client: client},
 			Preferences:   &RecipientsPreferences{client: client},
+			Contacts:      &RecipientsContacts{client: client},
 		},
 	}
 
@@ -92,6 +93,7 @@ type Recipients struct {
 
 	Notifications *RecipientsNotifications
 	Preferences   *RecipientsPreferences
+	Contacts      *RecipientsContacts
 }
 
 func (recipients *Recipients) Create(ctx context.Context, req *CreateRecipientRequest) (*CreateRecipientResponse, error) {
@@ -233,4 +235,46 @@ func (recipientsPreferences *RecipientsPreferences) Check(ctx context.Context, r
 	var resp CheckPreferenceResponse
 	err := recipientsPreferences.client.Do(ctx, "GET", path, nil, &resp)
 	return &resp, err
+}
+
+// RecipientContactsService provides contact methods for a recipient.
+type RecipientContactsService interface {
+	// List lists a recipient's contacts.
+	List(ctx context.Context, recipientID string) (*ListRecipientContactsResponse, error)
+
+	// Create adds a contact to a recipient.
+	Create(ctx context.Context, recipientID string, req *CreateRecipientContactRequest) (*CreateRecipientContactResponse, error)
+
+	// Update updates a recipient's contact by contact ID.
+	Update(ctx context.Context, recipientID string, contactID int64, req *UpdateRecipientContactRequest) (*UpdateRecipientContactResponse, error)
+
+	// Delete deletes a recipient's contact by contact ID. Requires a full-scope API key.
+	Delete(ctx context.Context, recipientID string, contactID int64) error
+}
+
+// RecipientsContacts implements RecipientContactsService.
+type RecipientsContacts struct {
+	client *httpClient
+}
+
+func (recipientsContacts *RecipientsContacts) List(ctx context.Context, recipientID string) (*ListRecipientContactsResponse, error) {
+	var resp ListRecipientContactsResponse
+	err := recipientsContacts.client.Do(ctx, "GET", routes.RecipientsContactsList(recipientID), nil, &resp)
+	return &resp, err
+}
+
+func (recipientsContacts *RecipientsContacts) Create(ctx context.Context, recipientID string, req *CreateRecipientContactRequest) (*CreateRecipientContactResponse, error) {
+	var resp CreateRecipientContactResponse
+	err := recipientsContacts.client.Do(ctx, "POST", routes.RecipientsContactsCreate(recipientID), req, &resp)
+	return &resp, err
+}
+
+func (recipientsContacts *RecipientsContacts) Update(ctx context.Context, recipientID string, contactID int64, req *UpdateRecipientContactRequest) (*UpdateRecipientContactResponse, error) {
+	var resp UpdateRecipientContactResponse
+	err := recipientsContacts.client.Do(ctx, "PATCH", routes.RecipientsContactsUpdate(recipientID, contactID), req, &resp)
+	return &resp, err
+}
+
+func (recipientsContacts *RecipientsContacts) Delete(ctx context.Context, recipientID string, contactID int64) error {
+	return recipientsContacts.client.Do(ctx, "DELETE", routes.RecipientsContactsDelete(recipientID, contactID), nil, nil)
 }

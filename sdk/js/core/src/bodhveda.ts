@@ -22,6 +22,11 @@ import {
     GetRecipientResponse,
     UpdateRecipientRequest,
     UpdateRecipientResponse,
+    CreateRecipientContactRequest,
+    CreateRecipientContactResponse,
+    ListRecipientContactsResponse,
+    UpdateRecipientContactRequest,
+    UpdateRecipientContactResponse,
 } from "./types";
 import { ROUTES } from "./routes";
 
@@ -173,6 +178,11 @@ interface RecipientsClient {
      * Provides access to recipient notifications methods.
      */
     notifications: RecipientsNotificationsClient;
+
+    /**
+     * Provides access to recipient contacts methods.
+     */
+    contacts: RecipientsContactsClient;
 }
 
 /**
@@ -182,6 +192,7 @@ class Recipients implements RecipientsClient {
     client: AxiosInstance;
     notifications: RecipientsNotificationsClient;
     preferences: RecipientsPreferencesClient;
+    contacts: RecipientsContactsClient;
 
     /**
      * Creates an instance of the Recipients class.
@@ -191,6 +202,7 @@ class Recipients implements RecipientsClient {
         this.client = client;
         this.notifications = new RecipientsNotifications(client);
         this.preferences = new RecipientsPreferences(client);
+        this.contacts = new RecipientsContacts(client);
     }
 
     async create(
@@ -417,5 +429,100 @@ class RecipientsPreferences implements RecipientsPreferencesClient {
             }
         );
         return response.data as CheckPreferenceResponse;
+    }
+}
+
+/**
+ * Interface for managing recipient contacts.
+ */
+interface RecipientsContactsClient {
+    /**
+     * Lists a recipient's contacts.
+     * @param recipientID - The unique identifier of the recipient.
+     * @returns The response containing the list of contacts.
+     */
+    list(recipientID: string): Promise<ListRecipientContactsResponse>;
+
+    /**
+     * Adds a contact to a recipient.
+     * @param recipientID - The unique identifier of the recipient.
+     * @param req - The request object containing the contact to add.
+     * @returns The response after creating the contact.
+     */
+    create(
+        recipientID: string,
+        req: CreateRecipientContactRequest
+    ): Promise<CreateRecipientContactResponse>;
+
+    /**
+     * Updates a recipient's contact by contact ID.
+     * @param recipientID - The unique identifier of the recipient.
+     * @param contactID - The unique identifier of the contact.
+     * @param req - The request object containing the fields to update.
+     * @returns The response after updating the contact.
+     */
+    update(
+        recipientID: string,
+        contactID: number,
+        req: UpdateRecipientContactRequest
+    ): Promise<UpdateRecipientContactResponse>;
+
+    /**
+     * Deletes a recipient's contact by contact ID. Requires a full-scope API key.
+     * @param recipientID - The unique identifier of the recipient.
+     * @param contactID - The unique identifier of the contact.
+     * @returns A promise that resolves when the contact is deleted.
+     */
+    delete(recipientID: string, contactID: number): Promise<void>;
+}
+
+/**
+ * Class for managing recipient contacts.
+ */
+class RecipientsContacts implements RecipientsContactsClient {
+    client: AxiosInstance;
+
+    /**
+     * Creates an instance of the RecipientsContacts class.
+     * @param client - The Axios client instance.
+     */
+    constructor(client: AxiosInstance) {
+        this.client = client;
+    }
+
+    async list(recipientID: string): Promise<ListRecipientContactsResponse> {
+        const response = await this.client.get(
+            ROUTES.recipients.contacts.list(recipientID)
+        );
+        return response.data as ListRecipientContactsResponse;
+    }
+
+    async create(
+        recipientID: string,
+        req: CreateRecipientContactRequest
+    ): Promise<CreateRecipientContactResponse> {
+        const response = await this.client.post(
+            ROUTES.recipients.contacts.create(recipientID),
+            req
+        );
+        return response.data as CreateRecipientContactResponse;
+    }
+
+    async update(
+        recipientID: string,
+        contactID: number,
+        req: UpdateRecipientContactRequest
+    ): Promise<UpdateRecipientContactResponse> {
+        const response = await this.client.patch(
+            ROUTES.recipients.contacts.update(recipientID, contactID),
+            req
+        );
+        return response.data as UpdateRecipientContactResponse;
+    }
+
+    async delete(recipientID: string, contactID: number): Promise<void> {
+        await this.client.delete(
+            ROUTES.recipients.contacts.delete(recipientID, contactID)
+        );
     }
 }

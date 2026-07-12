@@ -53,6 +53,57 @@ type Recipient struct {
 	UpdatedAt time.Time `json:"updated_at"`
 }
 
+// Medium is a delivery transport a recipient contact can be registered for.
+// Only Email is exercised today; the rest are reserved for future transports.
+type Medium string
+
+const (
+	MediumEmail      Medium = "email"
+	MediumSMS        Medium = "sms"
+	MediumWebPush    Medium = "web_push"
+	MediumMobilePush Medium = "mobile_push"
+)
+
+// RecipientContact represents a per-medium contact address for a recipient.
+type RecipientContact struct {
+	ID         int64      `json:"id"`
+	Medium     Medium     `json:"medium"`
+	Address    string     `json:"address"`
+	IsPrimary  bool       `json:"is_primary"`
+	VerifiedAt *time.Time `json:"verified_at"`
+	CreatedAt  time.Time  `json:"created_at"`
+	UpdatedAt  time.Time  `json:"updated_at"`
+}
+
+// CreateRecipientContactRequest is the request to add a contact to a recipient.
+type CreateRecipientContactRequest struct {
+	Medium    Medium `json:"medium"`
+	Address   string `json:"address"`
+	IsPrimary bool   `json:"is_primary"`
+}
+
+// CreateRecipientContactResponse is the response after creating a contact.
+type CreateRecipientContactResponse struct {
+	RecipientContact
+}
+
+// ListRecipientContactsResponse is the response after listing a recipient's contacts.
+type ListRecipientContactsResponse struct {
+	Contacts []RecipientContact `json:"contacts"`
+}
+
+// UpdateRecipientContactRequest updates a contact. Both fields are optional; a
+// changed address invalidates the contact's verification.
+type UpdateRecipientContactRequest struct {
+	Address   *string `json:"address,omitempty"`
+	IsPrimary *bool   `json:"is_primary,omitempty"`
+}
+
+// UpdateRecipientContactResponse is the response after updating a contact.
+type UpdateRecipientContactResponse struct {
+	RecipientContact
+}
+
 // TargetWithLabel represents a target with an optional label.
 type TargetWithLabel struct {
 	Target

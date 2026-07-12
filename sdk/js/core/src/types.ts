@@ -252,3 +252,57 @@ export interface CheckPreferenceResponse {
     target: Target;
     state: PreferenceState;
 }
+
+/**
+ * A delivery transport a recipient contact can be registered for. Only `email`
+ * is exercised today; the rest are reserved for future transports.
+ */
+export type Medium = "email" | "sms" | "web_push" | "mobile_push";
+
+/**
+ * Represents a per-medium contact address for a recipient.
+ */
+export interface RecipientContact {
+    id: number;
+    medium: Medium;
+    address: string;
+    is_primary: boolean;
+    verified_at: string | null;
+    created_at: string;
+    updated_at: string;
+}
+
+/**
+ * Represents a request to add a contact to a recipient.
+ */
+export interface CreateRecipientContactRequest {
+    medium: Medium;
+    address: string;
+    is_primary?: boolean;
+}
+
+/**
+ * Represents the response after creating a recipient contact.
+ */
+export interface CreateRecipientContactResponse extends RecipientContact {}
+
+/**
+ * Represents the response after listing a recipient's contacts.
+ */
+export interface ListRecipientContactsResponse {
+    contacts: RecipientContact[];
+}
+
+/**
+ * Represents a request to update a recipient's contact. Both fields are
+ * optional; a changed address invalidates the contact's verification.
+ */
+export interface UpdateRecipientContactRequest {
+    address?: string;
+    is_primary?: boolean;
+}
+
+/**
+ * Represents the response after updating a recipient contact.
+ */
+export interface UpdateRecipientContactResponse extends RecipientContact {}

@@ -82,6 +82,19 @@ func initRouter() http.Handler {
 					r.Patch("/", handler.UpdateRecipientPreferenceForTarget(app.APP.Service.Preference))
 					r.Get("/check", handler.CheckRecipientPreferenceForTarget(app.APP.Service.Preference))
 				})
+
+				r.Route("/contacts", func(r chi.Router) {
+					// POST/GET/PATCH are allowed for full OR recipient-scoped keys
+					// (like preferences). DELETE has the highest blast radius on a
+					// stolen recipient key, so it requires full scope.
+					r.Post("/", handler.CreateRecipientContact(app.APP.Service.RecipientContact))
+					r.Get("/", handler.ListRecipientContacts(app.APP.Service.RecipientContact))
+
+					r.Route("/{contact_id}", func(r chi.Router) {
+						r.Patch("/", handler.UpdateRecipientContact(app.APP.Service.RecipientContact))
+						r.With(middleware.VerifyAPIKeyHasFullScope).Delete("/", handler.DeleteRecipientContact(app.APP.Service.RecipientContact))
+					})
+				})
 			})
 
 			r.With(middleware.VerifyAPIKeyHasFullScope).Group(func(r chi.Router) {
@@ -156,6 +169,16 @@ func initRouter() http.Handler {
 						r.Patch("/", handler.UpdateRecipientConsole(app.APP.Service.Recipient))
 						r.Delete("/", handler.DeleteRecipientConsole(app.APP.Service.Recipient))
 						r.Put("/preferences", handler.UpsertRecipientPreferences(app.APP.Service.Preference))
+
+						r.Route("/contacts", func(r chi.Router) {
+							r.Get("/", handler.ListRecipientContactsConsole(app.APP.Service.RecipientContact))
+							r.Post("/", handler.CreateRecipientContactConsole(app.APP.Service.RecipientContact))
+
+							r.Route("/{contact_id}", func(r chi.Router) {
+								r.Patch("/", handler.UpdateRecipientContactConsole(app.APP.Service.RecipientContact))
+								r.Delete("/", handler.DeleteRecipientContactConsole(app.APP.Service.RecipientContact))
+							})
+						})
 					})
 				})
 			})

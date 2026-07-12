@@ -36,5 +36,20 @@ export const ROUTES = {
                     recipientID
                 )}/preferences/check`,
         },
+
+        contacts: {
+            list: (recipientID: string) =>
+                `/recipients/${encodeURIComponent(recipientID)}/contacts`,
+            create: (recipientID: string) =>
+                `/recipients/${encodeURIComponent(recipientID)}/contacts`,
+            update: (recipientID: string, contactID: number) =>
+                `/recipients/${encodeURIComponent(
+                    recipientID
+                )}/contacts/${contactID}`,
+            delete: (recipientID: string, contactID: number) =>
+                `/recipients/${encodeURIComponent(
+                    recipientID
+                )}/contacts/${contactID}`,
+        },
     },
 };
