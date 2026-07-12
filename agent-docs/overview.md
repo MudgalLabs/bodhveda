@@ -132,9 +132,11 @@ API enqueues, worker consumes. Task types (`job/task/task.go`):
   batch finishes marks the broadcast `completed`.
 - `recipient:delete_data`, `project:delete_data` — async cascading cleanup.
 
-`make up` runs **asynqmon** on `:7755` (dev-only, absent from prod on purpose). The
-worker is **not** started by `make dev` — run `go run ./cmd/worker` from `api/` to
-exercise jobs.
+`make up` runs **asynqmon** on `:7755` (dev-only, absent from prod on purpose).
+`make dev` starts the worker in its own hot-reloading tmux pane
+(`api/air.worker.toml` → `./cmd/worker`) alongside the api and console, so jobs are
+exercised locally without any extra step. (To run just the worker standalone:
+`go run ./cmd/worker` from `api/`.)
 
 Notification statuses (`enum`): `enqueued`, `muted`, `delivered`, `quota_exceeded`,
 `failed`. Broadcast: `enqueued`, `completed`, `quota_exceeded`, `failed`.
@@ -451,7 +453,7 @@ handler→service→pg pattern; don't refactor domains mid-phase (see top of doc
 - Phase 1 — Recipient contacts (`recipient_contact` table) — **DONE** (see "Phase 1 — deviations" below)
 - Phase 2 — Medium model + per-medium preferences + catalog gating — **DONE** (see "Phase 2 — deviations" below)
 - Phase 3 — Project email provider settings (Resend creds + from-identity) — **DONE** (see "Phase 3 — deviations" below)
-- Phase 4 — Email delivery core (adapter + `email:delivery` worker + `notification_delivery` + send `email` block; DIRECT-only) — **TODO**
+- Phase 4 — Email delivery core (adapter + `email:delivery` worker + `notification_delivery` + send `email` block; DIRECT-only) — **IN PROGRESS**
 - Phase 5 — Delivery status via Resend webhooks — **TODO**
 - Phase 6 — Unsubscribe (List-Unsubscribe header + public endpoint) — **TODO**
 - Phase 7 — Public docs (Mintlify) for the email medium — **TODO**
@@ -727,17 +729,49 @@ pg` split; no domain was refactored.
 
 ```
 Read agent-docs/overview.md in full first (esp. Semantics, the HARD RULE that email is
-DIRECT-only, and the notification_delivery DDL in design/multi-medium-delivery.md). Implement
-Phase 4 (Email delivery core, DIRECT-only) as scoped: a medium adapter interface + a Resend
-adapter; a typed sibling `email: {subject, html, text}` block on the send API where presence
-means "email eligible" and absence means no email (NO payload fallback); the
-notification_delivery table used for email only (leave in_app status on the notification row);
-direct-send fan-out that, after the inbox write, gates email on catalog + per-medium
-preference + a primary email contact, then enqueues an `email:delivery` Asynq task whose
-processor sends via Resend and records the delivery row; partial-medium failures return 200
-with per-delivery statuses. Do NOT send email on broadcasts (forbidden) — leave the broadcast
-pipeline untouched. Do NOT build webhooks (Phase 5) or unsubscribe (Phase 6). Note the
-email-metering decision. Update Phase 4 status to DONE and record the delivery-record schema.
+DIRECT-only, the Phase 1/2/3 "deviations (as built)" sections, and the notification_delivery
+DDL in design/multi-medium-delivery.md). Implement Phase 4 (Email delivery core, DIRECT-only)
+as scoped.
+
+Build on what Phases 1–3 already shipped (reuse — do NOT re-derive):
+- Contacts: the `recipient_contact` table + repo. Add/use a "get primary email contact for
+  (project, recipient)" lookup (the primary is the row WHERE is_primary, medium=email, guarded
+  by ux_recipient_contact_one_primary).
+- Mediums + gating: `enum/medium.go` (`enum.MediumEmail`, `Active()`) and the per-medium
+  gating queries in `pg/preference.go` — `ShouldDirectNotificationBeDelivered(medium)` already
+  resolves catalog + per-medium preference for a given medium. Call it with `enum.MediumEmail`
+  to decide whether email may fire (non-in_app defaults to NOT deliver unless cataloged/enabled
+  — that default IS the catalog gate).
+- Provider config: `project_email_settings` (`enum.EmailProviderResend`, encrypted secret via
+  the reserved `entity.DecryptSecret`, `from_name`/`from_address`). Load it to construct the
+  adapter; if a project has no email settings, email can't fire.
+
+Then implement:
+1. A medium adapter interface + a Resend adapter (creds/from-identity from
+   project_email_settings; normalize send result). Provider selected via the `provider`
+   discriminator.
+2. A typed sibling `email: {subject, html, text}` block on the send API (both the Developer
+   `POST /notifications/send` and the console send path share the Notification service) —
+   presence ⇒ email eligible, absence ⇒ no email (NO payload fallback).
+3. The `notification_delivery` table (old-doc DDL) used for EMAIL ONLY in v1 — leave in_app
+   status on the `notification` row; do NOT migrate the inbox onto delivery rows.
+4. Direct-send fan-out: after the existing inbox write, when an `email` block is present, gate
+   on `ShouldDirectNotificationBeDelivered(email)` (catalog + per-medium pref) AND a primary
+   email contact AND configured project_email_settings, then enqueue a new `email:delivery`
+   Asynq task (add the task type in internal/job/task, processor in cmd/worker) whose processor
+   sends via the Resend adapter and writes the delivery row. Record `no_contact` /
+   skipped-uncataloged / disabled as visible delivery outcomes rather than hard-failing.
+5. Partial-medium failures return 200 with per-delivery statuses (never atomic-reject; old
+   doc #19).
+
+Do NOT send email on broadcasts (forbidden HARD RULE) — leave the broadcast pipeline and its
+`enum.MediumInApp` call sites untouched. Do NOT build webhooks (Phase 5) or unsubscribe
+(Phase 6). Note the email-metering decision (under BYO it's for plan tiers, not cost-recovery —
+optional in v1). Keep the in-app path byte-for-byte unchanged. SDKs stay un-bumped (bundled at
+Phase 7) but add the `email` block to the send types if trivial. Follow the layered
+handler→service→pg pattern; Goose SQL migration applied manually. Update Phase 4 status to DONE,
+add a "Phase 4 — deviations (as built)" section, and record the final notification_delivery
+schema + delivery-status enum.
 ```
 
 ### Phase 5 — Delivery status via provider webhooks
