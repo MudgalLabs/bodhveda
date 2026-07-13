@@ -49,10 +49,29 @@ interface NotificationState {
     opened: boolean;
 }
 
+export interface EmailContent {
+    subject: string;
+    html?: string;
+    text?: string;
+}
+
 export interface SendNotificationPayload {
     recipient_id: string | null;
     target: Target | null;
     payload: unknown;
+    // Optional typed email block. Present ⇒ email is attempted (direct sends
+    // only); absent ⇒ no email. Gated by catalog + per-medium preference + a
+    // primary email contact.
+    email?: EmailContent;
+}
+
+export interface NotificationDelivery {
+    medium: string;
+    status: string;
+    address?: string;
+    failure_reason?: string;
+    created_at: string;
+    updated_at: string;
 }
 
 export interface NotificationsOverviewResult {
@@ -64,6 +83,9 @@ export interface NotificationsOverviewResult {
 export interface SendNotificationResult {
     notification: Notification | null;
     broadcast: Broadcast | null;
+    // Per-medium delivery outcomes for a direct send (email). A partial-medium
+    // failure never rejects the send — the outcome is reported here.
+    deliveries?: NotificationDelivery[];
 }
 
 export interface ListNotificationsPayload {
