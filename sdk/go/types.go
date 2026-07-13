@@ -175,17 +175,45 @@ type UpdateRecipientResponse struct {
 	Recipient
 }
 
+// EmailContent is the typed email block on a send. Its presence makes email
+// eligible for this send (direct-only); absence means no email. Bodhveda is a
+// pass-through — the caller renders its own template and passes the result.
+// Subject is required and at least one of HTML/Text must be set; Text is
+// recommended for deliverability and is auto-derived from HTML when omitted.
+type EmailContent struct {
+	Subject string `json:"subject"`
+	HTML    string `json:"html,omitempty"`
+	Text    string `json:"text,omitempty"`
+}
+
 // SendNotificationRequest represents the request to send a notification.
 type SendNotificationRequest struct {
 	Payload     json.RawMessage `json:"payload"`
 	RecipientID *string         `json:"recipient_id"`
 	Target      *Target         `json:"target"`
+	// Email, when present, attempts an email delivery (direct sends only). It is
+	// gated by catalog + per-medium preference + a primary email contact.
+	Email *EmailContent `json:"email,omitempty"`
+}
+
+// NotificationDelivery is a per-medium delivery outcome returned on a direct
+// send (email in v1).
+type NotificationDelivery struct {
+	Medium        string  `json:"medium"`
+	Status        string  `json:"status"`
+	Address       *string `json:"address,omitempty"`
+	FailureReason *string `json:"failure_reason,omitempty"`
+	CreatedAt     string  `json:"created_at"`
+	UpdatedAt     string  `json:"updated_at"`
 }
 
 // SendNotificationResponse represents the response after sending a notification.
 type SendNotificationResponse struct {
 	Notification *Notification `json:"notification"`
 	Broadcast    *Broadcast    `json:"broadcast"`
+	// Deliveries carries per-medium delivery outcomes for a direct send (email).
+	// A partial-medium failure never rejects the send — the outcome is here.
+	Deliveries []*NotificationDelivery `json:"deliveries,omitempty"`
 }
 
 // ListNotificationsRequest represents the request parameters for listing notifications.

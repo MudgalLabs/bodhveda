@@ -453,7 +453,7 @@ handler→service→pg pattern; don't refactor domains mid-phase (see top of doc
 - Phase 1 — Recipient contacts (`recipient_contact` table) — **DONE** (see "Phase 1 — deviations" below)
 - Phase 2 — Medium model + per-medium preferences + catalog gating — **DONE** (see "Phase 2 — deviations" below)
 - Phase 3 — Project email provider settings (Resend creds + from-identity) — **DONE** (see "Phase 3 — deviations" below)
-- Phase 4 — Email delivery core (adapter + `email:delivery` worker + `notification_delivery` + send `email` block; DIRECT-only) — **IN PROGRESS**
+- Phase 4 — Email delivery core (adapter + `email:delivery` worker + `notification_delivery` + send `email` block; DIRECT-only) — **DONE** (see "Phase 4 — deviations (as built)" below)
 - Phase 5 — Delivery status via Resend webhooks — **TODO**
 - Phase 6 — Unsubscribe (List-Unsubscribe header + public endpoint) — **TODO**
 - Phase 7 — Public docs (Mintlify) for the email medium — **TODO**
@@ -773,6 +773,126 @@ handler→service→pg pattern; Goose SQL migration applied manually. Update Pha
 add a "Phase 4 — deviations (as built)" section, and record the final notification_delivery
 schema + delivery-status enum.
 ```
+
+#### Phase 4 — deviations (as built)
+
+Migration: `migrations/20260713120000_add_notification_delivery.sql` (Goose; apply manually with
+goose — no runner is wired in). Backend follows the existing layered `handler → service → pg`
+split; no domain was refactored. `go build ./...`, `go vet ./...`, and the new tests all pass;
+the migration is applied and the table + indexes verified live.
+
+- **`notification_delivery` is EMAIL-ONLY in v1, exactly as scoped.** The full old-doc DDL was
+  adopted (all status values + every timestamp column: delivered/bounced/complained/opened/
+  clicked/read_at) so Phase 5 webhooks need no re-migration — but the in_app backfill /
+  dual-write / column-drop was deliberately NOT done. In-app status stays on the `notification`
+  row. In v1 only email rows are ever written, and only the statuses
+  `pending`/`sent`/`failed`/`muted`/`no_contact` are ever set (the rest are reserved for Phase 5).
+  The **final schema + delivery-status enum are recorded at the end of this section.**
+- **Delivery rows are created SYNCHRONOUSLY on the send path; the worker only UPDATES them.**
+  The prompt said the processor "writes the delivery row"; in practice `fanOutEmail`
+  (service layer) resolves every outcome and inserts the row up-front — terminal skips
+  (`muted`/`no_contact`/`failed`) never enqueue, and the sendable case inserts a `pending` row
+  (with `address_snapshot` + `contact_id`) and enqueues `email:delivery` carrying the row id.
+  The processor then `UpdateResult`s that row → `sent`/`failed`. This is the old doc's "insert N
+  rows, statuses already resolved, others pending" model, and it's what makes the **synchronous
+  200 response carry per-medium statuses** (old doc #19) possible.
+- **Gate order in `fanOutEmail`: preference/catalog → provider settings → primary contact.**
+  All three are recorded as **visible delivery outcomes** rather than hard-failing the send:
+  - `ShouldDirectNotificationBeDelivered(email)` returns false ⇒ status `muted`. To keep the two
+    causes distinguishable, `failure_reason` is set to `not_cataloged` (no project-level
+    `(target, email)` row — checked via `DoesProjectPreferenceExist`) vs `preference_disabled`
+    (an explicit disable). Both share the `muted` status since the old-doc enum has no separate
+    "uncataloged" value.
+  - no `project_email_settings` ⇒ status `failed`, `failure_reason=provider_not_configured`.
+  - no primary email contact (`recipient_contact` WHERE is_primary, medium=email) ⇒ status
+    `no_contact` (added `RecipientContactRepository.GetPrimary`).
+  - all pass ⇒ status `pending`, enqueue.
+- **A failed email fan-out NEVER rejects the send.** `fanOutEmail` returns an error only for
+  logging; the direct send still returns 200 with the in-app notification. Even a DB error
+  writing the delivery row is logged, not propagated.
+- **Send API `email` block** (`dto.EmailContent` on `SendNotificationPayload`): typed sibling
+  `{subject, html, text}`. Presence ⇒ email eligible; **no payload fallback**. Validation requires
+  `subject` + at least one of `html`/`text`, and **rejects an `email` block on a broadcast**
+  (400 — enforces the HARD RULE at the edge rather than silently dropping). `text` is
+  auto-derived from `html` when omitted via a deliberately-naive tag stripper
+  (`EmailContent.ResolvedText()` / `htmlToText`) — real callers (e.g. `@react-email`'s
+  `render()`) pass their own text. The block decodes on **both** send surfaces (Developer
+  `POST /notifications/send` and console) since they share the Notification service — no handler
+  changes were needed.
+- **Adapter interface + Resend adapter live in `internal/email/`.** `Adapter` normalizes
+  `Message` → `SendResult{provider, provider_message_id}`; `NewAdapter(provider, apiKey)` selects
+  by the `enum.EmailProvider` discriminator. The Resend adapter calls the REST API directly
+  (`POST https://api.resend.com/emails`) — **no Resend Go SDK dependency added**; from-identity is
+  formatted `"Name <address>"`. Its request URL is an injectable field so tests hit an
+  `httptest` server (no external calls, no creds).
+- **The worker loads settings FRESH and decrypts per-send (`entity.DecryptSecret`).** The
+  provider secret never rides through Redis (the `email:delivery` payload carries only the
+  delivery id + project id + normalized content + recipient address), so key rotation is
+  respected and no plaintext secret is persisted in the queue. Retries use Asynq's existing
+  machinery (`MaxRetry(5)`); each attempt updates the row's `attempt` and, on hard failure, its
+  `failure_reason`.
+- **Email is NOT metered in v1.** Under BYO the customer pays Resend directly, so an email metric
+  would be for plan tiers, not cost-recovery — deferred (the in-app `notifications` meter is
+  untouched). Revisit if/when a managed-sending tier lands.
+- **Broadcast pipeline untouched.** No broadcast code changed; its `DoesProjectPreferenceExist` /
+  `ListEligibleRecipientExtIDsForBroadcast` call sites still pass `enum.MediumInApp`. The
+  `email:delivery` task is only ever enqueued from the direct-send path.
+- **SDKs (un-bumped, per Phases 1–3):** added the optional `email {subject, html, text}` block +
+  a `deliveries[]` field on the send response to `sdk/go` (`types.go`) and `sdk/js/core`
+  (`types.ts`). No version bump / publish (bundled with Phase 7). React SDK re-exports core types
+  as before.
+- **Tests added** (repo's established pattern): `internal/email/resend_test.go` (httptest —
+  success, from-identity formatting, provider error), `internal/model/dto/notification_email_test.go`
+  (email-on-broadcast rejected, subject/content required, `ResolvedText` derivation), and
+  `internal/service/notification_email_test.go` (fake-repo coverage of the four skip outcomes:
+  uncataloged/disabled `muted`, `provider_not_configured` `failed`, `no_contact`). The live
+  `pending → sent` path exercises real Resend and is left for the Phase 8 Resurface cutover.
+- **Untouched (as scoped):** provider webhooks / delivery-status ingestion (Phase 5), unsubscribe
+  (Phase 6), and any consolidation of in_app onto delivery rows.
+
+**Final `notification_delivery` schema** (email-only in v1; full column set present for Phase 5):
+
+```sql
+CREATE TABLE notification_delivery (
+    id                      BIGSERIAL PRIMARY KEY,
+    notification_id         INT NOT NULL REFERENCES notification(id) ON DELETE CASCADE,
+    project_id              INT NOT NULL REFERENCES project(id) ON DELETE CASCADE,
+    recipient_external_id   VARCHAR(255) NOT NULL,
+    medium                  TEXT NOT NULL
+                            CHECK (medium IN ('in_app','email','sms','web_push','mobile_push')),
+    contact_id              BIGINT REFERENCES recipient_contact(id) ON DELETE SET NULL,
+    address_snapshot        TEXT,                 -- captured at enqueue; immune to later contact edits
+    status                  TEXT NOT NULL
+                            CHECK (status IN (
+                                'pending','sending','sent','delivered','bounced','complained',
+                                'failed','muted','no_contact','suppressed','quota_exceeded','rejected'
+                            )),
+    provider                TEXT,                 -- 'resend' in v1
+    provider_message_id     TEXT,                 -- correlates Phase 5 webhooks
+    provider_response       JSONB,
+    failure_reason          TEXT,                 -- e.g. not_cataloged / preference_disabled / provider_not_configured
+    attempt                 INT NOT NULL DEFAULT 0,
+    sent_at                 TIMESTAMPTZ,
+    delivered_at            TIMESTAMPTZ,          -- Phase 5
+    bounced_at              TIMESTAMPTZ,          -- Phase 5
+    complained_at           TIMESTAMPTZ,          -- Phase 5
+    opened_at               TIMESTAMPTZ,          -- Phase 5 (soft signal)
+    clicked_at              TIMESTAMPTZ,          -- Phase 5
+    read_at                 TIMESTAMPTZ,          -- in_app only; unused in v1
+    created_at              TIMESTAMPTZ NOT NULL DEFAULT now(),
+    updated_at              TIMESTAMPTZ NOT NULL DEFAULT now(),
+    UNIQUE (notification_id, medium)
+);
+-- ix_nd_notification, ix_nd_project_recipient, ux_nd_provider_message (partial, WHERE
+-- provider_message_id IS NOT NULL), ix_nd_email_status_time (partial, WHERE medium='email').
+```
+
+**Delivery-status enum** (`enum.DeliveryStatus`, matches the CHECK). v1 sets only: `pending`
+(enqueued), `sent` (provider accepted — the v1 success terminal without webhooks), `failed`
+(provider error / not configured / decrypt error), `muted` (preference/catalog disallows —
+`failure_reason` distinguishes `not_cataloged` vs `preference_disabled`), `no_contact` (no primary
+email contact). Reserved for Phase 5: `sending`, `delivered`, `bounced`, `complained`,
+`suppressed`, `quota_exceeded`, `rejected`.
 
 ### Phase 5 — Delivery status via provider webhooks
 

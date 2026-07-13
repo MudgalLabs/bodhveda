@@ -29,6 +29,10 @@ func main() {
 		app.DB, app.APP.Repository.Notification, app.APP.Repository.Preference, app.APP.Service.Billing,
 	))
 
+	asynqMux.Handle(task.TaskTypeEmailDelivery, processor.NewEmailDeliveryProcessor(
+		app.APP.Repository.NotificationDelivery, app.APP.Repository.ProjectEmail,
+	))
+
 	asynqMux.Handle(task.TaskTypePrepareBroadcastBatches, processor.NewPrepareBroadcastBatchesProcessor(
 		app.DB, app.ASYNQCLIENT, app.APP.Repository.Preference, app.APP.Repository.Broadcast,
 		app.APP.Repository.BroadcastBatch, app.APP.Service.Billing,

@@ -46,17 +46,18 @@ type services struct {
 // Access to all repositories for reading.
 // Write access only available to services.
 type repositories struct {
-	APIKey           repository.APIKeyRepository
-	Broadcast        repository.BroadcastRepository
-	BroadcastBatch   repository.BroadcastBatchRepository
-	Notification     repository.NotificationRepository
-	Preference       repository.PreferenceRepository
-	Project          repository.ProjectRepository
-	ProjectEmail     repository.ProjectEmailSettingsRepository
-	Recipient        repository.RecipientRepository
-	RecipientContact repository.RecipientContactRepository
-	UsageLog         repository.UsageLogRepository
-	UsageAggregate   repository.UsageAggregateRepository
+	APIKey               repository.APIKeyRepository
+	Broadcast            repository.BroadcastRepository
+	BroadcastBatch       repository.BroadcastBatchRepository
+	Notification         repository.NotificationRepository
+	NotificationDelivery repository.NotificationDeliveryRepository
+	Preference           repository.PreferenceRepository
+	Project              repository.ProjectRepository
+	ProjectEmail         repository.ProjectEmailSettingsRepository
+	Recipient            repository.RecipientRepository
+	RecipientContact     repository.RecipientContactRepository
+	UsageLog             repository.UsageLogRepository
+	UsageAggregate       repository.UsageAggregateRepository
 
 	UserIdentity user_identity.ReadWriter
 	UserProfile  user_profile.ReadWriter
@@ -94,6 +95,7 @@ func Init() {
 	broadcastRepository := pg.NewBroadcastRepo(db)
 	broadcastBatchRepository := pg.NewBroadcastBatchRepo(db)
 	notificationRepository := pg.NewNotificationRepo(db)
+	notificationDeliveryRepository := pg.NewNotificationDeliveryRepo(db)
 	preferenceRepository := pg.NewPreferenceRepo(db)
 	projectRepository := pg.NewProjectRepo(db)
 	projectEmailSettingsRepository := pg.NewProjectEmailSettingsRepo(db)
@@ -115,7 +117,8 @@ func Init() {
 	recipientService := service.NewRecipientService(recipientRepository, ASYNQCLIENT)
 	recipientContactService := service.NewRecipientContactService(recipientContactRepository, recipientRepository)
 	notificationService := service.NewNotificationService(notificationRepository, recipientRepository,
-		preferenceRepository, broadcastRepository, broadcastBatchRepository, billingService, recipientService, ASYNQCLIENT)
+		preferenceRepository, broadcastRepository, broadcastBatchRepository, notificationDeliveryRepository,
+		recipientContactRepository, projectEmailSettingsRepository, billingService, recipientService, ASYNQCLIENT)
 	projectService := service.NewProjectService(projectRepository, notificationService, recipientService, ASYNQCLIENT)
 	projectEmailSettingsService := service.NewProjectEmailSettingsService(projectEmailSettingsRepository)
 	userIdentityService := user_identity.NewService(userIdentityRepository, userProfileRepository)
@@ -137,17 +140,18 @@ func Init() {
 	}
 
 	repositories := repositories{
-		APIKey:           apikeyRepository,
-		Broadcast:        broadcastRepository,
-		BroadcastBatch:   broadcastBatchRepository,
-		Notification:     notificationRepository,
-		Preference:       preferenceRepository,
-		Project:          projectRepository,
-		ProjectEmail:     projectEmailSettingsRepository,
-		Recipient:        recipientRepository,
-		RecipientContact: recipientContactRepository,
-		UsageLog:         usageLogRepository,
-		UsageAggregate:   usageAggregateRepository,
+		APIKey:               apikeyRepository,
+		Broadcast:            broadcastRepository,
+		BroadcastBatch:       broadcastBatchRepository,
+		Notification:         notificationRepository,
+		NotificationDelivery: notificationDeliveryRepository,
+		Preference:           preferenceRepository,
+		Project:              projectRepository,
+		ProjectEmail:         projectEmailSettingsRepository,
+		Recipient:            recipientRepository,
+		RecipientContact:     recipientContactRepository,
+		UsageLog:             usageLogRepository,
+		UsageAggregate:       usageAggregateRepository,
 
 		UserIdentity: userIdentityRepository,
 		UserProfile:  userProfileRepository,

@@ -114,6 +114,26 @@ func (r *RecipientContactRepo) Get(ctx context.Context, projectID int, recipient
 	return contact, nil
 }
 
+func (r *RecipientContactRepo) GetPrimary(ctx context.Context, projectID int, recipientExtID string, medium enum.Medium) (*entity.RecipientContact, error) {
+	sql := fmt.Sprintf(`
+		SELECT %s
+		FROM recipient_contact
+		WHERE project_id = $1 AND recipient_external_id = $2 AND medium = $3 AND is_primary
+		LIMIT 1
+	`, recipientContactFields)
+
+	row := r.db.QueryRow(ctx, sql, projectID, recipientExtID, string(medium))
+	contact, err := scanRecipientContact(row)
+	if err != nil {
+		if err.Error() == "no rows in result set" {
+			return nil, tantraRepo.ErrNotFound
+		}
+		return nil, err
+	}
+
+	return contact, nil
+}
+
 func (r *RecipientContactRepo) Update(ctx context.Context, projectID int, recipientExtID string, contactID int64, payload *dto.UpdateRecipientContactPayload) (*entity.RecipientContact, error) {
 	setClauses := []string{}
 	args := []any{}
