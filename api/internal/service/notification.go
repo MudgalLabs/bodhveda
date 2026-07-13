@@ -323,6 +323,19 @@ func (s *NotificationService) Overview(ctx context.Context, projectID int) (*dto
 	return result, service.ErrNone, nil
 }
 
+// EmailDeliveryOverview returns the per-status email delivery counts for a
+// project, powering the console's email analytics (Phase 5).
+func (s *NotificationService) EmailDeliveryOverview(ctx context.Context, projectID int) (*dto.EmailDeliveryOverview, service.Error, error) {
+	if projectID <= 0 {
+		return nil, service.ErrInvalidInput, fmt.Errorf("projectID required")
+	}
+	result, err := s.deliveryRepo.EmailDeliveryOverviewForProject(ctx, projectID)
+	if err != nil {
+		return nil, service.ErrInternalServerError, fmt.Errorf("email delivery overview: %w", err)
+	}
+	return result, service.ErrNone, nil
+}
+
 func (s *NotificationService) ListForRecipient(ctx context.Context, projectID int, recipientExtID string, cursor *query.Cursor) ([]*dto.Notification, *query.Cursor, service.Error, error) {
 	if recipientExtID == "" {
 		return nil, nil, service.ErrInvalidInput, fmt.Errorf("recipient id required")

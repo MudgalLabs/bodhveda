@@ -286,6 +286,25 @@ type NotificationsOverviewResult struct {
 	TotalBroadcastSent int `json:"total_broadcast_sent"`
 }
 
+// EmailDeliveryOverview aggregates the email `notification_delivery` rows for a
+// project into per-status counts, powering the console's email analytics (Phase
+// 5). `Opened` / `Clicked` are counted from the *_at timestamps (they are soft
+// signals that do not change `status`) — note in the UI that email "opened" is
+// directional only (Apple Mail Privacy Protection inflates it).
+type EmailDeliveryOverview struct {
+	Total      int `json:"total"`
+	Pending    int `json:"pending"`
+	Sent       int `json:"sent"`
+	Delivered  int `json:"delivered"`
+	Bounced    int `json:"bounced"`
+	Complained int `json:"complained"`
+	Failed     int `json:"failed"`
+	NoContact  int `json:"no_contact"`
+	Muted      int `json:"muted"`
+	Opened     int `json:"opened"`
+	Clicked    int `json:"clicked"`
+}
+
 func FromNotifications(notifications []*entity.Notification) []*Notification {
 	if notifications == nil {
 		return nil

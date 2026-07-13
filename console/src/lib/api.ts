@@ -31,6 +31,8 @@ export const API_ROUTES = {
                 `/console/projects/${projectId}/notifications/send`,
             list: (projectId: string | number) =>
                 `/console/projects/${projectId}/notifications`,
+            email_deliveries_overview: (projectId: string | number) =>
+                `/console/projects/${projectId}/email-deliveries/overview`,
         },
 
         recipients: {
@@ -104,6 +106,10 @@ if (!API_URL) {
 }
 
 export const client = createAPIClient(API_URL);
+
+// The resolved API base URL. Exposed so the console can show users absolute URLs
+// they must configure elsewhere (e.g. the email provider webhook endpoint).
+export const API_BASE_URL = API_URL;
 
 /** This is the API's response structure. */
 export interface APIRes<T = unknown> {

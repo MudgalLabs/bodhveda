@@ -4,18 +4,22 @@ package enum
 // record in `notification_delivery`. It is distinct from NotificationStatus,
 // which is the in-app inbox outcome scalar on the `notification` row.
 //
-// In v1 (email, DIRECT-only) only a subset is ever set:
+// In v1 (email, DIRECT-only) the statuses set are:
 //
 //   - DeliverySkippedMuted / DeliverySkippedNoContact are terminal outcomes
 //     resolved synchronously on the send path (email disabled/uncataloged, or no
 //     primary contact) — the email is never enqueued.
 //   - DeliveryPending is set when the email:delivery task is enqueued.
-//   - DeliverySent / DeliveryFailed are the terminal outcomes the worker writes
-//     after calling the provider adapter.
+//   - DeliverySent / DeliveryFailed are the outcomes the worker writes after
+//     calling the provider adapter (DeliverySent = provider accepted).
+//   - DeliveryDelivered / DeliveryBounced / DeliveryComplained are set by inbound
+//     provider webhooks (Phase 5, pg.ApplyWebhookStatus). Bounced/complained are
+//     sticky terminals. "opened"/"clicked" are NOT statuses — they are soft
+//     signals stamped only on the opened_at/clicked_at columns.
 //
-// The remaining values (sending, delivered, bounced, complained, suppressed,
-// quota_exceeded, rejected) exist to match the table CHECK and are reserved for
-// Phase 5 (provider webhooks) — v1 does not set them.
+// The remaining values (sending, suppressed, quota_exceeded, rejected) exist to
+// match the table CHECK but are not set yet (suppressed is reserved for the
+// Phase 6 unsubscribe/complaint-suppression work).
 type DeliveryStatus string
 
 const (

@@ -33,12 +33,6 @@ func initRouter() http.Handler {
 
 	r.Use(session.Manager.LoadAndSave)
 
-	// This is just to prevent abuse of the API by limiting the number of requests
-	// from a single IP address. The limit is set to 100 requests per minute.
-	// We would never hit this limit in normal usage, but it is a good practice to have
-	// this in place to prevent abuse.
-	r.Use(httprate.LimitByIP(100, time.Minute))
-
 	r.Get("/", func(w http.ResponseWriter, r *http.Request) {
 		httpx.SuccessResponse(w, r, http.StatusOK, "Hi, welcome to Bodhveda API. Don't be naughty!", nil)
 	})
@@ -46,6 +40,15 @@ func initRouter() http.Handler {
 	r.Get("/ping", func(w http.ResponseWriter, r *http.Request) {
 		httpx.SuccessResponse(w, r, http.StatusOK, "Pong", nil)
 	})
+
+	// Public provider webhook ingestion (Phase 5). Mounted at the root — OUTSIDE
+	// the developer API-key auth/CORS/rate-limit group and the console session
+	// group — because it is called by the email provider (Resend via Svix), not by
+	// a customer: authentication IS the webhook signature, verified in the service
+	// against the project's stored signing secret. It is deliberately NOT rate
+	// limited by the per-IP dev-API limiter (a provider can burst many events from
+	// a small IP pool).
+	r.Post("/webhooks/email/{project_id}", handler.EmailWebhook(app.APP.Service.EmailWebhook))
 
 	// These are the Bodhveda Developer API routes.
 	r.Route("/", func(r chi.Router) {
@@ -57,6 +60,11 @@ func initRouter() http.Handler {
 			ExposedHeaders:   []string{"*"},
 			MaxAge:           300,
 		}))
+
+		// Rate limit the developer API to 100 req/min/IP to prevent abuse. Scoped
+		// to this group (not the root router) so the public provider webhook is not
+		// caught by it — see the /webhooks/email mount above.
+		r.Use(httprate.LimitByIP(100, time.Minute))
 
 		r.Use(middleware.APIKeyBasedAuthMiddleware)
 
@@ -118,6 +126,9 @@ func initRouter() http.Handler {
 			MaxAge:           300,
 		}))
 
+		// Same per-IP abuse limit the console had when this lived on the root router.
+		r.Use(httprate.LimitByIP(100, time.Minute))
+
 		r.Route("/auth", func(r chi.Router) {
 			r.Get("/oauth/google", handler.GoogleSignInHandler(app.APP.Service.UserIdentity))
 			r.Get("/oauth/google/callback", handler.GoogleCallbackHandler(app.APP.Service.UserIdentity))
@@ -155,6 +166,10 @@ func initRouter() http.Handler {
 				r.Route("/notifications", func(r chi.Router) {
 					r.Get("/", handler.List(app.APP.Service.Notification))
 					r.Post("/send", handler.SendNotificationConsole(app.APP.Service.Notification))
+				})
+
+				r.Route("/email-deliveries", func(r chi.Router) {
+					r.Get("/overview", handler.EmailDeliveryOverview(app.APP.Service.Notification))
 				})
 
 				r.Route("/preferences", func(r chi.Router) {

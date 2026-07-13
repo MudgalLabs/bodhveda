@@ -3,6 +3,7 @@ package service
 import (
 	"context"
 	"fmt"
+	"time"
 
 	"github.com/mudgallabs/bodhveda/internal/model/dto"
 	"github.com/mudgallabs/bodhveda/internal/model/entity"
@@ -66,24 +67,31 @@ func (s *ProjectEmailSettingsService) Upsert(ctx context.Context, payload *dto.U
 		return nil, service.ErrInvalidInput, err
 	}
 
+	// Start from the existing row (so blank secrets keep the current encrypted
+	// values) or a fresh one, then apply the payload. The provider secret and the
+	// webhook secret are rotated independently: each is (re)encrypted only when the
+	// caller supplies a new plaintext, otherwise the existing ciphertext is kept.
 	var settings *entity.ProjectEmailSettings
-	if payload.Secret != "" {
-		// New key provided (first-time config or rotation): encrypt it fresh.
-		settings, err = entity.NewProjectEmailSettings(
-			payload.ProjectID, enum.EmailProvider(payload.Provider), payload.Secret, payload.FromName, payload.FromAddress,
-		)
-		if err != nil {
-			return nil, service.ErrInternalServerError, fmt.Errorf("build project email settings: %w", err)
-		}
-		if existing != nil {
-			settings.CreatedAt = existing.CreatedAt
-		}
-	} else {
-		// Identity/provider-only update: keep the existing encrypted secret.
+	if existing != nil {
 		settings = existing
-		settings.Provider = enum.EmailProvider(payload.Provider)
-		settings.FromName = payload.FromName
-		settings.FromAddress = payload.FromAddress
+	} else {
+		now := time.Now().UTC()
+		settings = &entity.ProjectEmailSettings{ProjectID: payload.ProjectID, CreatedAt: now}
+	}
+	settings.Provider = enum.EmailProvider(payload.Provider)
+	settings.FromName = payload.FromName
+	settings.FromAddress = payload.FromAddress
+	settings.UpdatedAt = time.Now().UTC()
+
+	if payload.Secret != "" {
+		if err := settings.SetSecret(payload.Secret); err != nil {
+			return nil, service.ErrInternalServerError, fmt.Errorf("encrypt provider secret: %w", err)
+		}
+	}
+	if payload.WebhookSecret != "" {
+		if err := settings.SetWebhookSecret(payload.WebhookSecret); err != nil {
+			return nil, service.ErrInternalServerError, fmt.Errorf("encrypt webhook secret: %w", err)
+		}
 	}
 
 	saved, err := s.repo.Upsert(ctx, settings)
@@ -107,12 +115,24 @@ func (s *ProjectEmailSettingsService) toMaskedDTO(settings *entity.ProjectEmailS
 		return nil, fmt.Errorf("decrypt provider secret: %w", err)
 	}
 
+	// The webhook secret is optional; only decrypt + mask it when configured.
+	var webhookMasked string
+	if settings.HasWebhookSecret() {
+		webhookPlain, err := settings.DecryptWebhookSecret()
+		if err != nil {
+			return nil, fmt.Errorf("decrypt webhook secret: %w", err)
+		}
+		webhookMasked = dto.MaskSecret(webhookPlain)
+	}
+
 	return &dto.ProjectEmailSettings{
-		Provider:     string(settings.Provider),
-		FromName:     settings.FromName,
-		FromAddress:  settings.FromAddress,
-		SecretMasked: dto.MaskSecret(plain),
-		CreatedAt:    settings.CreatedAt,
-		UpdatedAt:    settings.UpdatedAt,
+		Provider:            string(settings.Provider),
+		FromName:            settings.FromName,
+		FromAddress:         settings.FromAddress,
+		SecretMasked:        dto.MaskSecret(plain),
+		WebhookSecretMasked: webhookMasked,
+		WebhookSecretSet:    settings.HasWebhookSecret(),
+		CreatedAt:           settings.CreatedAt,
+		UpdatedAt:           settings.UpdatedAt,
 	}, nil
 }

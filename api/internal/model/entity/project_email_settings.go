@@ -24,8 +24,14 @@ type ProjectEmailSettings struct {
 	Nonce       []byte // Nonce used for encryption.
 	FromName    string
 	FromAddress string
-	CreatedAt   time.Time
-	UpdatedAt   time.Time
+	// WebhookSecret / WebhookNonce hold the AES-GCM-encrypted webhook signing
+	// secret (Phase 5). Distinct from Secret (the send API key): Resend signs
+	// inbound webhooks via Svix with a per-endpoint `whsec_...` secret. Nullable —
+	// a project may send email before wiring webhooks, so both may be empty.
+	WebhookSecret []byte
+	WebhookNonce  []byte
+	CreatedAt     time.Time
+	UpdatedAt     time.Time
 }
 
 // NewProjectEmailSettings builds settings with a freshly encrypted secret.
@@ -66,4 +72,29 @@ func (s *ProjectEmailSettings) SetSecret(plainSecret string) error {
 // is derived from this in the service layer.
 func (s *ProjectEmailSettings) DecryptSecret() (string, error) {
 	return cipher.Decrypt(s.Secret, s.Nonce, []byte(env.CipherKey))
+}
+
+// HasWebhookSecret reports whether a webhook signing secret is configured.
+func (s *ProjectEmailSettings) HasWebhookSecret() bool {
+	return len(s.WebhookSecret) > 0 && len(s.WebhookNonce) > 0
+}
+
+// SetWebhookSecret encrypts plainSecret and stores it as WebhookSecret +
+// WebhookNonce (Phase 5). The plaintext is not retained on the struct.
+func (s *ProjectEmailSettings) SetWebhookSecret(plainSecret string) error {
+	secret, nonce, err := cipher.Encrypt([]byte(plainSecret), []byte(env.CipherKey))
+	if err != nil {
+		return fmt.Errorf("encrypt webhook secret: %w", err)
+	}
+
+	s.WebhookSecret = secret
+	s.WebhookNonce = nonce
+	return nil
+}
+
+// DecryptWebhookSecret returns the plaintext webhook signing secret. Used by the
+// webhook ingestion path to verify inbound provider signatures; never returned to
+// a client (the console only sees a masked hint).
+func (s *ProjectEmailSettings) DecryptWebhookSecret() (string, error) {
+	return cipher.Decrypt(s.WebhookSecret, s.WebhookNonce, []byte(env.CipherKey))
 }

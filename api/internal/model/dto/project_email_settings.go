@@ -14,12 +14,17 @@ import (
 // (SecretMasked) so the console can confirm which key is configured without
 // exposing it.
 type ProjectEmailSettings struct {
-	Provider     string    `json:"provider"`
-	FromName     string    `json:"from_name"`
-	FromAddress  string    `json:"from_address"`
-	SecretMasked string    `json:"secret_masked"`
-	CreatedAt    time.Time `json:"created_at"`
-	UpdatedAt    time.Time `json:"updated_at"`
+	Provider     string `json:"provider"`
+	FromName     string `json:"from_name"`
+	FromAddress  string `json:"from_address"`
+	SecretMasked string `json:"secret_masked"`
+	// WebhookSecretMasked is the masked webhook signing secret (Phase 5), empty
+	// when no webhook secret is configured. WebhookSecretSet lets the console tell
+	// "not configured" from "configured" without exposing the value.
+	WebhookSecretMasked string    `json:"webhook_secret_masked"`
+	WebhookSecretSet    bool      `json:"webhook_secret_set"`
+	CreatedAt           time.Time `json:"created_at"`
+	UpdatedAt           time.Time `json:"updated_at"`
 }
 
 // MaskSecret turns a plaintext provider secret into a display-safe hint that
@@ -46,6 +51,10 @@ type UpsertProjectEmailSettingsPayload struct {
 	Secret      string `json:"secret"`
 	FromName    string `json:"from_name"`
 	FromAddress string `json:"from_address"`
+	// WebhookSecret carries the Svix webhook signing secret (Phase 5) in plaintext
+	// on the way IN only. Always optional: omit (or leave blank) to keep the
+	// existing webhook secret; supply a new one to set or rotate it.
+	WebhookSecret string `json:"webhook_secret"`
 
 	// hasExisting is set by the service before Validate so a rotation can omit
 	// the secret only when there is an existing one to keep.
@@ -81,6 +90,10 @@ func (p *UpsertProjectEmailSettingsPayload) Validate() error {
 	if p.Secret == "" && !p.hasExisting {
 		errs.Add(apires.NewApiError("Secret is required", "Provide the provider API key", "secret", ""))
 	}
+
+	// Webhook secret is always optional (a project may send before wiring
+	// webhooks). Just normalize whitespace; a blank value means "keep existing".
+	p.WebhookSecret = strings.TrimSpace(p.WebhookSecret)
 
 	p.FromName = strings.TrimSpace(p.FromName)
 	if p.FromName == "" {

@@ -9,6 +9,7 @@ import {
 import { API_ROUTES, APIRes, client } from "@/lib/api";
 import { getRecipientsKey } from "@/features/recipient/recipient_hooks";
 import {
+    EmailDeliveryOverview,
     ListBroadcastsPayload,
     ListBroadcastsResult,
     ListNotificationsPayload,
@@ -83,6 +84,21 @@ export function useNotifications(
         },
         select: (res) => res.data as APIRes<ListNotificationsResult>,
         placeholderData: keepPreviousData,
+    });
+}
+
+// useEmailDeliveryOverview fetches per-status email delivery counts (Phase 5) for
+// the project's email-medium analytics.
+export function useEmailDeliveryOverview(projectID: string) {
+    return useQuery({
+        queryKey: ["useEmailDeliveryOverview", projectID],
+        queryFn: () =>
+            client.get(
+                API_ROUTES.project.notifications.email_deliveries_overview(
+                    projectID
+                )
+            ),
+        select: (res) => res.data as APIRes<EmailDeliveryOverview>,
     });
 }
 

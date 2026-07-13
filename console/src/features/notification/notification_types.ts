@@ -114,3 +114,21 @@ export interface ListBroadcastsResult {
     broadcasts: BroadcastListItem[];
     pagination: PaginationMeta;
 }
+
+// EmailDeliveryOverview aggregates the project's email delivery rows into
+// per-status counts (Phase 5). `opened` / `clicked` come from provider webhooks
+// and are directional soft signals — email "opened" is unreliable (Apple Mail
+// Privacy Protection inflates it), unlike in-app "read".
+export interface EmailDeliveryOverview {
+    total: number;
+    pending: number;
+    sent: number;
+    delivered: number;
+    bounced: number;
+    complained: number;
+    failed: number;
+    no_contact: number;
+    muted: number;
+    opened: number;
+    clicked: number;
+}

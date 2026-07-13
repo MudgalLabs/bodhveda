@@ -32,6 +32,7 @@ type services struct {
 	APIKey           *service.APIKeyService
 	Billing          *service.BillingService
 	Broadcast        *service.BroadcastService
+	EmailWebhook     *service.EmailWebhookService
 	Notification     *service.NotificationService
 	Preference       *service.PreferenceService
 	Project          *service.ProjectService
@@ -121,6 +122,7 @@ func Init() {
 		recipientContactRepository, projectEmailSettingsRepository, billingService, recipientService, ASYNQCLIENT)
 	projectService := service.NewProjectService(projectRepository, notificationService, recipientService, ASYNQCLIENT)
 	projectEmailSettingsService := service.NewProjectEmailSettingsService(projectEmailSettingsRepository)
+	emailWebhookService := service.NewEmailWebhookService(projectEmailSettingsRepository, notificationDeliveryRepository)
 	userIdentityService := user_identity.NewService(userIdentityRepository, userProfileRepository)
 	userProfileService := user_profile.NewService(userProfileRepository)
 
@@ -128,6 +130,7 @@ func Init() {
 		APIKey:           apikeyService,
 		Billing:          billingService,
 		Broadcast:        broadcastService,
+		EmailWebhook:     emailWebhookService,
 		Notification:     notificationService,
 		Preference:       preferenceService,
 		Project:          projectService,

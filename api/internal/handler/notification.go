@@ -201,3 +201,24 @@ func List(s *service.NotificationService) http.HandlerFunc {
 		httpx.SuccessResponse(w, r, http.StatusOK, "", result)
 	}
 }
+
+// EmailDeliveryOverview returns per-status email delivery counts for a project
+// (console analytics, Phase 5).
+func EmailDeliveryOverview(s *service.NotificationService) http.HandlerFunc {
+	return func(w http.ResponseWriter, r *http.Request) {
+		ctx := r.Context()
+		projectID, err := httpx.ParamInt(r, "project_id")
+		if err != nil {
+			httpx.BadRequestResponse(w, r, errors.New("Invalid project ID"))
+			return
+		}
+
+		result, errKind, err := s.EmailDeliveryOverview(ctx, projectID)
+		if err != nil {
+			httpx.ServiceErrResponse(w, r, errKind, err)
+			return
+		}
+
+		httpx.SuccessResponse(w, r, http.StatusOK, "", result)
+	}
+}

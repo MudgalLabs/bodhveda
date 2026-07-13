@@ -454,7 +454,7 @@ handler→service→pg pattern; don't refactor domains mid-phase (see top of doc
 - Phase 2 — Medium model + per-medium preferences + catalog gating — **DONE** (see "Phase 2 — deviations" below)
 - Phase 3 — Project email provider settings (Resend creds + from-identity) — **DONE** (see "Phase 3 — deviations" below)
 - Phase 4 — Email delivery core (adapter + `email:delivery` worker + `notification_delivery` + send `email` block; DIRECT-only) — **DONE** (see "Phase 4 — deviations (as built)" below)
-- Phase 5 — Delivery status via Resend webhooks — **TODO**
+- Phase 5 — Delivery status via Resend webhooks — **DONE** (see "Phase 5 — deviations (as built)" below)
 - Phase 6 — Unsubscribe (List-Unsubscribe header + public endpoint) — **TODO**
 - Phase 7 — Public docs (Mintlify) for the email medium — **TODO**
 - Phase 8 — Resurface cutover (the final end-to-end test) — **TODO**
@@ -907,13 +907,147 @@ email contact). Reserved for Phase 5: `sending`, `delivered`, `bounced`, `compla
   shows email delivered/opened. (Note in docs: email "opened" is a soft signal.)
 
 ```
-Read agent-docs/overview.md in full first. Implement Phase 5 (Delivery status via provider
-webhooks) as scoped: a public webhook ingestion endpoint that verifies Resend events and maps
-them, via the adapter's normalization layer, to status transitions on the per-(notification,
-medium) delivery record; surface per-medium delivery status/analytics in the console. Keep
-normalization inside the adapter interface so other providers slot in later. Do NOT implement
-unsubscribe (Phase 6). Update Phase 5 status to DONE when finished.
+Read agent-docs/overview.md in full first (esp. the Phase 4 "deviations (as built)" section,
+the final notification_delivery schema, and the DeliveryStatus enum with its reserved-for-Phase-5
+values). Implement Phase 5 (Delivery status via provider webhooks) as scoped.
+
+Build on Phase 4 (reuse — do NOT re-derive):
+- `notification_delivery` already has every column Phase 5 needs (delivered_at/bounced_at/
+  complained_at/opened_at/clicked_at, provider_message_id, provider_response). No table
+  re-migration — at most a settings column for the webhook signing secret (below).
+- The row is correlated to a provider event by `provider_message_id` (set by the Resend adapter
+  on send; unique partial index `ux_nd_provider_message`). Add a delivery-repo
+  `UpdateStatusByProviderMessageID` (or similar) — the webhook path looks up by that, NOT by
+  delivery id.
+- `enum.DeliveryStatus` already declares the reserved terminals (`delivered`, `bounced`,
+  `complained`, plus `sending`); just start setting them. `opened`/`clicked` are timestamp-only
+  soft signals (per old doc), not status transitions — set the `*_at` column, keep `status`.
+- Normalization lives in the adapter interface in `internal/email/` — add a
+  `NormalizeWebhookEvent(headers, body) → NormalizedEvent{provider_message_id, kind, at}` (or
+  similar) to the `Adapter`, implemented by the Resend adapter, so managed-SES/other providers
+  slot in later. The public endpoint stays provider-agnostic and dispatches by project settings.
+
+Then implement:
+1. Webhook signing secret storage: Resend signs webhooks via Svix (`svix-id`,
+   `svix-timestamp`, `svix-signature` headers, HMAC over a per-endpoint signing secret that is
+   DISTINCT from the API key). Add an encrypted `webhook_secret` (+ nonce) to
+   `project_email_settings` (same cipher pattern as the API key; console PUT lets the owner set
+   it), and verify every inbound event against it — reject unverified with 401.
+2. A public webhook ingestion endpoint (mounted OUTSIDE the API-key auth group and outside the
+   httprate/CORS dev-API group — it's called by Resend, not customers; auth IS the signature).
+   Resolve which project by a project-scoped URL path or by the Svix endpoint, verify, normalize,
+   then transition the matching delivery row.
+3. Status transitions must be ORDER-TOLERANT and non-regressing: webhooks can arrive out of
+   order and duplicated. A late `delivered` must NOT overwrite a `bounced`/`complained`; apply
+   a terminal-priority guard (bounced/complained/failed are sticky) and make the update
+   idempotent. Stamp the matching `*_at` and append raw event to `provider_response`.
+4. Console: surface per-medium delivery status/analytics (the delivery rows) on the relevant
+   notification/recipient views — at minimum delivered/bounced/complained/opened counts or
+   badges. Note in copy that email "opened" is a soft signal.
+
+Keep normalization inside the adapter interface so other providers slot in later. Do NOT
+implement unsubscribe (Phase 6) — though you MAY note that a `complained` (spam) event should
+eventually suppress future email (leave the actual suppression to a later phase). Broadcast
+pipeline stays untouched. SDKs stay un-bumped (Phase 7). Follow the layered handler→service→pg
+pattern; Goose SQL migration applied manually. Update Phase 5 status to DONE and add a
+"Phase 5 — deviations (as built)" section (record the webhook URL shape, the signing-secret
+storage, and the exact Resend-event → status mapping + the non-regression rules).
 ```
+
+#### Phase 5 — deviations (as built)
+
+Migration: `migrations/20260713140000_add_webhook_secret_to_email_settings.sql` (Goose; apply
+manually with goose — no runner is wired in). No `notification_delivery` re-migration was needed:
+Phase 4 already shipped the full column set (`delivered_at`/`bounced_at`/`complained_at`/
+`opened_at`/`clicked_at`, `provider_response`, `provider_message_id` + the partial unique index
+`ux_nd_provider_message`). Backend follows the layered `handler → service → pg` split; no domain
+was refactored. `go build`/`go vet`/tests pass; the migration is applied and the transition SQL +
+full webhook path were verified live against Postgres.
+
+- **Webhook URL shape: `POST /webhooks/email/{project_id}`** — project resolved from the URL
+  path (not the Svix endpoint id). The customer configures exactly this URL as their Resend
+  webhook endpoint. It is mounted at the **root router in `cmd/api/routes.go`, OUTSIDE** both the
+  developer API-key group (no `APIKeyBasedAuthMiddleware`, no permissive-CORS block) and the
+  console session group — **auth IS the signature**. To keep it clear of the dev-API per-IP rate
+  limiter, `httprate.LimitByIP(100, time.Minute)` was **moved off the root router onto the two
+  groups that had it** (dev-API + console); the webhook and the `/`,`/ping` health checks are no
+  longer rate-limited (a provider can burst many events from a small IP pool).
+- **Signing-secret storage: encrypted `webhook_secret` + `webhook_nonce` on
+  `project_email_settings`** (nullable BYTEA, AES-GCM via the same tantra `cipher` + `env.CipherKey`
+  pattern as the provider API key). It is **distinct from the Resend API key** — Resend signs
+  webhooks via Svix with a per-endpoint `whsec_...` secret the customer copies from the Resend
+  dashboard. `entity.SetWebhookSecret`/`DecryptWebhookSecret`/`HasWebhookSecret`. The console `PUT`
+  sets/rotates it independently of the API key: the `Upsert` service was reworked so **each secret
+  is (re)encrypted only when its plaintext is supplied, otherwise the existing ciphertext is
+  carried forward** (blank ⇒ keep). The webhook secret is **always optional** (a project may send
+  before wiring webhooks); the API key stays required-on-first-config. Never returned in plaintext —
+  the DTO exposes `webhook_secret_masked` (last 4) + `webhook_secret_set`.
+- **Normalization lives in the adapter interface** (`internal/email/`), as scoped. `Adapter` gained
+  **`VerifyWebhookSignature(secret, headers, body) error`** and
+  **`NormalizeWebhookEvent(headers, body) → NormalizedEvent{ProviderMessageID, Kind, At, Raw}`**;
+  both implemented by the Resend adapter. The public endpoint/service stay provider-agnostic and
+  select the adapter via the `provider` discriminator (`NewAdapter(provider, "")` — the webhook path
+  needs no send API key). Svix verification is implemented **manually (no Svix SDK)**, matching the
+  no-Resend-SDK decision: HMAC-SHA256 over `"{svix-id}.{svix-timestamp}.{body}"` with the
+  base64-decoded `whsec_` key, constant-time compared against each `v1,<sig>` in the space-delimited
+  `svix-signature` header, plus a **±5-min `svix-timestamp` tolerance** (replay guard). Missing
+  headers / bad timestamp / wrong secret / tampered body all return `ErrWebhookSignatureInvalid` ⇒
+  the endpoint responds **401**.
+- **Exact Resend-event → status mapping** (`resendEventKind` + `webhookStatusFor`):
+  | Resend `type` | normalized kind | status set | `*_at` stamped |
+  |---|---|---|---|
+  | `email.sent` | sent | `sent` | — |
+  | `email.delivered` | delivered | `delivered` | `delivered_at` |
+  | `email.bounced` | bounced | `bounced` (terminal) | `bounced_at` |
+  | `email.complained` | complained | `complained` (terminal) | `complained_at` |
+  | `email.opened` | opened | *(unchanged — soft signal)* | `opened_at` |
+  | `email.clicked` | clicked | *(unchanged — soft signal)* | `clicked_at` |
+  | anything else (e.g. `email.delivery_delayed`) | unknown | *(ignored, 200 ack)* | — |
+  `opened`/`clicked` are **timestamp-only** (per the old doc): they stamp the column but never touch
+  `status`. The console labels "opened" as a directional soft signal (Apple MPP caveat) via a
+  tooltip.
+- **Non-regression rules (order-tolerant + idempotent).** All transitions go through one guarded SQL
+  UPDATE in `pg.ApplyWebhookStatus`, matched **by `provider_message_id`** (not delivery id), so
+  duplicated/out-of-order events converge:
+  - Status advances only when the incoming status **outranks** the current one, via a rank ladder
+    `pending(0) < sending(1) < sent(2) < delivered(3) < {bounced,complained,failed}(4) < else(5)`.
+    A **late `delivered` never overwrites `bounced`/`complained`/`failed`** (rank 3 ≯ 4), and among
+    the terminals the **first one wins** (equal rank ⇒ strict `>` keeps the incumbent) — so
+    bounced/complained/failed are **sticky**. `complained` *can* follow `delivered` (4 > 3), matching
+    real "marked spam after receipt".
+  - Each `*_at` column is **first-write-wins** (`COALESCE(col, $at)`) — idempotent under duplicates.
+  - The raw event is **appended** to the `provider_response` JSONB array
+    (`COALESCE(provider_response,'[]') || $event`).
+  - An event whose `provider_message_id` matches **no** row (not ours / deleted) is **acknowledged
+    with 200** and logged (retrying can't make it match), as is an unmapped/unknown event.
+  - *(Minor:* the matching `*_at` is stamped even if the terminal guard keeps `status` unchanged —
+    e.g. a contradictory late `delivered` after `bounced` would set `delivered_at` while `status`
+    stays `bounced`. Harmless: analytics count `delivered` from `status`, not `delivered_at`, and
+    Resend does not emit both for one message. Left as-is per "stamp the matching `*_at`".)*
+- **Console.** (1) Email settings form gained a **"Delivery status webhook"** section showing the
+  copy-ready webhook URL (`${API_BASE_URL}/webhooks/email/{project_id}`, `API_BASE_URL` newly
+  exported from `lib/api.ts`) + a write-only `whsec_...` `PasswordInput` (masked hint + keep-blank-to-
+  keep behavior mirroring the API key). (2) A **read-only "Email delivery" KPI row**
+  (`email_delivery_overview.tsx`) above the **direct** notifications table (email is DIRECT-only)
+  showing sent/delivered/opened/bounced/complained/failed/no_contact/muted counts; it **self-hides
+  until the project has attempted ≥1 email**, and the "Opened" tile carries the soft-signal tooltip.
+  Backed by a new console endpoint **`GET /console/projects/{project_id}/email-deliveries/overview`**
+  → `NotificationService.EmailDeliveryOverview` → `deliveryRepo.EmailDeliveryOverviewForProject`
+  (per-status `count(*) FILTER (…)`, `medium='email'`; opened/clicked counted from the `*_at`
+  columns, since they're not statuses).
+- **Suppression is NOT implemented (deferred to Phase 6, as scoped).** A `complained` event only
+  records the complaint on the delivery row; the service carries a NOTE that a spam complaint should
+  eventually **suppress future email** to that contact, but the actual suppression is left to a later
+  phase.
+- **Broadcast pipeline untouched; SDKs un-bumped** (per Phases 1–4 — the SDK bump is bundled with the
+  Phase 7 launch; delivery-status webhooks are inbound-only and add no SDK surface).
+- **Tests:** `internal/email/resend_webhook_test.go` (Svix verify: valid / tampered-body / wrong-
+  secret / stale-timestamp / missing-headers, and the full event→kind mapping) and
+  `internal/service/email_webhook_test.go` (real-Postgres end-to-end: bad signature ⇒ 401; valid
+  `email.delivered` ⇒ row `sent`→`delivered` + `delivered_at` stamped + one `provider_response`
+  entry; a late `email.sent` does **not** regress `delivered`; gated on `TEST_DB_URL`, self-cleaning).
+  The order-tolerance/rank/COALESCE/jsonb-append SQL was additionally validated live on Postgres
+  (sticky-bounce, forward path, idempotent duplicate, complaint-after-delivery).
 
 ### Phase 6 — Unsubscribe (List-Unsubscribe + public endpoint)
 

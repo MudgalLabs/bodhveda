@@ -19,6 +19,7 @@ import {
     WithLabel,
 } from "netra";
 
+import { API_BASE_URL } from "@/lib/api";
 import { useGetProjectIDFromParams } from "@/features/project/project_hooks";
 import {
     useGetEmailSettings,
@@ -85,20 +86,26 @@ function EmailSettingsForm({ settings }: EmailSettingsFormProps) {
         settings?.from_address ?? ""
     );
     const [secret, setSecret] = useState("");
+    const [webhookSecret, setWebhookSecret] = useState("");
+
+    const webhookURL = `${API_BASE_URL}/webhooks/email/${id}`;
+    const webhookConfigured = settings?.webhook_secret_set ?? false;
 
     // Keep the form in sync if the underlying settings change (e.g. after a save
-    // refetch). The secret input always resets to blank — it is write-only.
+    // refetch). The secret inputs always reset to blank — they are write-only.
     useEffect(() => {
         setProvider(settings?.provider ?? "resend");
         setFromName(settings?.from_name ?? "");
         setFromAddress(settings?.from_address ?? "");
         setSecret("");
+        setWebhookSecret("");
     }, [settings]);
 
     const { mutate: upsert, isPending } = useUpsertEmailSettings(id, {
         onSuccess: () => {
             toast.success("Email settings saved");
             setSecret("");
+            setWebhookSecret("");
         },
     });
 
@@ -115,6 +122,7 @@ function EmailSettingsForm({ settings }: EmailSettingsFormProps) {
             from_name: fromName.trim(),
             from_address: fromAddress.trim(),
             secret: secret.trim() || undefined,
+            webhook_secret: webhookSecret.trim() || undefined,
         });
     };
 
@@ -224,6 +232,78 @@ function EmailSettingsForm({ settings }: EmailSettingsFormProps) {
                     onChange={(e) => setFromAddress(e.target.value)}
                 />
             </WithLabel>
+
+            <div className="border-border-subtle border-t pt-5">
+                <h2 className="text-text-primary mb-1 font-medium">
+                    Delivery status webhook
+                </h2>
+                <p className="text-text-muted paragraph mb-4">
+                    Add this URL as a webhook endpoint in your Resend dashboard
+                    to receive delivered / bounced / complained / opened events.
+                    Resend generates a signing secret — paste it below so
+                    Bodhveda can verify the events.
+                </p>
+
+                <WithLabel Label={<Label>Webhook URL</Label>}>
+                    <Input
+                        className="w-full!"
+                        type="text"
+                        readOnly
+                        value={webhookURL}
+                        onFocus={(e) => e.currentTarget.select()}
+                    />
+                </WithLabel>
+
+                <div className="mt-5">
+                    {webhookConfigured && (
+                        <Alert className="mb-4">
+                            <IconBadgeInfo />
+                            <p className="text-text-muted">
+                                Webhook signing secret is configured (
+                                <span className="text-text-primary font-medium">
+                                    {settings?.webhook_secret_masked}
+                                </span>
+                                ). Enter a new secret to rotate it, or leave it
+                                blank to keep the current one.
+                            </p>
+                        </Alert>
+                    )}
+
+                    <WithLabel
+                        Label={
+                            <Label className="flex-x">
+                                Webhook signing secret
+                                <Tooltip
+                                    content={
+                                        <p>
+                                            The <strong>Signing Secret</strong>{" "}
+                                            Resend shows when you create the
+                                            webhook endpoint (starts with{" "}
+                                            <strong>whsec_</strong>). Distinct
+                                            from your API key. Encrypted at rest
+                                            and never shown again.
+                                        </p>
+                                    }
+                                >
+                                    <IconInfo />
+                                </Tooltip>
+                            </Label>
+                        }
+                    >
+                        <PasswordInput
+                            className="w-full!"
+                            placeholder={
+                                webhookConfigured
+                                    ? "Leave blank to keep the current secret"
+                                    : "whsec_..."
+                            }
+                            value={webhookSecret}
+                            onChange={(e) => setWebhookSecret(e.target.value)}
+                            autoComplete="off"
+                        />
+                    </WithLabel>
+                </div>
+            </div>
 
             <div className="flex justify-end">
                 <Tooltip
