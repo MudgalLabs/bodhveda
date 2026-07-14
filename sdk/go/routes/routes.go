@@ -19,7 +19,7 @@ var (
 		return "/recipients/" + url.PathEscape(recipientID) + "/notifications"
 	}
 	RecipientsNotificationUnreadCount = func(recipientID string) string {
-		return "/recipients/" + url.PathEscape(recipientID) + "/notifications/unread_count"
+		return "/recipients/" + url.PathEscape(recipientID) + "/notifications/unread-count"
 	}
 	RecipientsNotificationsUpdateState = func(recipientID string) string {
 		return "/recipients/" + url.PathEscape(recipientID) + "/notifications"
