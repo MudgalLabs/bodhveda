@@ -1485,15 +1485,81 @@ can target the live instance + published SDK.
 - **Done when:** a digest run sends both the in-app bell notification and the email through
   Bodhveda only, unsubscribe works from the email, and no `RESEND_*` remains in Resurface.
 
+**NOTE (self-contained):** this prompt is pasted into the **Resurface repo's** agent, which has NO
+access to this Bodhveda doc — so the prompt below restates the Bodhveda email API contract inline.
+Keep it self-contained when editing.
+
 ```
-Read agent-docs/overview.md in full first (esp. the "Validation target: Resurface" section).
-Implement Phase 8 (Resurface cutover) in ../resurface: remove the Resend integration
-(cron/src/digest.ts direct send, signUnsubscribeToken, RESEND_* env), register the user's
-email as a Bodhveda recipient_contact server-side on /me, migrate the email/in-app digest
-prefs to Bodhveda per-medium
-preferences while keeping the isPro entitlement gate in Resurface, and replace the dual send
-with a single Bodhveda notifications.send carrying both payload (in-app) and the email block.
-Render the existing @react-email template to html/text and pass it. Verify a digest run emits
-both the in-app notification and the email via Bodhveda only, and that email unsubscribe works.
-Update Phase 8 status to DONE when finished.
+You are working in the Resurface repo. Goal: DROP Resurface's direct Resend integration and let
+ONE Bodhveda send fan out to both the in-app bell AND email. Bodhveda now supports an email medium;
+this is the final cutover. Read the current Bodhveda integration first: web/lib/bodhveda.ts,
+web/lib/bodhveda-targets.ts, web/lib/auth.ts (signup hook ~L70), cron/src/digest.ts,
+web/lib/unsubscribe.ts, web/app/unsubscribe/page.tsx, web/app/api/unsubscribe/route.ts. Do NOT
+change unrelated behavior (eligibility windows, DigestLog claim/idempotency, the FollowUpDigest
+template's look).
+
+BODHVEDA EMAIL API CONTRACT (what the platform now does — do not re-derive):
+- Send is content-block-implies-intent, non-breaking: `notifications.send({ recipient_id, target,
+  payload, email })`. A `payload` block ⇒ in-app inbox row (as today). An OPTIONAL
+  `email: { subject, html, text }` block ⇒ email is ALSO attempted. No `mediums[]` array; no
+  payload→email fallback (omit `email` ⇒ no email). Bodhveda does NO templating — you supply
+  rendered html/text (text optional, auto-derived from html).
+- Email is DIRECT-only (recipient_id set). Email on a broadcast is rejected — the digest is
+  per-user direct, so fine.
+- Email fires only if ALL hold: the target is cataloged for the email medium (project-level
+  preference), the recipient has NOT opted out of email for that target, AND the recipient has a
+  PRIMARY email contact. Otherwise the send still succeeds (in-app delivered) and the response's
+  `deliveries[]` reports the email outcome (e.g. muted / no_contact).
+- Recipient email lives in a `recipient_contact` (per-recipient, medium=email, one primary), set
+  via the contacts API on the SDK (recipients.contacts.create/list/update/delete). NOT a bare field.
+- Unsubscribe is handled BY BODHVEDA: every outbound email carries List-Unsubscribe one-click
+  headers pointing at Bodhveda's hosted unsubscribe, which flips that recipient's email preference
+  for that target OFF. You do NOT send List-Unsubscribe yourself anymore.
+
+DO:
+1. Bump the SDK: `bodhveda` and `@bodhveda/react` from ^0.0.6 to the published email-supporting
+   version (confirm the exact version on npm — the email `email` block, `deliveries[]`, and
+   recipients.contacts.* must be present in the installed types). `npm install`.
+2. Register email contact at signup: in web/lib/auth.ts where `createBodhvedaRecipient` runs, also
+   create the recipient's PRIMARY email contact in Bodhveda (recipients.contacts.create, medium
+   email, the user's email, primary). Backfill existing users (a one-off script) so they have a
+   contact. Update web/lib/bodhveda.ts helpers accordingly. Keep it best-effort/non-fatal like the
+   existing welcome-notification try/catch.
+3. Catalog the digest target for BOTH mediums in Bodhveda (project-level preference for
+   targets.digestSent = {channel:"digest",topic:"none",event:"sent"} with in_app + email). Do this
+   via the Console or an idempotent setup script — document which. Fix the now-stale comment in
+   web/lib/bodhveda-targets.ts ("Bodhveda doesn't model medium today").
+4. Rewrite cron/src/digest.ts to a SINGLE Bodhveda send per user: keep building the FollowUpDigest
+   html/text via @react-email/render, then call notifications.send({ recipient_id: user.id, target:
+   digestSent, payload: {title, body}, email: {subject, html, text} }). REMOVE: `import {Resend}`,
+   getResend(), FROM_EMAIL(), the getResend().emails.send(...) call, the manual List-Unsubscribe
+   headers, and signUnsubscribeToken usage. Drop `resend` from cron/package.json. Keep the DigestLog
+   claim-before-send idempotency; a Bodhveda send failure marks status "failed" as before.
+5. PREFERENCES MIGRATION (the crux — decide carefully, this is the double-gate):
+   - `isPro` stays a RESURFACE entitlement gate: only include the `email` block when the user is Pro
+     (a free user gets in-app only). Keep that check.
+   - The user's email/in-app OPT-IN moves to Bodhveda per-medium preferences (so the Bodhveda
+     unsubscribe link actually silences future email). Decide + document how findEligibleUsers picks
+     recipients now that emailDigestEnabled/inAppDigestEnabled are no longer the email source of
+     truth. Recommended: send to all Pro users with in-app enabled and always include the email
+     block for Pro; let Bodhveda's preference gate mute unsubscribed users (the response
+     `deliveries[]` tells you it was muted) — do NOT re-query a Prisma email flag for gating. If you
+     keep the Prisma flags as a fast pre-filter, you MUST sync them from Bodhveda unsubscribes
+     (webhook or reconcile) or unsubscribes silently won't take — call this out explicitly and pick
+     one. Migrate existing users' current flag values into Bodhveda recipient preferences (one-off).
+6. Retire the local unsubscribe surface for the digest: web/lib/unsubscribe.ts, web/app/unsubscribe/
+   page.tsx, web/app/api/unsubscribe/route.ts are no longer used by the digest (Bodhveda hosts it).
+   Remove or clearly deprecate them if nothing else uses them (grep first — welcome/other emails?).
+
+ENV / TARGET: the client reads BODHVEDA_API_KEY + BODHVEDA_API_URL (web/lib/bodhveda.ts). Develop
+against whatever the local .env points at — the Dev/Local Bodhveda project already has Resend email
+settings configured, so email works end-to-end locally. For production, BODHVEDA_API_URL + the API
+key switch to the LIVE Bodhveda (and the LIVE project must have its own Resend settings) — leave
+that env switch to the human; don't hardcode a URL.
+
+VERIFY: a digest run for a Pro user with a primary email contact and email opted-in emits BOTH the
+in-app bell notification AND the email through Bodhveda only (inspect the send response
+`deliveries[]`), the email's one-click unsubscribe flips the Bodhveda email pref (a subsequent run
+shows that user's email delivery `muted` while in-app still delivers), and `grep -ri resend` shows
+no RESEND_* / resend SDK left in Resurface. Report the results.
 ```
