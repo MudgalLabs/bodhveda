@@ -169,7 +169,11 @@ export const CreateProjectPreferenceModal: FC<
                             }
                         >
                             {PREFERENCE_MEDIUMS.map((medium) => (
-                                <ToggleGroupItem key={medium} value={medium}>
+                                <ToggleGroupItem
+                                    key={medium}
+                                    value={medium}
+                                    className="whitespace-nowrap"
+                                >
                                     {PREFERENCE_MEDIUM_LABELS[medium]}
                                 </ToggleGroupItem>
                             ))}
