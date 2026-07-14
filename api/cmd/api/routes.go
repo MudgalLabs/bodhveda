@@ -158,6 +158,7 @@ func initRouter() http.Handler {
 				// Ensure that the user owns the project before allowing access to the routes.
 				r.Use(middleware.VerifyUserOwnsThisProject)
 
+				r.Patch("/", handler.UpdateProject(app.APP.Service.Project))
 				r.Delete("/", handler.DeleteProject(app.APP.Service.Project))
 
 				r.Route("/api-keys", func(r chi.Router) {

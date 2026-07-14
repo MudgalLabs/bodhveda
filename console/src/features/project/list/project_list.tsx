@@ -9,6 +9,7 @@ import {
     ErrorMessage,
     formatNumber,
     IconBell,
+    IconEdit,
     IconEllipsis,
     IconPlus,
     IconTrash,
@@ -24,6 +25,7 @@ import { Link } from "@tanstack/react-router";
 import { CreateProjectModal } from "@/features/project/list/create_project_modal";
 import { useGetProjects } from "@/features/project/project_hooks";
 import { DeleteProjectModal } from "@/features/project/components/delete_project_modal";
+import { EditProjectModal } from "@/features/project/components/edit_project_modal";
 
 export function ProjectList() {
     useDocumentTitle("Projects  • Bodhveda");
@@ -139,7 +141,15 @@ function ProjectOptionsDropdownMenu(props: { id: number; name: string }) {
     const { id, name } = props;
 
     const [dropdownOpen, setDropdownOpen] = useState(false);
+    const [editOpen, setEditOpen] = useState(false);
     const [deleteOpen, setDeleteOpen] = useState(false);
+
+    const handleOpenEdit = (e: FormEvent) => {
+        e.stopPropagation();
+        e.preventDefault();
+        setDropdownOpen(false);
+        setEditOpen(true);
+    };
 
     const handleOpenDeleteConfirm = (e: FormEvent) => {
         e.stopPropagation();
@@ -159,6 +169,13 @@ function ProjectOptionsDropdownMenu(props: { id: number; name: string }) {
 
                 <DropdownMenuContent>
                     <DropdownMenuItem asChild>
+                        <Button variant="ghost" onClick={handleOpenEdit}>
+                            <IconEdit size={16} />
+                            Edit
+                        </Button>
+                    </DropdownMenuItem>
+
+                    <DropdownMenuItem asChild>
                         <Button
                             variant="destructive"
                             onClick={handleOpenDeleteConfirm}
@@ -169,6 +186,15 @@ function ProjectOptionsDropdownMenu(props: { id: number; name: string }) {
                     </DropdownMenuItem>
                 </DropdownMenuContent>
             </DropdownMenu>
+
+            {editOpen && (
+                <EditProjectModal
+                    open={editOpen}
+                    setOpen={setEditOpen}
+                    id={id}
+                    name={name}
+                />
+            )}
 
             {deleteOpen && (
                 <DeleteProjectModal

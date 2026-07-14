@@ -9,6 +9,11 @@ export interface CreateProjectPayload {
     name: string;
 }
 
+export interface UpdateProjectPayload {
+    id: number;
+    name: string;
+}
+
 export interface ProjectListItem extends Project, NotificationsOverviewResult {
     total_recipients: number;
 }

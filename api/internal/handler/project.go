@@ -49,6 +49,35 @@ func ListProjects(s *service.ProjectService) http.HandlerFunc {
 	}
 }
 
+func UpdateProject(s *service.ProjectService) http.HandlerFunc {
+	return func(w http.ResponseWriter, r *http.Request) {
+		ctx := r.Context()
+		userID := middleware.GetUserIDFromContext(ctx)
+		projectID, err := httpx.ParamInt(r, "project_id")
+		if err != nil {
+			httpx.BadRequestResponse(w, r, errors.New("Invalid project ID"))
+			return
+		}
+
+		var payload dto.UpdateProjectPayload
+		if err := jsonx.DecodeJSONRequest(&payload, r); err != nil {
+			httpx.MalformedJSONResponse(w, r, err)
+			return
+		}
+
+		payload.UserID = userID
+		payload.ProjectID = projectID
+
+		result, errKind, err := s.Update(ctx, payload)
+		if err != nil {
+			httpx.ServiceErrResponse(w, r, errKind, err)
+			return
+		}
+
+		httpx.SuccessResponse(w, r, http.StatusOK, "Project updated", result)
+	}
+}
+
 func DeleteProject(s *service.ProjectService) http.HandlerFunc {
 	return func(w http.ResponseWriter, r *http.Request) {
 		ctx := r.Context()

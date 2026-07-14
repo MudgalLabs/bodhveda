@@ -4,6 +4,7 @@ import (
 	"context"
 	"time"
 
+	"github.com/jackc/pgx/v5"
 	"github.com/jackc/pgx/v5/pgxpool"
 	"github.com/mudgallabs/bodhveda/internal/model/entity"
 	"github.com/mudgallabs/bodhveda/internal/model/repository"
@@ -70,6 +71,27 @@ func (r *ProjectRepo) List(ctx context.Context, userID int) ([]*entity.Project, 
 	}
 
 	return projects, nil
+}
+
+func (r *ProjectRepo) Update(ctx context.Context, userID, projectID int, name string) (*entity.Project, error) {
+	sql := `
+		UPDATE project SET name = $1, updated_at = $2
+		WHERE user_id = $3 AND id = $4 AND deleted_at IS NULL
+		RETURNING id, user_id, name, created_at, updated_at
+	`
+	row := r.db.QueryRow(ctx, sql, name, time.Now().UTC(), userID, projectID)
+
+	var p entity.Project
+
+	err := row.Scan(&p.ID, &p.UserID, &p.Name, &p.CreatedAt, &p.UpdatedAt)
+	if err != nil {
+		if err == pgx.ErrNoRows {
+			return nil, tantraRepo.ErrNotFound
+		}
+		return nil, err
+	}
+
+	return &p, nil
 }
 
 func (r *ProjectRepo) UserOwns(ctx context.Context, userID, projectID int) (bool, error) {

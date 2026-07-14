@@ -53,6 +53,23 @@ func (s *ProjectService) Create(ctx context.Context, payload dto.CreateProjectPa
 	return dto.FromProject(project), service.ErrNone, nil
 }
 
+func (s *ProjectService) Update(ctx context.Context, payload dto.UpdateProjectPayload) (*dto.Project, service.Error, error) {
+	err := payload.Validate()
+	if err != nil {
+		return nil, service.ErrInvalidInput, err
+	}
+
+	project, err := s.repo.Update(ctx, payload.UserID, payload.ProjectID, payload.Name)
+	if err != nil {
+		if err == tantraRepo.ErrNotFound {
+			return nil, service.ErrNotFound, nil
+		}
+		return nil, service.ErrInternalServerError, fmt.Errorf("project repo update: %w", err)
+	}
+
+	return dto.FromProject(project), service.ErrNone, nil
+}
+
 func (s *ProjectService) List(ctx context.Context, userID int) ([]*dto.ProjectListItem, service.Error, error) {
 	projects, err := s.repo.List(ctx, userID)
 	if err != nil {

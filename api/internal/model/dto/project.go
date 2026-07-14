@@ -34,6 +34,34 @@ func (p *CreateProjectPaylaod) Validate() error {
 	return nil
 }
 
+type UpdateProjectPayload struct {
+	UserID    int
+	ProjectID int
+	Name      string `json:"name"`
+}
+
+func (p *UpdateProjectPayload) Validate() error {
+	var errs service.InputValidationErrors
+
+	if p.UserID <= 0 {
+		errs.Add(apires.NewApiError("User is required", "User ID must be a positive integer", "user_id", p.UserID))
+	}
+
+	if p.ProjectID <= 0 {
+		errs.Add(apires.NewApiError("Project is required", "Project ID must be a positive integer", "project_id", p.ProjectID))
+	}
+
+	if p.Name == "" {
+		errs.Add(apires.NewApiError("Name is required", "Name cannot be empty", "name", p.Name))
+	}
+
+	if len(errs) > 0 {
+		return errs
+	}
+
+	return nil
+}
+
 func FromProject(p *entity.Project) *Project {
 	if p == nil {
 		return nil

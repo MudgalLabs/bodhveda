@@ -11,6 +11,7 @@ import {
     Project,
     CreateProjectPayload,
     ProjectListItem,
+    UpdateProjectPayload,
 } from "@/features/project/project_types";
 
 // This hook retrieves the project ID from the URL parameters.
@@ -35,6 +36,22 @@ export function useCreateProject(options: AnyUseMutationOptions = {}) {
     return useMutation<APIRes<Project>, unknown, CreateProjectPayload>({
         mutationFn: (payload) => {
             return client.post(API_ROUTES.project.create, payload);
+        },
+        onSuccess: (...args) => {
+            queryClient.invalidateQueries({ queryKey: ["useGetProjects"] });
+            onSuccess?.(...args);
+        },
+        ...rest,
+    });
+}
+
+export function useUpdateProject(options: AnyUseMutationOptions = {}) {
+    const { onSuccess, ...rest } = options;
+    const queryClient = useQueryClient();
+
+    return useMutation<APIRes<Project>, unknown, UpdateProjectPayload>({
+        mutationFn: ({ id, name }) => {
+            return client.patch(API_ROUTES.project.update(id), { name });
         },
         onSuccess: (...args) => {
             queryClient.invalidateQueries({ queryKey: ["useGetProjects"] });

@@ -10,6 +10,7 @@ export const API_ROUTES = {
     project: {
         list: "/console/projects",
         create: "/console/projects",
+        update: (id: string | number) => `/console/projects/${id}`,
         delete: (id: string | number) => `/console/projects/${id}`,
 
         api_keys: {
