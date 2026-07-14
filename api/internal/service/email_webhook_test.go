@@ -46,7 +46,9 @@ func TestEmailWebhookService_Ingest(t *testing.T) {
 
 	settingsRepo := pg.NewProjectEmailSettingsRepo(pool)
 	deliveryRepo := pg.NewNotificationDeliveryRepo(pool)
-	svc := NewEmailWebhookService(settingsRepo, deliveryRepo)
+	preferenceRepo := pg.NewPreferenceRepo(pool)
+	preferenceService := NewProjectPreferenceService(preferenceRepo, pg.NewRecipientRepo(pool))
+	svc := NewEmailWebhookService(settingsRepo, deliveryRepo, preferenceService)
 
 	secret := "whsec_" + base64.StdEncoding.EncodeToString([]byte("webhook-signing-key-material"))
 
@@ -135,6 +137,28 @@ func TestEmailWebhookService_Ingest(t *testing.T) {
 	_ = pool.QueryRow(ctx, "SELECT status FROM notification_delivery WHERE id = $1", deliveryID).Scan(&status)
 	if status != "delivered" {
 		t.Errorf("after late sent: status = %q, want still delivered", status)
+	}
+
+	// --- Complaint suppression (Phase 6): a `complained` event flips the email
+	// medium preference for (recipient, target) off, so subsequent sends are muted.
+	t.Cleanup(func() {
+		_, _ = pool.Exec(ctx, "DELETE FROM preference WHERE project_id = $1 AND recipient_external_id = $2", projectID, recipientExtID)
+	})
+	complaintBody := []byte(fmt.Sprintf(`{"type":"email.complained","created_at":"2026-07-14T10:10:00Z","data":{"email_id":%q}}`, providerMessageID))
+	complaintHeaders := signTestSvix(t, secret, "msg_complaint", time.Now().Unix(), complaintBody)
+	if errKind, err := svc.Ingest(ctx, projectID, complaintHeaders, complaintBody); errKind != tantraService.ErrNone || err != nil {
+		t.Fatalf("complaint webhook: errKind=%v err=%v", errKind, err)
+	}
+	var prefEnabled bool
+	err = pool.QueryRow(ctx, `
+		SELECT enabled FROM preference
+		WHERE project_id = $1 AND recipient_external_id = $2 AND channel = 'test' AND topic = 'none' AND event = 'wh' AND medium = 'email'
+	`, projectID, recipientExtID).Scan(&prefEnabled)
+	if err != nil {
+		t.Fatalf("read back email preference after complaint: %v", err)
+	}
+	if prefEnabled {
+		t.Errorf("email preference still enabled after complaint; want disabled (suppressed)")
 	}
 }
 

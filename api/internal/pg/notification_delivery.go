@@ -5,6 +5,7 @@ import (
 	"fmt"
 	"time"
 
+	"github.com/jackc/pgx/v5"
 	"github.com/jackc/pgx/v5/pgxpool"
 	"github.com/mudgallabs/bodhveda/internal/model/dto"
 	"github.com/mudgallabs/bodhveda/internal/model/entity"
@@ -210,6 +211,26 @@ func (r *NotificationDeliveryRepo) ApplyWebhookStatus(ctx context.Context, u rep
 	}
 
 	return nil
+}
+
+func (r *NotificationDeliveryRepo) GetTargetByProviderMessageID(ctx context.Context, providerMessageID string) (*repository.DeliveryTarget, error) {
+	sql := `
+		SELECT nd.project_id, nd.recipient_external_id, n.channel, n.topic, n.event
+		FROM notification_delivery nd
+		JOIN notification n ON n.id = nd.notification_id
+		WHERE nd.provider_message_id = $1
+	`
+	var t repository.DeliveryTarget
+	err := r.db.QueryRow(ctx, sql, providerMessageID).Scan(
+		&t.ProjectID, &t.RecipientExtID, &t.Channel, &t.Topic, &t.Event,
+	)
+	if err != nil {
+		if err == pgx.ErrNoRows {
+			return nil, tantraRepo.ErrNotFound
+		}
+		return nil, err
+	}
+	return &t, nil
 }
 
 func (r *NotificationDeliveryRepo) EmailDeliveryOverviewForProject(ctx context.Context, projectID int) (*dto.EmailDeliveryOverview, error) {

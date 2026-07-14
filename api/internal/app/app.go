@@ -39,6 +39,7 @@ type services struct {
 	ProjectEmail     *service.ProjectEmailSettingsService
 	Recipient        *service.RecipientService
 	RecipientContact *service.RecipientContactService
+	Unsubscribe      *service.UnsubscribeService
 
 	UserIdentity *user_identity.Service
 	UserProfile  *user_profile.Service
@@ -122,7 +123,8 @@ func Init() {
 		recipientContactRepository, projectEmailSettingsRepository, billingService, recipientService, ASYNQCLIENT)
 	projectService := service.NewProjectService(projectRepository, notificationService, recipientService, ASYNQCLIENT)
 	projectEmailSettingsService := service.NewProjectEmailSettingsService(projectEmailSettingsRepository)
-	emailWebhookService := service.NewEmailWebhookService(projectEmailSettingsRepository, notificationDeliveryRepository)
+	emailWebhookService := service.NewEmailWebhookService(projectEmailSettingsRepository, notificationDeliveryRepository, preferenceService)
+	unsubscribeService := service.NewUnsubscribeService(preferenceService)
 	userIdentityService := user_identity.NewService(userIdentityRepository, userProfileRepository)
 	userProfileService := user_profile.NewService(userProfileRepository)
 
@@ -137,6 +139,7 @@ func Init() {
 		ProjectEmail:     projectEmailSettingsService,
 		Recipient:        recipientService,
 		RecipientContact: recipientContactService,
+		Unsubscribe:      unsubscribeService,
 
 		UserIdentity: userIdentityService,
 		UserProfile:  userProfileService,

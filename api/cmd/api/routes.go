@@ -50,6 +50,15 @@ func initRouter() http.Handler {
 	// a small IP pool).
 	r.Post("/webhooks/email/{project_id}", handler.EmailWebhook(app.APP.Service.EmailWebhook))
 
+	// Public one-click email unsubscribe (Phase 6). Mounted at the root — like the
+	// webhook above, OUTSIDE the developer API-key auth/CORS/rate-limit group and the
+	// console session group — because it is hit from the recipient's mail client with
+	// no session/API key: the signed token in `?t=` IS the auth (it identifies
+	// project + recipient + target). POST = RFC 8058 one-click; GET = confirmation
+	// page. Both flip the recipient's email preference for that target off.
+	r.Get("/unsubscribe/email", handler.UnsubscribeEmail(app.APP.Service.Unsubscribe))
+	r.Post("/unsubscribe/email", handler.UnsubscribeEmail(app.APP.Service.Unsubscribe))
+
 	// These are the Bodhveda Developer API routes.
 	r.Route("/", func(r chi.Router) {
 		r.Use(cors.Handler(cors.Options{

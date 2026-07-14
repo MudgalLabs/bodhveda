@@ -40,11 +40,12 @@ func (a *ResendAdapter) Provider() enum.EmailProvider {
 }
 
 type resendSendRequest struct {
-	From    string   `json:"from"`
-	To      []string `json:"to"`
-	Subject string   `json:"subject"`
-	HTML    string   `json:"html,omitempty"`
-	Text    string   `json:"text,omitempty"`
+	From    string            `json:"from"`
+	To      []string          `json:"to"`
+	Subject string            `json:"subject"`
+	HTML    string            `json:"html,omitempty"`
+	Text    string            `json:"text,omitempty"`
+	Headers map[string]string `json:"headers,omitempty"`
 }
 
 type resendSendResponse struct {
@@ -69,6 +70,7 @@ func (a *ResendAdapter) Send(ctx context.Context, msg Message) (SendResult, erro
 		Subject: msg.Subject,
 		HTML:    msg.HTML,
 		Text:    msg.Text,
+		Headers: msg.Headers,
 	})
 	if err != nil {
 		return SendResult{}, fmt.Errorf("marshal resend request: %w", err)

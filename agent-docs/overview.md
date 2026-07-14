@@ -455,7 +455,7 @@ handler→service→pg pattern; don't refactor domains mid-phase (see top of doc
 - Phase 3 — Project email provider settings (Resend creds + from-identity) — **DONE** (see "Phase 3 — deviations" below)
 - Phase 4 — Email delivery core (adapter + `email:delivery` worker + `notification_delivery` + send `email` block; DIRECT-only) — **DONE** (see "Phase 4 — deviations (as built)" below)
 - Phase 5 — Delivery status via Resend webhooks — **DONE** (see "Phase 5 — deviations (as built)" below)
-- Phase 6 — Unsubscribe (List-Unsubscribe header + public endpoint) — **TODO**
+- Phase 6 — Unsubscribe (List-Unsubscribe header + public endpoint) — **DONE** (see "Phase 6 — deviations (as built)" below)
 - Phase 7 — Public docs (Mintlify) for the email medium — **TODO**
 - Phase 8 — Resurface cutover (the final end-to-end test) — **TODO**
 
@@ -1064,13 +1064,136 @@ full webhook path were verified live against Postgres.
   one-click requirements.
 
 ```
-Read agent-docs/overview.md in full first. Implement Phase 6 (Unsubscribe) as scoped: a
-signed/opaque token identifying (project, recipient, target); inject List-Unsubscribe +
-List-Unsubscribe-Post: One-Click headers into outbound email; host a public token-gated
-endpoint (POST one-click + GET confirmation page) that flips the email-medium preference off —
-the same preference the authenticated toggle controls. Update Phase 6 status to DONE when
-finished.
+Read agent-docs/overview.md in full first (esp. the Phase 2, 4, and 5 "deviations (as built)"
+sections). Implement Phase 6 (Unsubscribe) as scoped.
+
+Build on prior phases (reuse — do NOT re-derive):
+- The preference this flips is the SAME per-medium recipient preference the authenticated
+  console/API toggle already writes. Flip it via the existing write path
+  `PreferenceService.UpdateRecipientPreferenceTarget(projectID, recipientExtID,
+  PatchRecipientPreferenceTargetPayload{...medium: email, enabled: false})` — do NOT add a
+  parallel disable path. After the flip, `fanOutEmail`'s existing gate
+  (`preferenceRepo.ShouldDirectNotificationBeDelivered(..., enum.MediumEmail)` in
+  `service/notification.go`) already returns false ⇒ subsequent sends record a `muted`
+  delivery with `failure_reason=preference_disabled`. Verify that end-to-end.
+- The token identifies `(project_id, recipient_external_id, target{channel,topic,event})` — all
+  of which are already in hand inside `fanOutEmail` (`target := dto.TargetFromNotification(...)`).
+  Sign it with **HMAC-SHA256 over `env.HashKey`** (`BODHVEDA_API_HASH_KEY`, already used to HMAC
+  API-key tokens) — an opaque, self-contained, URL-safe token (base64url payload + sig), NOT the
+  cipher key. No new DB table needed (the token carries its own claims; the endpoint re-derives
+  and verifies). Reject tampered/expired tokens with 400/401.
+- The public endpoint mounts EXACTLY like Phase 5's webhook: at the ROOT router in
+  `cmd/api/routes.go`, OUTSIDE the developer API-key group (no `APIKeyBasedAuthMiddleware`, no
+  permissive-CORS block) and OUTSIDE the console session group, and OUTSIDE the per-group
+  `httprate` limiter — the token IS the auth. Suggested shape `GET|POST /unsubscribe/email?t=<token>`
+  (project is inside the token, so no `{project_id}` path segment needed).
+- Header injection happens on the outbound `email.Message`. Phase 4's `Message` struct
+  (`internal/email/adapter.go`) has no headers field yet — add one (e.g. `Headers map[string]string`
+  or explicit `ListUnsubscribe`/`ListUnsubscribePost`) and have the Resend adapter's `Send` pass it
+  through to the Resend `headers` map. Build the token + URL in `fanOutEmail` (it has project/
+  recipient/target) and carry it through `EmailDeliveryTaskPayload` → the worker → `Message`.
+
+Then implement:
+1. `List-Unsubscribe: <https://{API_BASE_URL}/unsubscribe/email?t=...>` +
+   `List-Unsubscribe-Post: List-Unsubscribe=One-Click` on every outbound email (match these exact
+   header values — they're what Resurface's digest.ts already sends and what Gmail/Yahoo one-click
+   requires).
+2. The public token-gated endpoint: **POST** = one-click (flip the pref off, return 200, no body
+   needed) and **GET** = a minimal server-rendered confirmation page (flip + "you've been
+   unsubscribed from <target> emails"). Both idempotent.
+3. If a `complained` (spam) webhook event (Phase 5) can be wired to the same pref flip cheaply,
+   do it here (Phase 5 explicitly deferred suppression to Phase 6 and left a NOTE in the webhook
+   service). If it's more than a small hook, leave the NOTE and keep Phase 6 to explicit unsubscribe.
+
+Broadcast pipeline stays untouched (email is DIRECT-only). SDKs stay un-bumped (Phase 7). Follow
+the layered handler→service→pg pattern; Goose SQL migration applied manually IF any schema is
+needed (likely none). Update Phase 6 status to DONE and add a "Phase 6 — deviations (as built)"
+section recording the token format + signing key, the endpoint URL shape, and whether `complained`
+was wired to suppression.
 ```
+
+#### Phase 6 — deviations (as built)
+
+No migration and no schema change — Phase 6 is stateless, exactly as scoped. The
+token carries its own claims; the endpoint re-derives + verifies. Backend follows the
+layered `handler → service → pg` split (the one new `pg` method is a read for the
+complaint hook). `go build`/`go vet`/tests pass; the full unsubscribe loop and the
+`complained`→suppression path were verified **live** against the running API + Postgres.
+
+- **Token format + signing key.** Opaque, self-contained, URL-safe:
+  `base64url(claimsJSON) + "." + base64url(HMAC-SHA256(claimsJSON, HashKey))`, signed with
+  **`env.HashKey`** (`BODHVEDA_API_HASH_KEY` — the same key that HMACs API-key tokens, **not**
+  the cipher key). Claims use short keys `{p:project_id, r:recipient_external_id, c/t/e:
+  channel/topic/event, exp:unix_seconds}`. Medium is **not** in the token — this is the email
+  unsubscribe surface, so email is implied. Lives in `internal/email/unsubscribe.go`
+  (`BuildUnsubscribeToken`/`ParseUnsubscribeToken`/`UnsubscribeURL`, `UnsubscribeClaims`).
+  **TTL = 180 days** (`unsubscribeTokenTTL`) — generous, since a recipient may unsubscribe
+  from an old email. Tampered/malformed/wrong-key ⇒ `ErrUnsubscribeTokenInvalid` (→ **400**);
+  well-signed-but-past-`exp` ⇒ `ErrUnsubscribeTokenExpired` (→ **401**). Signature compare is
+  constant-time (`hmac.Equal`).
+- **Endpoint URL shape: `GET|POST /unsubscribe/email?t=<token>`** (project is inside the token,
+  so no `{project_id}` path segment). Mounted at the **root router in `cmd/api/routes.go`**,
+  next to Phase 5's webhook and **OUTSIDE** the developer API-key group (no
+  `APIKeyBasedAuthMiddleware`, no permissive-CORS block), the console session group, and the
+  per-group `httprate` limiter — **the signed token IS the auth**. Both methods are idempotent
+  (they upsert the same disabled recipient preference):
+  - **POST** = RFC 8058 one-click (auto-POSTed by Gmail/Yahoo). Flips the pref, returns `200`
+    (JSON success, no meaningful body). Errors return JSON (400/401) like the other dev-API
+    surfaces.
+  - **GET** = flips the pref **and** renders a minimal self-contained HTML confirmation page
+    ("You've been unsubscribed from `<channel / topic / event>` emails"). Error cases render an
+    HTML error page instead of JSON (a human is in a browser). User-supplied target text is
+    `html.EscapeString`-escaped.
+- **The flip reuses the existing authenticated write path — no parallel disable.**
+  `service.UnsubscribeService.UnsubscribeEmail` parses the token, then calls
+  `PreferenceService.UpdateRecipientPreferenceTarget(projectID, recipientExtID,
+  {target, medium: email, enabled: false})` — the same upsert the console/API email toggle
+  uses. Verified live: the redeemed token writes a recipient-level `preference` row
+  `(digest/none/sent, medium=email, enabled=f)`, after which
+  `ShouldDirectNotificationBeDelivered(..., email)` returns **false**, so subsequent direct
+  sends record a `muted` delivery with `failure_reason=preference_disabled` (Phase 4 gate,
+  unchanged). `UnsubscribeService` reads `env.HashKey` at construction.
+- **Header injection on the outbound `email.Message`.** Phase 4's `Message`
+  (`internal/email/adapter.go`) gained a generic **`Headers map[string]string`** (chosen over
+  two explicit fields — future-proof, and the Resend adapter already has a natural
+  passthrough). The Resend adapter's `resendSendRequest` gained
+  `Headers map[string]string json:"headers,omitempty"` and passes it to the Resend `headers`
+  map. On **every** outbound email the worker sets the two exact RFC 8058 headers
+  Gmail/Yahoo one-click requires (matching what Resurface's `digest.ts` already sends):
+  - `List-Unsubscribe: <https://{BODHVEDA_API_URL}/unsubscribe/email?t=...>`
+  - `List-Unsubscribe-Post: List-Unsubscribe=One-Click`
+- **Token/URL built on the send path, carried through the queue.** `fanOutEmail`
+  (`service/notification.go`) has project/recipient/target in hand, so it builds the token +
+  URL there (`buildUnsubscribeURL`, best-effort: a build error or missing `BODHVEDA_API_URL`
+  ⇒ email still sends, just without the header) and carries the string through the new
+  `EmailDeliveryTaskPayload.UnsubscribeURL` → the `email:delivery` worker → `Message.Headers`.
+  The token is **not** rebuilt in the worker (no HashKey needed there).
+- **New env var `BODHVEDA_API_URL`** wired into `internal/env/env.go` (`env.APIURL`) — it
+  already existed in `.env`/`.env.example` (used by the console + Google OAuth URLs) but was
+  never loaded by the Go side. Added to the `api` **and** `worker` service `environment:` blocks
+  in `compose.yaml` (only `api` builds the token today; worker included for consistency).
+- **`complained` (spam) WAS wired to suppression here** (Phase 5 left the NOTE; it turned out to
+  be a small hook). On a `complained` webhook event, `EmailWebhookService` now looks up the
+  delivery's recipient + target (new reader `NotificationDeliveryRepository.
+  GetTargetByProviderMessageID`, a `notification_delivery ⋈ notification` join keyed by
+  `provider_message_id`) and flips the **email** preference for that `(recipient, target)` off
+  via the same `PreferenceService.UpdateRecipientPreferenceTarget` path — i.e. a spam complaint
+  auto-unsubscribes, identical effect to an explicit unsubscribe. **Best-effort:** any error
+  logs and never fails the webhook ack (the complaint is already recorded on the delivery row).
+  This required injecting `*PreferenceService` into `NewEmailWebhookService` (app.go wiring
+  updated). It is **target-scoped** (matching explicit unsubscribe); **address-level**
+  suppression across *all* targets remains the old doc's `email_suppression` table, deferred to
+  the managed-email tier. Verified live (the complaint flips `enabled=f` for the delivery's
+  target). The old Phase 5 NOTE in `email_webhook.go` is replaced by the implementation.
+- **Broadcast pipeline untouched** (email is DIRECT-only). **SDKs un-bumped** (Phase 7) — Phase 6
+  adds no SDK surface: the unsubscribe header rides outbound email, and the public endpoint is
+  hit by mail clients, not SDK callers.
+- **Tests:** `internal/email/unsubscribe_test.go` (token round-trip, tampered signature, wrong
+  key, malformed, expired, URL builder) and `internal/service/unsubscribe_test.go` (real-Postgres:
+  cataloged email delivers → after unsubscribe it's muted, idempotent repeat, malformed rejected;
+  gated on `TEST_DB_URL`, self-cleaning). The existing `internal/service/email_webhook_test.go`
+  gained a `complained`→suppression assertion. The full HTTP surface (POST 200 one-click, GET
+  HTML page, bad-token 400) was additionally driven **live** against the running API.
 
 ### Phase 7 — Public docs (Mintlify)
 

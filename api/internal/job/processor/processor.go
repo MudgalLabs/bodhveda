@@ -160,6 +160,16 @@ func (processor *EmailDeliveryProcessor) ProcessTask(ctx context.Context, t *asy
 		return fail("adapter_init_error", fmt.Errorf("build email adapter: %w", err))
 	}
 
+	// RFC 8058 unsubscribe headers (Phase 6). Gmail/Yahoo one-click requires both:
+	// the List-Unsubscribe URL Bodhveda hosts + the One-Click POST directive.
+	var headers map[string]string
+	if payload.UnsubscribeURL != "" {
+		headers = map[string]string{
+			"List-Unsubscribe":      "<" + payload.UnsubscribeURL + ">",
+			"List-Unsubscribe-Post": "List-Unsubscribe=One-Click",
+		}
+	}
+
 	result, err := adapter.Send(ctx, email.Message{
 		FromName:    settings.FromName,
 		FromAddress: settings.FromAddress,
@@ -167,6 +177,7 @@ func (processor *EmailDeliveryProcessor) ProcessTask(ctx context.Context, t *asy
 		Subject:     payload.Subject,
 		HTML:        payload.HTML,
 		Text:        payload.Text,
+		Headers:     headers,
 	})
 	if err != nil {
 		return fail("provider_send_error", fmt.Errorf("send email: %w", err))

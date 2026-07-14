@@ -13,6 +13,10 @@ var (
 	DBURL    string
 	RedisURL string
 	WebURL   string
+	// APIURL is Bodhveda's own public base URL (BODHVEDA_API_URL). Used to build
+	// self-referential links Bodhveda hosts — e.g. the public unsubscribe endpoint
+	// injected into outbound email's List-Unsubscribe header (Phase 6).
+	APIURL string
 	// ENABLE_SIGN_UP       bool
 	// ENABLE_SIGN_IN       bool
 	ENABLE_GOOGLE_OAUTH  bool
@@ -41,6 +45,7 @@ func Init(path string) {
 	DBURL = os.Getenv("BODHVEDA_DB_URL")
 	RedisURL = os.Getenv("BODHVEDA_REDIS_URL")
 	WebURL = os.Getenv("BODHVEDA_WEB_URL")
+	APIURL = os.Getenv("BODHVEDA_API_URL")
 	// ENABLE_SIGN_UP = os.Getenv("BODHVEDA_ENABLE_SIGN_UP") == "true"
 	// ENABLE_SIGN_IN = os.Getenv("BODHVEDA_ENABLE_SIGN_IN") == "true"
 	ENABLE_GOOGLE_OAUTH = os.Getenv("BODHVEDA_ENABLE_GOOGLE_OAUTH") == "true"

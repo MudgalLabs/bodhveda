@@ -278,6 +278,11 @@ type EmailDeliveryTaskPayload struct {
 	Subject    string
 	HTML       string
 	Text       string
+	// UnsubscribeURL is the public one-click unsubscribe link (Phase 6) injected as
+	// the outbound email's List-Unsubscribe header. Built on the send path (which
+	// has project/recipient/target) and carried through so the worker can set the
+	// header without re-deriving the token.
+	UnsubscribeURL string
 }
 
 type NotificationsOverviewResult struct {

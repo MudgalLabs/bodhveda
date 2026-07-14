@@ -7,6 +7,8 @@ import (
 	"fmt"
 
 	"github.com/hibiken/asynq"
+	"github.com/mudgallabs/bodhveda/internal/email"
+	"github.com/mudgallabs/bodhveda/internal/env"
 	"github.com/mudgallabs/bodhveda/internal/job/task"
 	"github.com/mudgallabs/bodhveda/internal/model/dto"
 	"github.com/mudgallabs/bodhveda/internal/model/entity"
@@ -250,13 +252,20 @@ func (s *NotificationService) fanOutEmail(ctx context.Context, notification *ent
 		return nil, err
 	}
 
+	// Build the one-click unsubscribe URL (Phase 6). Best-effort: if the token
+	// can't be built the email still sends, just without the List-Unsubscribe
+	// header. The token identifies (project, recipient, target); the endpoint
+	// re-derives + verifies it (no DB row).
+	unsubscribeURL := s.buildUnsubscribeURL(projectID, recipientExtID, target)
+
 	taskPayload, err := json.Marshal(dto.EmailDeliveryTaskPayload{
-		DeliveryID: created.ID,
-		ProjectID:  projectID,
-		To:         contact.Address,
-		Subject:    email.Subject,
-		HTML:       email.HTML,
-		Text:       email.ResolvedText(),
+		DeliveryID:     created.ID,
+		ProjectID:      projectID,
+		To:             contact.Address,
+		Subject:        email.Subject,
+		HTML:           email.HTML,
+		Text:           email.ResolvedText(),
+		UnsubscribeURL: unsubscribeURL,
 	})
 	if err != nil {
 		s.markDeliveryFailed(ctx, created.ID, "enqueue_marshal_error")
@@ -284,6 +293,28 @@ func (s *NotificationService) markDeliveryFailed(ctx context.Context, deliveryID
 	if err != nil {
 		logger.Get().Errorf("mark email delivery %d failed: %v", deliveryID, err)
 	}
+}
+
+// buildUnsubscribeURL signs a Phase 6 unsubscribe token for (project, recipient,
+// target) and returns the public one-click URL. Returns "" (no header injected) if
+// the token can't be built or no API base URL is configured — the email still
+// sends, just without List-Unsubscribe.
+func (s *NotificationService) buildUnsubscribeURL(projectID int, recipientExtID string, target dto.Target) string {
+	if env.APIURL == "" {
+		return ""
+	}
+	token, err := email.BuildUnsubscribeToken(email.UnsubscribeClaims{
+		ProjectID:      projectID,
+		RecipientExtID: recipientExtID,
+		Channel:        target.Channel,
+		Topic:          target.Topic,
+		Event:          target.Event,
+	}, []byte(env.HashKey))
+	if err != nil {
+		logger.Get().Errorf("build unsubscribe token for project %d recipient %s: %v", projectID, recipientExtID, err)
+		return ""
+	}
+	return email.UnsubscribeURL(env.APIURL, token)
 }
 
 func (s *NotificationService) sendBroadcastNotification(ctx context.Context, userID int, payload dto.SendNotificationPayload) (*dto.Broadcast, error) {

@@ -58,6 +58,11 @@ type Message struct {
 	Subject     string
 	HTML        string
 	Text        string
+	// Headers are extra provider headers to set on the outbound message. In v1
+	// this carries the RFC 8058 unsubscribe headers (List-Unsubscribe /
+	// List-Unsubscribe-Post — Phase 6). The adapter passes them through to the
+	// provider's headers map.
+	Headers map[string]string
 }
 
 // SendResult is the normalized outcome of a provider send. ProviderMessageID is

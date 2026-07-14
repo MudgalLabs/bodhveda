@@ -23,6 +23,21 @@ type NotificationDeliveryReader interface {
 	// EmailDeliveryOverviewForProject aggregates email delivery rows into
 	// per-status counts for the console analytics view (Phase 5).
 	EmailDeliveryOverviewForProject(ctx context.Context, projectID int) (*dto.EmailDeliveryOverview, error)
+	// GetTargetByProviderMessageID returns the recipient + target for the delivery
+	// row matched by provider_message_id (joined to its notification). Used to wire
+	// a spam `complained` webhook to a per-target email preference flip (Phase 6).
+	// Returns ErrNotFound when no row matches.
+	GetTargetByProviderMessageID(ctx context.Context, providerMessageID string) (*DeliveryTarget, error)
+}
+
+// DeliveryTarget is the recipient + target a delivery row belongs to, resolved
+// from provider_message_id for the complaint-suppression hook (Phase 6).
+type DeliveryTarget struct {
+	ProjectID      int
+	RecipientExtID string
+	Channel        string
+	Topic          string
+	Event          string
 }
 
 type NotificationDeliveryWriter interface {

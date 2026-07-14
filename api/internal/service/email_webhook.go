@@ -7,6 +7,7 @@ import (
 	"net/http"
 
 	"github.com/mudgallabs/bodhveda/internal/email"
+	"github.com/mudgallabs/bodhveda/internal/model/dto"
 	"github.com/mudgallabs/bodhveda/internal/model/enum"
 	"github.com/mudgallabs/bodhveda/internal/model/repository"
 	"github.com/mudgallabs/tantra/logger"
@@ -20,17 +21,20 @@ import (
 // signature verification and event normalization, so a new provider slots in
 // without changing this service or the public endpoint.
 type EmailWebhookService struct {
-	projectEmailRepo repository.ProjectEmailSettingsRepository
-	deliveryRepo     repository.NotificationDeliveryRepository
+	projectEmailRepo  repository.ProjectEmailSettingsRepository
+	deliveryRepo      repository.NotificationDeliveryRepository
+	preferenceService *PreferenceService
 }
 
 func NewEmailWebhookService(
 	projectEmailRepo repository.ProjectEmailSettingsRepository,
 	deliveryRepo repository.NotificationDeliveryRepository,
+	preferenceService *PreferenceService,
 ) *EmailWebhookService {
 	return &EmailWebhookService{
-		projectEmailRepo: projectEmailRepo,
-		deliveryRepo:     deliveryRepo,
+		projectEmailRepo:  projectEmailRepo,
+		deliveryRepo:      deliveryRepo,
+		preferenceService: preferenceService,
 	}
 }
 
@@ -106,11 +110,48 @@ func (s *EmailWebhookService) Ingest(ctx context.Context, projectID int, headers
 		return service.ErrInternalServerError, fmt.Errorf("apply webhook status: %w", err)
 	}
 
-	// NOTE (Phase 6): a `complained` (spam) event should eventually suppress
-	// future email to this contact. Suppression itself is deliberately deferred —
-	// here we only record the complaint on the delivery row.
+	// A `complained` (spam) event suppresses future email to that (recipient,
+	// target) by flipping the email medium preference off — the same effect as an
+	// explicit unsubscribe (Phase 6). Best-effort: a failure here never fails the
+	// webhook ack (the complaint is already recorded on the delivery row). This is
+	// target-scoped (matching explicit unsubscribe); address-level suppression
+	// across all targets is the old doc's `email_suppression` table, deferred to the
+	// managed-email tier.
+	if ev.Kind == email.WebhookEventComplained {
+		s.suppressEmailAfterComplaint(ctx, projectID, ev.ProviderMessageID)
+	}
+
 	logger.Get().Infof("email webhook: applied %q to delivery (provider message id %q, project %d)", ev.Kind, ev.ProviderMessageID, projectID)
 	return service.ErrNone, nil
+}
+
+// suppressEmailAfterComplaint disables the email medium preference for the
+// (recipient, target) behind a complained delivery. Best-effort — logs and returns
+// on any error; never fails the webhook.
+func (s *EmailWebhookService) suppressEmailAfterComplaint(ctx context.Context, projectID int, providerMessageID string) {
+	target, err := s.deliveryRepo.GetTargetByProviderMessageID(ctx, providerMessageID)
+	if err != nil {
+		logger.Get().Warnf("email webhook: could not resolve target for complained delivery (provider message id %q, project %d): %v", providerMessageID, projectID, err)
+		return
+	}
+
+	payload := dto.PatchRecipientPreferenceTargetPayload{
+		Target: dto.PreferenceTarget{Target: dto.Target{
+			Channel: target.Channel,
+			Topic:   target.Topic,
+			Event:   target.Event,
+		}},
+		Medium: string(enum.MediumEmail),
+	}
+	payload.State.Enabled = false
+
+	if _, _, err := s.preferenceService.UpdateRecipientPreferenceTarget(ctx, target.ProjectID, target.RecipientExtID, payload); err != nil {
+		logger.Get().Errorf("email webhook: failed to suppress email after complaint (project %d, recipient %s): %v", target.ProjectID, target.RecipientExtID, err)
+		return
+	}
+
+	logger.Get().Infof("email webhook: suppressed email for recipient %s target %s/%s/%s after complaint (project %d)",
+		target.RecipientExtID, target.Channel, target.Topic, target.Event, target.ProjectID)
 }
 
 // webhookStatusFor maps a normalized event kind to the delivery status it drives.
