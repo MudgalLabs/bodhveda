@@ -11,6 +11,7 @@ import (
 	"github.com/hibiken/asynq"
 	"github.com/jackc/pgx/v5"
 	"github.com/jackc/pgx/v5/pgxpool"
+	"github.com/mudgallabs/bodhveda/internal/email"
 	"github.com/mudgallabs/bodhveda/internal/job/task"
 	"github.com/mudgallabs/bodhveda/internal/model/dto"
 	"github.com/mudgallabs/bodhveda/internal/model/entity"
@@ -51,7 +52,9 @@ func (processor *NotificationDeliveryProcessor) ProcessTask(ctx context.Context,
 
 	notification := payload.Notification
 
-	shouldDeliver, err := processor.preferenceRepo.ShouldDirectNotificationBeDelivered(ctx, notification.ProjectID, notification.RecipientExtID, dto.TargetFromNotification(notification))
+	// The worker's delivery step is the in-app inbox write; gate it on the
+	// in_app medium (preserves legacy behavior: deliver unless muted).
+	shouldDeliver, err := processor.preferenceRepo.ShouldDirectNotificationBeDelivered(ctx, notification.ProjectID, notification.RecipientExtID, dto.TargetFromNotification(notification), enum.MediumInApp)
 	if err != nil {
 		return err
 	}
@@ -93,6 +96,109 @@ func (processor *NotificationDeliveryProcessor) ProcessTask(ctx context.Context,
 	return nil
 }
 
+// EmailDeliveryProcessor sends one email for a direct notification and records
+// the outcome on its notification_delivery row. It loads the project's email
+// settings fresh (respecting key rotation; no secret rides through Redis),
+// builds the provider adapter, sends, and updates the delivery row to sent or
+// failed. Email is DIRECT-only — this processor is never invoked for broadcasts.
+type EmailDeliveryProcessor struct {
+	deliveryRepo     repository.NotificationDeliveryRepository
+	projectEmailRepo repository.ProjectEmailSettingsRepository
+}
+
+func NewEmailDeliveryProcessor(
+	deliveryRepo repository.NotificationDeliveryRepository,
+	projectEmailRepo repository.ProjectEmailSettingsRepository,
+) *EmailDeliveryProcessor {
+	return &EmailDeliveryProcessor{
+		deliveryRepo:     deliveryRepo,
+		projectEmailRepo: projectEmailRepo,
+	}
+}
+
+func (processor *EmailDeliveryProcessor) ProcessTask(ctx context.Context, t *asynq.Task) error {
+	var payload dto.EmailDeliveryTaskPayload
+	if err := json.Unmarshal(t.Payload(), &payload); err != nil {
+		err = fmt.Errorf("json.Unmarshal failed: %v: %w", err, asynq.SkipRetry)
+		logger.Get().Error(err)
+		return err
+	}
+
+	attempt := 1
+	if count, ok := asynq.GetRetryCount(ctx); ok {
+		attempt = count + 1
+	}
+
+	// fail records a terminal failed outcome on the delivery row. Returning the
+	// original error lets Asynq retry (up to MaxRetry); the row reflects the
+	// latest attempt.
+	fail := func(reason string, cause error) error {
+		r := reason
+		updateErr := processor.deliveryRepo.UpdateResult(ctx, payload.DeliveryID, repository.NotificationDeliveryResult{
+			Status:        enum.DeliveryFailed,
+			FailureReason: &r,
+			Attempt:       attempt,
+		})
+		if updateErr != nil {
+			logger.Get().Errorf("EmailDeliveryProcessor: update delivery %d failed status: %v", payload.DeliveryID, updateErr)
+		}
+		return cause
+	}
+
+	settings, err := processor.projectEmailRepo.Get(ctx, payload.ProjectID)
+	if err != nil {
+		return fail("provider_not_configured", fmt.Errorf("get project email settings: %w", err))
+	}
+
+	apiKey, err := settings.DecryptSecret()
+	if err != nil {
+		return fail("secret_decrypt_error", fmt.Errorf("decrypt provider secret: %w", err))
+	}
+
+	adapter, err := email.NewAdapter(settings.Provider, apiKey)
+	if err != nil {
+		return fail("adapter_init_error", fmt.Errorf("build email adapter: %w", err))
+	}
+
+	// RFC 8058 unsubscribe headers (Phase 6). Gmail/Yahoo one-click requires both:
+	// the List-Unsubscribe URL Bodhveda hosts + the One-Click POST directive.
+	var headers map[string]string
+	if payload.UnsubscribeURL != "" {
+		headers = map[string]string{
+			"List-Unsubscribe":      "<" + payload.UnsubscribeURL + ">",
+			"List-Unsubscribe-Post": "List-Unsubscribe=One-Click",
+		}
+	}
+
+	result, err := adapter.Send(ctx, email.Message{
+		FromName:    settings.FromName,
+		FromAddress: settings.FromAddress,
+		To:          payload.To,
+		Subject:     payload.Subject,
+		HTML:        payload.HTML,
+		Text:        payload.Text,
+		Headers:     headers,
+	})
+	if err != nil {
+		return fail("provider_send_error", fmt.Errorf("send email: %w", err))
+	}
+
+	provider := string(result.Provider)
+	messageID := result.ProviderMessageID
+	err = processor.deliveryRepo.UpdateResult(ctx, payload.DeliveryID, repository.NotificationDeliveryResult{
+		Status:            enum.DeliverySent,
+		Provider:          &provider,
+		ProviderMessageID: &messageID,
+		Attempt:           attempt,
+	})
+	if err != nil {
+		return fmt.Errorf("update delivery sent status: %w", err)
+	}
+
+	logger.Get().Infof("EmailDeliveryProcessor: sent email for delivery %d (provider message id %s)", payload.DeliveryID, messageID)
+	return nil
+}
+
 type PrepareBroadcastBatchesProcessor struct {
 	db                 *pgxpool.Pool
 	asynqClient        *asynq.Client
@@ -127,7 +233,8 @@ func (processor *PrepareBroadcastBatchesProcessor) ProcessTask(ctx context.Conte
 
 	broadcast := payload.Broadcast
 
-	recipientExtIDs, err := processor.preferenceRepo.ListEligibleRecipientExtIDsForBroadcast(ctx, broadcast.ProjectID, dto.TargetFromBroadcast(broadcast))
+	// Broadcasts fan out in-app only (email is direct-only).
+	recipientExtIDs, err := processor.preferenceRepo.ListEligibleRecipientExtIDsForBroadcast(ctx, broadcast.ProjectID, dto.TargetFromBroadcast(broadcast), enum.MediumInApp)
 	if err != nil {
 		err = fmt.Errorf("list eligible recipient external IDs: %w", err)
 		logger.Get().Error(err)

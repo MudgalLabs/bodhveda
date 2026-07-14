@@ -28,22 +28,25 @@ func NewPreferenceRepo(db *pgxpool.Pool) repository.PreferenceRepository {
 }
 
 func (r *PreferenceRepo) Create(ctx context.Context, pref *entity.Preference) (*entity.Preference, error) {
+	// The ON CONFLICT target must match the recipient partial unique index, which
+	// now includes `medium` (see migration 20260712130000). This clause and that
+	// index move in lock-step.
 	sql := `
-		INSERT INTO preference (project_id, recipient_external_id, channel, topic, event, label, enabled, created_at, updated_at)
-		VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9)
-		ON CONFLICT (project_id, recipient_external_id, channel, topic, event)
+		INSERT INTO preference (project_id, recipient_external_id, channel, topic, event, medium, label, enabled, created_at, updated_at)
+		VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10)
+		ON CONFLICT (project_id, recipient_external_id, channel, topic, event, medium)
 		WHERE recipient_external_id IS NOT NULL
 		DO UPDATE SET
 			enabled = EXCLUDED.enabled,
 			updated_at = EXCLUDED.updated_at
-		RETURNING id, project_id, recipient_external_id, channel, topic, event, label, enabled, created_at, updated_at
+		RETURNING id, project_id, recipient_external_id, channel, topic, event, medium, label, enabled, created_at, updated_at
 	`
 
-	row := r.db.QueryRow(ctx, sql, pref.ProjectID, pref.RecipientExtID, pref.Channel, pref.Topic, pref.Event, pref.Label, pref.Enabled, pref.CreatedAt, pref.UpdatedAt)
+	row := r.db.QueryRow(ctx, sql, pref.ProjectID, pref.RecipientExtID, pref.Channel, pref.Topic, pref.Event, pref.Medium, pref.Label, pref.Enabled, pref.CreatedAt, pref.UpdatedAt)
 
 	var newPref entity.Preference
 
-	err := row.Scan(&newPref.ID, &newPref.ProjectID, &newPref.RecipientExtID, &newPref.Channel, &newPref.Topic, &newPref.Event, &newPref.Label, &newPref.Enabled, &newPref.CreatedAt, &newPref.UpdatedAt)
+	err := row.Scan(&newPref.ID, &newPref.ProjectID, &newPref.RecipientExtID, &newPref.Channel, &newPref.Topic, &newPref.Event, &newPref.Medium, &newPref.Label, &newPref.Enabled, &newPref.CreatedAt, &newPref.UpdatedAt)
 	if err != nil {
 		if dbx.IsUniqueViolation(err) {
 			return nil, tantraRepo.ErrConflict
@@ -77,8 +80,8 @@ func (r *PreferenceRepo) ListPreferencesForRecipient(ctx context.Context, projec
 
 func (r *PreferenceRepo) findPreferences(ctx context.Context, payload repository.SearchPreferencePayload) ([]*entity.Preference, int, error) {
 	baseSQL := `
-		SELECT 
-			p.id, p.project_id, p.recipient_external_id, p.channel, p.topic, p.event, p.label, p.enabled, p.created_at, p.updated_at
+		SELECT
+			p.id, p.project_id, p.recipient_external_id, p.channel, p.topic, p.event, p.medium, p.label, p.enabled, p.created_at, p.updated_at
 		FROM preference p
 	`
 
@@ -131,7 +134,7 @@ func (r *PreferenceRepo) findPreferences(ctx context.Context, payload repository
 	prefs := []*entity.Preference{}
 	for rows.Next() {
 		var newPref entity.Preference
-		err := rows.Scan(&newPref.ID, &newPref.ProjectID, &newPref.RecipientExtID, &newPref.Channel, &newPref.Topic, &newPref.Event, &newPref.Label, &newPref.Enabled, &newPref.CreatedAt, &newPref.UpdatedAt)
+		err := rows.Scan(&newPref.ID, &newPref.ProjectID, &newPref.RecipientExtID, &newPref.Channel, &newPref.Topic, &newPref.Event, &newPref.Medium, &newPref.Label, &newPref.Enabled, &newPref.CreatedAt, &newPref.UpdatedAt)
 
 		if err != nil {
 			return nil, 0, err
@@ -154,8 +157,22 @@ func (r *PreferenceRepo) findPreferences(ctx context.Context, payload repository
 	return prefs, total, nil
 }
 
-func (r *PreferenceRepo) ShouldDirectNotificationBeDelivered(ctx context.Context, projectID int, recipientExtID string, target dto.Target) (bool, error) {
-	shouldDeliver := true
+// ShouldDirectNotificationBeDelivered resolves, for a single medium, whether a
+// direct notification should be delivered. The preference cascade runs entirely
+// within that medium (recipient-exact → recipient-fallback → project-exact →
+// project-fallback).
+//
+// The default when nothing matches is medium-dependent:
+//   - in_app defaults to DELIVER (true), preserving legacy behavior — direct
+//     in-app notifications deliver unless explicitly muted, no catalog required.
+//   - every other medium defaults to NOT deliver (false): it fires only when it
+//     is cataloged (a project-level row exists) or the recipient explicitly
+//     enabled it. This is the catalog gate for non-in_app transports.
+func (r *PreferenceRepo) ShouldDirectNotificationBeDelivered(ctx context.Context, projectID int, recipientExtID string, target dto.Target, medium enum.Medium) (bool, error) {
+	// Default delivery decision when no preference row is found.
+	defaultDeliver := medium == enum.MediumInApp
+
+	shouldDeliver := defaultDeliver
 
 	shouldDeliverSQL := `
 		-- INPUTS:
@@ -164,6 +181,8 @@ func (r *PreferenceRepo) ShouldDirectNotificationBeDelivered(ctx context.Context
 		-- $3 = channel
 		-- $4 = topic (e.g. post_123)
 		-- $5 = event
+		-- $6 = medium
+		-- $7 = default delivery decision when no preference matches
 
 		WITH
 		-- 1. Try recipient preference for exact match
@@ -175,6 +194,7 @@ func (r *PreferenceRepo) ShouldDirectNotificationBeDelivered(ctx context.Context
 		      AND channel = $3
 		      AND topic = $4
 		      AND event = $5
+		      AND medium = $6
 		    LIMIT 1
 		),
 
@@ -187,6 +207,7 @@ func (r *PreferenceRepo) ShouldDirectNotificationBeDelivered(ctx context.Context
 		      AND channel = $3
 		      AND topic = 'any'
 		      AND event = $5
+		      AND medium = $6
 		      AND $4 != 'none'
 		    LIMIT 1
 		),
@@ -200,6 +221,7 @@ func (r *PreferenceRepo) ShouldDirectNotificationBeDelivered(ctx context.Context
 		      AND channel = $3
 		      AND topic = $4
 		      AND event = $5
+		      AND medium = $6
 		    LIMIT 1
 		),
 
@@ -212,6 +234,7 @@ func (r *PreferenceRepo) ShouldDirectNotificationBeDelivered(ctx context.Context
 		      AND channel = $3
 		      AND topic = 'any'
 		      AND event = $5
+		      AND medium = $6
 		      AND $4 != 'none'
 		    LIMIT 1
 		)
@@ -223,7 +246,7 @@ func (r *PreferenceRepo) ShouldDirectNotificationBeDelivered(ctx context.Context
 		        (SELECT enabled FROM recipient_fallback_pref),
 		        (SELECT enabled FROM project_exact_pref),
 		        (SELECT enabled FROM project_fallback_pref),
-	        true  -- default: DELIVER if nothing found (for direct notification)
+	        $7  -- default: medium-dependent (in_app delivers, others don't)
 	    ) AS should_deliver;
 	`
 
@@ -233,6 +256,8 @@ func (r *PreferenceRepo) ShouldDirectNotificationBeDelivered(ctx context.Context
 		target.Channel,
 		target.Topic,
 		target.Event,
+		string(medium),
+		defaultDeliver,
 	).Scan(&shouldDeliver)
 	if err != nil {
 		return false, err
@@ -241,13 +266,19 @@ func (r *PreferenceRepo) ShouldDirectNotificationBeDelivered(ctx context.Context
 	return shouldDeliver, err
 }
 
-func (r *PreferenceRepo) ListEligibleRecipientExtIDsForBroadcast(ctx context.Context, projectID int, target dto.Target) ([]string, error) {
+// ListEligibleRecipientExtIDsForBroadcast returns recipients opted in to a
+// (target, medium) for broadcast fan-out. Broadcasts are in-app only in v1 (email
+// is direct-only — see the HARD RULE in agent-docs/overview.md), so callers pass
+// enum.MediumInApp; the medium filter keeps the query correct now that
+// preferences are per-medium.
+func (r *PreferenceRepo) ListEligibleRecipientExtIDsForBroadcast(ctx context.Context, projectID int, target dto.Target, medium enum.Medium) ([]string, error) {
 	sql := `
 		-- INPUTS:
 		-- $1 = project_id
 		-- $2 = channel
 		-- $3 = topic
 		-- $4 = event
+		-- $5 = medium
 
 		SELECT r.external_id
 		FROM recipient r
@@ -257,12 +288,14 @@ func (r *PreferenceRepo) ListEligibleRecipientExtIDsForBroadcast(ctx context.Con
 			AND rp.channel = $2
 			AND rp.topic = $3
 			AND rp.event = $4
+			AND rp.medium = $5
 		LEFT JOIN preference pp
 			ON pp.project_id = r.project_id
 			AND pp.recipient_external_id IS NULL
 			AND pp.channel = $2
 			AND pp.topic = $3
 			AND pp.event = $4
+			AND pp.medium = $5
 		WHERE r.project_id = $1
 			AND (
 				rp.enabled = true
@@ -270,7 +303,7 @@ func (r *PreferenceRepo) ListEligibleRecipientExtIDsForBroadcast(ctx context.Con
 			);
 	`
 
-	rows, err := r.db.Query(ctx, sql, projectID, target.Channel, target.Topic, target.Event)
+	rows, err := r.db.Query(ctx, sql, projectID, target.Channel, target.Topic, target.Event, string(medium))
 	if err != nil {
 		return nil, fmt.Errorf("query: %w", err)
 	}
@@ -339,7 +372,11 @@ func (r *PreferenceRepo) Delete(ctx context.Context, projectID int, preferenceID
 	return nil
 }
 
-func (r *PreferenceRepo) DoesProjectPreferenceExist(ctx context.Context, projectID int, target dto.Target) (bool, error) {
+// DoesProjectPreferenceExist reports whether a (target, medium) is in the project
+// catalog — i.e. a project-level preference row exists for it. It gates the
+// broadcast precondition (callers pass enum.MediumInApp) and is the catalog
+// primitive for non-in_app mediums.
+func (r *PreferenceRepo) DoesProjectPreferenceExist(ctx context.Context, projectID int, target dto.Target, medium enum.Medium) (bool, error) {
 	sql := `
 		SELECT true
 		FROM preference
@@ -348,12 +385,13 @@ func (r *PreferenceRepo) DoesProjectPreferenceExist(ctx context.Context, project
 		  AND channel = $2
 		  AND topic = $3
 		  AND event = $4
+		  AND medium = $5
 		LIMIT 1;
 	`
 
 	var exists bool
 
-	err := r.db.QueryRow(ctx, sql, projectID, target.Channel, target.Topic, target.Event).Scan(&exists)
+	err := r.db.QueryRow(ctx, sql, projectID, target.Channel, target.Topic, target.Event, string(medium)).Scan(&exists)
 	if err != nil {
 		if err == pgx.ErrNoRows {
 			return false, nil

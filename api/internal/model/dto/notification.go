@@ -91,6 +91,49 @@ func TargetFromPreference(pref *entity.Preference) Target {
 	}
 }
 
+// EmailContent is the typed sibling `email` block on a send call. Its presence
+// is the sender's "email is eligible for this send" signal (content-block-implies-
+// intent — see agent-docs/overview.md, "Semantics"). Absence ⇒ no email; there
+// is NO fallback that derives email from `payload`.
+//
+// Bodhveda is a pass-through in v1: the caller renders its own template and
+// passes the result. Subject is required; at least one of HTML/Text must be
+// present. Text is recommended for deliverability and is auto-derived from HTML
+// when omitted.
+type EmailContent struct {
+	Subject string `json:"subject"`
+	HTML    string `json:"html"`
+	Text    string `json:"text"`
+}
+
+// ResolvedText returns Text, or a naive plain-text rendering of HTML when Text
+// was omitted (deliverability aid). It is intentionally minimal — real callers
+// (e.g. @react-email's render()) supply their own text.
+func (e *EmailContent) ResolvedText() string {
+	if strings.TrimSpace(e.Text) != "" {
+		return e.Text
+	}
+	return htmlToText(e.HTML)
+}
+
+// htmlToText strips tags for a rough text/plain alternative. Not a full renderer.
+func htmlToText(html string) string {
+	var b strings.Builder
+	inTag := false
+	for _, r := range html {
+		switch {
+		case r == '<':
+			inTag = true
+		case r == '>':
+			inTag = false
+			b.WriteByte(' ')
+		case !inTag:
+			b.WriteRune(r)
+		}
+	}
+	return strings.TrimSpace(strings.Join(strings.Fields(b.String()), " "))
+}
+
 type SendNotificationPayload struct {
 	ProjectID int
 
@@ -101,9 +144,19 @@ type SendNotificationPayload struct {
 	// Optional for direct notifications, but required for broadcast notifications.
 	Target *Target `json:"target"`
 
-	// Payload is the actual notification payload.
+	// Payload is the actual notification payload (the in-app/default content).
 	// TODO: Add a 4KB limit to this field.
 	Payload json.RawMessage `json:"payload"`
+
+	// Email, when present, makes email eligible for this send (direct-only).
+	// Absence ⇒ no email. See EmailContent.
+	Email *EmailContent `json:"email"`
+}
+
+// HasEmail reports whether the send carries an email content block (the sender's
+// intent-to-email signal).
+func (p *SendNotificationPayload) HasEmail() bool {
+	return p.Email != nil
 }
 
 func (p *SendNotificationPayload) Validate() error {
@@ -140,6 +193,22 @@ func (p *SendNotificationPayload) Validate() error {
 		}
 	}
 
+	// Email block: email is DIRECT-only (HARD RULE — never on broadcast). Reject
+	// an email block on a broadcast rather than silently dropping it.
+	if p.Email != nil {
+		if p.RecipientExtID == nil {
+			errs.Add(apires.NewApiError("Email not supported on broadcasts", "The 'email' block is only supported on direct sends (a recipient_id must be set). Broadcasts are in-app only.", "email", nil))
+		}
+
+		if strings.TrimSpace(p.Email.Subject) == "" {
+			errs.Add(apires.NewApiError("Email subject is required", "email.subject cannot be empty when an email block is provided", "email.subject", p.Email.Subject))
+		}
+
+		if strings.TrimSpace(p.Email.HTML) == "" && strings.TrimSpace(p.Email.Text) == "" {
+			errs.Add(apires.NewApiError("Email content is required", "At least one of email.html or email.text must be provided", "email", nil))
+		}
+	}
+
 	if len(errs) > 0 {
 		return errs
 	}
@@ -163,12 +232,82 @@ type SendNotificationResult struct {
 	// Broadcast is the broadcast that was sent.
 	// Nil, if this is a direct notification.
 	Broadcast *Broadcast `json:"broadcast"`
+	// Deliveries carries the per-medium delivery outcomes resolved on a direct
+	// send (email in v1). A partial-medium failure does NOT reject the whole send
+	// (old doc #19) — the send returns 200 and the outcome is reported here. In-app
+	// is intentionally absent (its outcome lives on the notification row).
+	Deliveries []*NotificationDelivery `json:"deliveries,omitempty"`
+}
+
+// NotificationDelivery is the API representation of a per-(notification, medium)
+// delivery record. Returned in the send response so callers see per-medium
+// outcomes (pending/muted/no_contact/failed at send time; sent/failed later).
+type NotificationDelivery struct {
+	Medium        string    `json:"medium"`
+	Status        string    `json:"status"`
+	Address       *string   `json:"address,omitempty"`
+	FailureReason *string   `json:"failure_reason,omitempty"`
+	CreatedAt     time.Time `json:"created_at"`
+	UpdatedAt     time.Time `json:"updated_at"`
+}
+
+func FromNotificationDelivery(d *entity.NotificationDelivery) *NotificationDelivery {
+	if d == nil {
+		return nil
+	}
+	return &NotificationDelivery{
+		Medium:        string(d.Medium),
+		Status:        string(d.Status),
+		Address:       d.AddressSnapshot,
+		FailureReason: d.FailureReason,
+		CreatedAt:     d.CreatedAt,
+		UpdatedAt:     d.UpdatedAt,
+	}
+}
+
+// EmailDeliveryTaskPayload is the Asynq payload for the email:delivery task. It
+// carries the delivery row id (the row is created synchronously on the send path
+// with status=pending) plus the normalized email content + recipient address.
+// The provider secret is NOT included — the worker loads and decrypts the
+// project's email settings fresh, so key rotation is respected and no secret
+// rides through Redis.
+type EmailDeliveryTaskPayload struct {
+	DeliveryID int64
+	ProjectID  int
+	To         string
+	Subject    string
+	HTML       string
+	Text       string
+	// UnsubscribeURL is the public one-click unsubscribe link (Phase 6) injected as
+	// the outbound email's List-Unsubscribe header. Built on the send path (which
+	// has project/recipient/target) and carried through so the worker can set the
+	// header without re-deriving the token.
+	UnsubscribeURL string
 }
 
 type NotificationsOverviewResult struct {
 	TotalNotifications int `json:"total_notifications"`
 	TotalDirectSent    int `json:"total_direct_sent"`
 	TotalBroadcastSent int `json:"total_broadcast_sent"`
+}
+
+// EmailDeliveryOverview aggregates the email `notification_delivery` rows for a
+// project into per-status counts, powering the console's email analytics (Phase
+// 5). `Opened` / `Clicked` are counted from the *_at timestamps (they are soft
+// signals that do not change `status`) — note in the UI that email "opened" is
+// directional only (Apple Mail Privacy Protection inflates it).
+type EmailDeliveryOverview struct {
+	Total      int `json:"total"`
+	Pending    int `json:"pending"`
+	Sent       int `json:"sent"`
+	Delivered  int `json:"delivered"`
+	Bounced    int `json:"bounced"`
+	Complained int `json:"complained"`
+	Failed     int `json:"failed"`
+	NoContact  int `json:"no_contact"`
+	Muted      int `json:"muted"`
+	Opened     int `json:"opened"`
+	Clicked    int `json:"clicked"`
 }
 
 func FromNotifications(notifications []*entity.Notification) []*Notification {

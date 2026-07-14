@@ -25,7 +25,8 @@
                                     "docs/concepts/recipients",
                                     "docs/concepts/targets",
                                     "docs/concepts/preferences",
-                                    "docs/concepts/notifications"
+                                    "docs/concepts/notifications",
+                                    "docs/concepts/mediums"
                                 ]
                             }
                         ]
@@ -68,6 +69,15 @@
                                     "api-reference/endpoint/recipients/preferences/list-preferences",
                                     "api-reference/endpoint/recipients/preferences/set-preference",
                                     "api-reference/endpoint/recipients/preferences/check-preference"
+                                ]
+                            },
+                            {
+                                "group": "Contacts",
+                                "pages": [
+                                    "api-reference/endpoint/recipients/contacts/list-contacts",
+                                    "api-reference/endpoint/recipients/contacts/create-contact",
+                                    "api-reference/endpoint/recipients/contacts/update-contact",
+                                    "api-reference/endpoint/recipients/contacts/delete-contact"
                                 ]
                             }
                         ]

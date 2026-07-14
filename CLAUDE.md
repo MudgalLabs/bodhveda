@@ -85,7 +85,7 @@ The api enqueues, the worker (`cmd/worker/main.go`) consumes. Task types live in
 - `broadcast:delivery` — deliver one batch
 - `recipient:delete_data` / `project:delete_data` — async cascading cleanup
 
-In dev, `make up` starts `asynqmon` on `:7755` for queue introspection. The worker is a separate process — `make dev` does not start it; run `go run ./cmd/worker` from `api/` if you need to exercise jobs locally.
+In dev, `make up` starts `asynqmon` on `:7755` for queue introspection. `make dev` runs the worker in its own hot-reloading tmux pane (`api/air.worker.toml` → `./cmd/worker`) alongside the api and console, so jobs are processed locally with no extra step. To run just the worker standalone: `go run ./cmd/worker` from `api/`.
 
 ### Notification model (the core domain)
 

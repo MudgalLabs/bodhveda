@@ -31,6 +31,8 @@ export const API_ROUTES = {
                 `/console/projects/${projectId}/notifications/send`,
             list: (projectId: string | number) =>
                 `/console/projects/${projectId}/notifications`,
+            email_deliveries_overview: (projectId: string | number) =>
+                `/console/projects/${projectId}/email-deliveries/overview`,
         },
 
         recipients: {
@@ -42,6 +44,33 @@ export const API_ROUTES = {
                 `/console/projects/${projectId}/recipients/${recipientId}`,
             delete: (projectId: string | number, recipientId: string) =>
                 `/console/projects/${projectId}/recipients/${recipientId}`,
+
+            contacts: {
+                list: (projectId: string | number, recipientId: string) =>
+                    `/console/projects/${projectId}/recipients/${encodeURIComponent(
+                        recipientId
+                    )}/contacts`,
+                create: (projectId: string | number, recipientId: string) =>
+                    `/console/projects/${projectId}/recipients/${encodeURIComponent(
+                        recipientId
+                    )}/contacts`,
+                update: (
+                    projectId: string | number,
+                    recipientId: string,
+                    contactId: number
+                ) =>
+                    `/console/projects/${projectId}/recipients/${encodeURIComponent(
+                        recipientId
+                    )}/contacts/${contactId}`,
+                delete: (
+                    projectId: string | number,
+                    recipientId: string,
+                    contactId: number
+                ) =>
+                    `/console/projects/${projectId}/recipients/${encodeURIComponent(
+                        recipientId
+                    )}/contacts/${contactId}`,
+            },
         },
 
         preferences: {
@@ -51,6 +80,13 @@ export const API_ROUTES = {
                 `/console/projects/${projectId}/preferences`,
             delete: (projectId: string | number, prefenceID: number) =>
                 `/console/projects/${projectId}/preferences/${prefenceID}`,
+        },
+
+        email_settings: {
+            get: (projectId: string | number) =>
+                `/console/projects/${projectId}/email-settings`,
+            upsert: (projectId: string | number) =>
+                `/console/projects/${projectId}/email-settings`,
         },
     },
     user: {
@@ -70,6 +106,10 @@ if (!API_URL) {
 }
 
 export const client = createAPIClient(API_URL);
+
+// The resolved API base URL. Exposed so the console can show users absolute URLs
+// they must configure elsewhere (e.g. the email provider webhook endpoint).
+export const API_BASE_URL = API_URL;
 
 /** This is the API's response structure. */
 export interface APIRes<T = unknown> {

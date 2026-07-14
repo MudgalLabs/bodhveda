@@ -33,12 +33,6 @@ func initRouter() http.Handler {
 
 	r.Use(session.Manager.LoadAndSave)
 
-	// This is just to prevent abuse of the API by limiting the number of requests
-	// from a single IP address. The limit is set to 100 requests per minute.
-	// We would never hit this limit in normal usage, but it is a good practice to have
-	// this in place to prevent abuse.
-	r.Use(httprate.LimitByIP(100, time.Minute))
-
 	r.Get("/", func(w http.ResponseWriter, r *http.Request) {
 		httpx.SuccessResponse(w, r, http.StatusOK, "Hi, welcome to Bodhveda API. Don't be naughty!", nil)
 	})
@@ -46,6 +40,24 @@ func initRouter() http.Handler {
 	r.Get("/ping", func(w http.ResponseWriter, r *http.Request) {
 		httpx.SuccessResponse(w, r, http.StatusOK, "Pong", nil)
 	})
+
+	// Public provider webhook ingestion (Phase 5). Mounted at the root — OUTSIDE
+	// the developer API-key auth/CORS/rate-limit group and the console session
+	// group — because it is called by the email provider (Resend via Svix), not by
+	// a customer: authentication IS the webhook signature, verified in the service
+	// against the project's stored signing secret. It is deliberately NOT rate
+	// limited by the per-IP dev-API limiter (a provider can burst many events from
+	// a small IP pool).
+	r.Post("/webhooks/email/{project_id}", handler.EmailWebhook(app.APP.Service.EmailWebhook))
+
+	// Public one-click email unsubscribe (Phase 6). Mounted at the root — like the
+	// webhook above, OUTSIDE the developer API-key auth/CORS/rate-limit group and the
+	// console session group — because it is hit from the recipient's mail client with
+	// no session/API key: the signed token in `?t=` IS the auth (it identifies
+	// project + recipient + target). POST = RFC 8058 one-click; GET = confirmation
+	// page. Both flip the recipient's email preference for that target off.
+	r.Get("/unsubscribe/email", handler.UnsubscribeEmail(app.APP.Service.Unsubscribe))
+	r.Post("/unsubscribe/email", handler.UnsubscribeEmail(app.APP.Service.Unsubscribe))
 
 	// These are the Bodhveda Developer API routes.
 	r.Route("/", func(r chi.Router) {
@@ -57,6 +69,11 @@ func initRouter() http.Handler {
 			ExposedHeaders:   []string{"*"},
 			MaxAge:           300,
 		}))
+
+		// Rate limit the developer API to 100 req/min/IP to prevent abuse. Scoped
+		// to this group (not the root router) so the public provider webhook is not
+		// caught by it — see the /webhooks/email mount above.
+		r.Use(httprate.LimitByIP(100, time.Minute))
 
 		r.Use(middleware.APIKeyBasedAuthMiddleware)
 
@@ -93,6 +110,19 @@ func initRouter() http.Handler {
 					r.Patch("/", handler.UpdateRecipientPreferenceForTarget(app.APP.Service.Preference))
 					r.Get("/check", handler.CheckRecipientPreferenceForTarget(app.APP.Service.Preference))
 				})
+
+				r.Route("/contacts", func(r chi.Router) {
+					// POST/GET/PATCH are allowed for full OR recipient-scoped keys
+					// (like preferences). DELETE has the highest blast radius on a
+					// stolen recipient key, so it requires full scope.
+					r.Post("/", handler.CreateRecipientContact(app.APP.Service.RecipientContact))
+					r.Get("/", handler.ListRecipientContacts(app.APP.Service.RecipientContact))
+
+					r.Route("/{contact_id}", func(r chi.Router) {
+						r.Patch("/", handler.UpdateRecipientContact(app.APP.Service.RecipientContact))
+						r.With(middleware.VerifyAPIKeyHasFullScope).Delete("/", handler.DeleteRecipientContact(app.APP.Service.RecipientContact))
+					})
+				})
 			})
 		})
 	})
@@ -107,6 +137,9 @@ func initRouter() http.Handler {
 			ExposedHeaders:   []string{"*"},
 			MaxAge:           300,
 		}))
+
+		// Same per-IP abuse limit the console had when this lived on the root router.
+		r.Use(httprate.LimitByIP(100, time.Minute))
 
 		r.Route("/auth", func(r chi.Router) {
 			r.Get("/oauth/google", handler.GoogleSignInHandler(app.APP.Service.UserIdentity))
@@ -137,9 +170,18 @@ func initRouter() http.Handler {
 					r.Get("/", handler.ListBroadcasts(app.APP.Service.Broadcast))
 				})
 
+				r.Route("/email-settings", func(r chi.Router) {
+					r.Get("/", handler.GetProjectEmailSettings(app.APP.Service.ProjectEmail))
+					r.Put("/", handler.UpsertProjectEmailSettings(app.APP.Service.ProjectEmail))
+				})
+
 				r.Route("/notifications", func(r chi.Router) {
 					r.Get("/", handler.List(app.APP.Service.Notification))
 					r.Post("/send", handler.SendNotificationConsole(app.APP.Service.Notification))
+				})
+
+				r.Route("/email-deliveries", func(r chi.Router) {
+					r.Get("/overview", handler.EmailDeliveryOverview(app.APP.Service.Notification))
 				})
 
 				r.Route("/preferences", func(r chi.Router) {
@@ -159,6 +201,16 @@ func initRouter() http.Handler {
 						r.Patch("/", handler.UpdateRecipientConsole(app.APP.Service.Recipient))
 						r.Delete("/", handler.DeleteRecipientConsole(app.APP.Service.Recipient))
 						r.Put("/preferences", handler.UpsertRecipientPreferences(app.APP.Service.Preference))
+
+						r.Route("/contacts", func(r chi.Router) {
+							r.Get("/", handler.ListRecipientContactsConsole(app.APP.Service.RecipientContact))
+							r.Post("/", handler.CreateRecipientContactConsole(app.APP.Service.RecipientContact))
+
+							r.Route("/{contact_id}", func(r chi.Router) {
+								r.Patch("/", handler.UpdateRecipientContactConsole(app.APP.Service.RecipientContact))
+								r.Delete("/", handler.DeleteRecipientContactConsole(app.APP.Service.RecipientContact))
+							})
+						})
 					})
 				})
 			})

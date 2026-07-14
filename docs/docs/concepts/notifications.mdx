@@ -10,6 +10,8 @@ A **notification** is a message sent to a recipient about an event. Notification
 
 Notifications include a payload (custom data) and are categorized by their target.
 
+A direct notification can also fan out to **email** by including an `email` block on the send — see [mediums](/docs/concepts/mediums). Email is direct-only; broadcasts remain in-app.
+
 A direct notification will always be delivered to the recipient unless the recipient has unsubscribed that target.
 
 A broadcast notification will only be delivered to the recipients who are subscribed to the target.

@@ -11,6 +11,7 @@ import {
     IconSlidersHorizontal,
     IconHouse,
     IconBell,
+    IconSend,
     useSidebar,
     SidebarItem,
     useIsMobile,
@@ -134,6 +135,21 @@ export const Sidebar = () => {
                             open={isOpen}
                             isActive={
                                 activeRoute === `/projects/${id}/api-keys`
+                            }
+                        />
+                    </Link>
+
+                    <Link
+                        to="/projects/$id/settings"
+                        params={{ id }}
+                        className="link-unstyled "
+                    >
+                        <SidebarItem
+                            label="Email"
+                            icon={<IconSend size={18} />}
+                            open={isOpen}
+                            isActive={
+                                activeRoute === `/projects/${id}/settings`
                             }
                         />
                     </Link>

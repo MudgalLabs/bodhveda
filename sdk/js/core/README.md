@@ -12,6 +12,7 @@ It offers a simpler way to work with Bodhveda APIs in both browser and server en
 -   [Recipients](#recipients)
     -   [Recipient Notifications](#recipient-notifications)
     -   [Recipient Preferences](#recipient-preferences)
+    -   [Recipient Contacts](#recipient-contacts)
 -   [License](#license)
 
 ## Installation
@@ -49,6 +50,30 @@ await bodhveda.notifications.send({
     recipient_id: "user-123",
     payload: { message: "Hello, world!" },
 });
+```
+
+### Send with email
+
+Include the optional `email` block to also send an email. Its presence makes email
+eligible (**direct sends only** — an email block on a broadcast returns `400`).
+Bodhveda does no templating: you render the subject/HTML/text yourself (e.g. with
+`@react-email`) and pass the result. `text` is optional and derived from `html`.
+
+Email fires only when the `(target, email)` pair is cataloged, the recipient's email
+preference is enabled, and the recipient has a primary email
+[contact](#recipient-contacts). Per-medium outcomes are returned in `deliveries`.
+
+```typescript
+const res = await bodhveda.notifications.send({
+    recipient_id: "user-123",
+    target: { channel: "digest", topic: "none", event: "sent" },
+    payload: { title: "Your daily digest is ready." },
+    email: {
+        subject: "Your daily digest",
+        html: "<h1>Your daily digest</h1><p>3 new follow-ups today.</p>",
+    },
+});
+// res.notification (in-app) and res.deliveries (per-medium email outcome)
 ```
 
 ---
@@ -160,11 +185,14 @@ const preferences = await bodhveda.recipients.preferences.list("user-123");
 
 ### Set a preference
 
-Set a notification preference for a recipient.
+Set a notification preference for a recipient. Pass an optional `medium`
+(`"in_app"` or `"email"`) to toggle in-app and email independently for the same
+target. It defaults to `"in_app"` when omitted.
 
 ```typescript
 await bodhveda.recipients.preferences.set("user-123", {
-    target: { channel: "email", topic: "news", event: "daily" },
+    target: { channel: "digest", topic: "none", event: "sent" },
+    medium: "email",
     state: { enabled: true },
 });
 ```
@@ -175,8 +203,52 @@ Check the state of a specific preference for a recipient.
 
 ```typescript
 const result = await bodhveda.recipients.preferences.check("user-123", {
-    target: { channel: "email", topic: "news", event: "daily" },
+    target: { channel: "digest", topic: "none", event: "sent" },
+    medium: "email",
 });
+```
+
+---
+
+## Recipient Contacts
+
+Contacts are per-medium addresses for a recipient. To send **email** to a recipient,
+add an `email` contact and mark it primary. Sync this **server-side** (e.g. on your
+`/me` endpoint) so the address never rides a browser request.
+
+`create`, `list`, and `update` work with a `Full access` or `Recipient access` API
+key; `delete` requires `Full access`.
+
+### Add a contact
+
+```typescript
+await bodhveda.recipients.contacts.create("user-123", {
+    medium: "email",
+    address: "alice@example.com",
+    is_primary: true,
+});
+```
+
+### List contacts
+
+```typescript
+const { contacts } = await bodhveda.recipients.contacts.list("user-123");
+```
+
+### Update a contact
+
+```typescript
+await bodhveda.recipients.contacts.update("user-123", 1, {
+    address: "alice.new@example.com",
+});
+```
+
+### Delete a contact
+
+Requires a `Full access` API key.
+
+```typescript
+await bodhveda.recipients.contacts.delete("user-123", 1);
 ```
 
 ---

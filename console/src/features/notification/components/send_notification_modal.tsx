@@ -14,6 +14,7 @@ import {
     Input,
     Label,
     MultiStep,
+    Switch,
     Textarea,
     toast,
     Tooltip,
@@ -21,10 +22,10 @@ import {
 } from "netra";
 
 import { useGetProjectIDFromParams } from "@/features/project/project_hooks";
-import { NotificationKind } from "../notification_types";
+import { NotificationKind, SendNotificationResult } from "../notification_types";
 import { NotificationKindToggle } from "./notification_kind_toggle";
 import { useSendNotification } from "../notification_hooks";
-import { apiErrorHandler } from "@/lib/api";
+import { apiErrorHandler, APIRes } from "@/lib/api";
 
 type SendNotificationModalProps = {
     renderTrigger: () => React.ReactNode;
@@ -37,6 +38,13 @@ interface State {
     topic: string;
     event: string;
     payload: string;
+    // Optional email block (direct sends only). email_enabled gates whether an
+    // `email` block is sent at all — presence of the block is the "email
+    // eligible" signal on the backend.
+    email_enabled: boolean;
+    email_subject: string;
+    email_html: string;
+    email_text: string;
 }
 
 const INITIAL_STATE: State = {
@@ -45,6 +53,10 @@ const INITIAL_STATE: State = {
     topic: "",
     event: "",
     payload: "",
+    email_enabled: false,
+    email_subject: "",
+    email_html: "",
+    email_text: "",
 };
 
 export function SendNotificationModal({
@@ -58,10 +70,13 @@ export function SendNotificationModal({
 
     const [state, setState] = useState<State>(INITIAL_STATE);
 
+    // Only direct sends can carry an email block (email is direct-only).
+    const emailEnabled = !isBroadcast && state.email_enabled;
+
     const { mutate: sendNotification, isPending: isSending } =
         useSendNotification(projectID, {
-            onSuccess: () => {
-                toast.success("Notification sent successfully!");
+            onSuccess: (res: APIRes<SendNotificationResult>) => {
+                notifyEmailOutcome(res);
                 setOpen(false);
                 setState(INITIAL_STATE);
             },
@@ -86,6 +101,15 @@ export function SendNotificationModal({
                 recipient_id: state.recipient_id ? state.recipient_id : null,
                 target,
                 payload: parsedPayload,
+                email: emailEnabled
+                    ? {
+                          subject: state.email_subject,
+                          // Omit empty fields; the backend derives text from html
+                          // when text is absent.
+                          html: state.email_html || undefined,
+                          text: state.email_text || undefined,
+                      }
+                    : undefined,
             });
         } catch {
             toast.error("Payload must be a valid JSON");
@@ -117,8 +141,21 @@ export function SendNotificationModal({
             return true;
         }
 
+        // When the email block is on, it needs a subject and at least one body.
+        if (emailEnabled) {
+            if (state.email_subject.trim() === "") {
+                return true;
+            }
+            if (
+                state.email_html.trim() === "" &&
+                state.email_text.trim() === ""
+            ) {
+                return true;
+            }
+        }
+
         return false;
-    }, [disablePayloadButton, state.payload]);
+    }, [disablePayloadButton, state, emailEnabled]);
 
     useEffect(() => {
         if (!open) {
@@ -144,7 +181,7 @@ export function SendNotificationModal({
                                 return (
                                     <Tooltip
                                         content={
-                                            index === 0 ? "Target" : "Payload"
+                                            index === 0 ? "Target" : "Content"
                                         }
                                     >
                                         <div
@@ -183,7 +220,11 @@ export function SendNotificationModal({
                         </MultiStep.Step>
 
                         <MultiStep.Step id="payload-step">
-                            <PayloadStep state={state} setState={setState} />
+                            <PayloadStep
+                                state={state}
+                                setState={setState}
+                                isBroadcast={isBroadcast}
+                            />
                         </MultiStep.Step>
                     </MultiStep.Content>
 
@@ -219,7 +260,7 @@ export function SendNotificationModal({
                                             onClick={() => props.next()}
                                             disabled={disablePayloadButton}
                                         >
-                                            Payload
+                                            Content
                                             <IconArrowRight />
                                         </Button>
                                     </Tooltip>
@@ -338,9 +379,11 @@ function TargetStep({
 function PayloadStep({
     state,
     setState,
+    isBroadcast,
 }: {
     state: State;
     setState: React.Dispatch<React.SetStateAction<State>>;
+    isBroadcast: boolean;
 }) {
     const placeholder = `{
     "key": "value"
@@ -372,45 +415,201 @@ function PayloadStep({
     }, [state.payload, setState]);
 
     return (
-        <WithLabel
-            Label={
-                <span className="flex-x justify-between">
-                    <span className="flex-x">
-                        <Label required>Payload</Label>
-                        <Tooltip
-                            content={
-                                <>
-                                    <p>
-                                        The payload to send with the
-                                        notification.
-                                    </p>
-                                    <p>Must be valid JSON.</p>
-                                </>
-                            }
-                        >
-                            <IconInfo />
-                        </Tooltip>
-                    </span>
+        <div className="space-y-6 max-h-[55vh] overflow-y-auto pr-1">
+            <WithLabel
+                Label={
+                    <span className="flex-x justify-between">
+                        <span className="flex-x">
+                            <Label required>Payload</Label>
+                            <Tooltip
+                                content={
+                                    <>
+                                        <p>
+                                            The in-app payload to send with the
+                                            notification.
+                                        </p>
+                                        <p>Must be valid JSON.</p>
+                                    </>
+                                }
+                            >
+                                <IconInfo />
+                            </Tooltip>
+                        </span>
 
-                    <Button variant="ghost" size="small" onClick={beautifyJSON}>
-                        Beautify
-                    </Button>
-                </span>
-            }
-        >
-            <Textarea
-                className="w-full! h-60"
-                placeholder={placeholder}
-                value={state.payload}
-                onChange={(e) =>
-                    setState((prev) => ({
-                        ...prev,
-                        payload: e.target.value,
-                    }))
+                        <Button
+                            variant="ghost"
+                            size="small"
+                            onClick={beautifyJSON}
+                        >
+                            Beautify
+                        </Button>
+                    </span>
                 }
-                error={!isPayloadValidJSON}
-                errorMsg="Payload is not a valid JSON"
-            />
-        </WithLabel>
+            >
+                <Textarea
+                    className="w-full! h-48"
+                    placeholder={placeholder}
+                    value={state.payload}
+                    onChange={(e) =>
+                        setState((prev) => ({
+                            ...prev,
+                            payload: e.target.value,
+                        }))
+                    }
+                    error={!isPayloadValidJSON}
+                    errorMsg="Payload is not a valid JSON"
+                />
+            </WithLabel>
+
+            {!isBroadcast && (
+                <EmailSection state={state} setState={setState} />
+            )}
+        </div>
     );
+}
+
+function EmailSection({
+    state,
+    setState,
+}: {
+    state: State;
+    setState: React.Dispatch<React.SetStateAction<State>>;
+}) {
+    return (
+        <div className="rounded-md border border-border p-4 space-y-4">
+            <div className="flex-x justify-between">
+                <span className="flex-x">
+                    <Label>Also send an email</Label>
+                    <Tooltip
+                        content={
+                            <>
+                                <p>Direct sends only.</p>
+                                <p>
+                                    Email fires only if the target is cataloged
+                                    for email, the recipient's email preference
+                                    is on, and they have a primary email
+                                    contact.
+                                </p>
+                            </>
+                        }
+                    >
+                        <IconInfo />
+                    </Tooltip>
+                </span>
+
+                <Switch
+                    checked={state.email_enabled}
+                    onCheckedChange={(checked) =>
+                        setState((prev) => ({
+                            ...prev,
+                            email_enabled: checked,
+                        }))
+                    }
+                />
+            </div>
+
+            {state.email_enabled && (
+                <div className="space-y-4">
+                    <WithLabel Label={<Label required>Subject</Label>}>
+                        <Input
+                            className="w-full!"
+                            placeholder="Your weekly digest"
+                            value={state.email_subject}
+                            onChange={(e) =>
+                                setState((prev) => ({
+                                    ...prev,
+                                    email_subject: e.target.value,
+                                }))
+                            }
+                        />
+                    </WithLabel>
+
+                    <WithLabel
+                        Label={
+                            <span className="flex-x">
+                                <Label required>HTML</Label>
+                                <Tooltip content="The rendered HTML body. At least one of HTML or Text is required.">
+                                    <IconInfo />
+                                </Tooltip>
+                            </span>
+                        }
+                    >
+                        <Textarea
+                            className="w-full! h-40"
+                            placeholder="<h1>Hi</h1><p>You have 3 new items.</p>"
+                            value={state.email_html}
+                            onChange={(e) =>
+                                setState((prev) => ({
+                                    ...prev,
+                                    email_html: e.target.value,
+                                }))
+                            }
+                        />
+                    </WithLabel>
+
+                    <WithLabel
+                        Label={
+                            <span className="flex-x">
+                                <Label>Text</Label>
+                                <Tooltip content="Plain-text fallback (recommended for deliverability). Auto-derived from HTML when left blank.">
+                                    <IconInfo />
+                                </Tooltip>
+                            </span>
+                        }
+                    >
+                        <Textarea
+                            className="w-full! h-24"
+                            placeholder="Hi — you have 3 new items."
+                            value={state.email_text}
+                            onChange={(e) =>
+                                setState((prev) => ({
+                                    ...prev,
+                                    email_text: e.target.value,
+                                }))
+                            }
+                        />
+                    </WithLabel>
+                </div>
+            )}
+        </div>
+    );
+}
+
+// notifyEmailOutcome surfaces the per-medium email delivery outcome so a "sent"
+// toast doesn't mask a silently-skipped email (e.g. not_cataloged / no_contact).
+function notifyEmailOutcome(res: APIRes<SendNotificationResult>) {
+    const email = res?.data?.deliveries?.find((d) => d.medium === "email");
+
+    if (!email) {
+        toast.success("Notification sent successfully!");
+        return;
+    }
+
+    switch (email.status) {
+        case "pending":
+        case "sent":
+            toast.success("Notification sent. Email is on its way.");
+            break;
+        case "muted":
+            toast.warning(
+                email.failure_reason === "not_cataloged"
+                    ? "Sent in-app. Email skipped — this target isn't cataloged for email."
+                    : "Sent in-app. Email skipped — the recipient has email turned off for this target."
+            );
+            break;
+        case "no_contact":
+            toast.warning(
+                "Sent in-app. Email skipped — the recipient has no primary email contact."
+            );
+            break;
+        case "failed":
+            toast.warning(
+                `Sent in-app, but email failed${
+                    email.failure_reason ? ` (${email.failure_reason})` : ""
+                }.`
+            );
+            break;
+        default:
+            toast.success("Notification sent successfully!");
+    }
 }

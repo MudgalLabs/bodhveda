@@ -53,10 +53,66 @@ type Recipient struct {
 	UpdatedAt time.Time `json:"updated_at"`
 }
 
-// TargetWithLabel represents a target with an optional label.
+// Medium is a delivery transport. MediumInApp and MediumEmail are the mediums a
+// preference can apply to; the contact mediums (email/sms/web_push/mobile_push)
+// are the transports a recipient contact can be registered for. Only in-app and
+// email are active today; the rest are reserved for future transports.
+type Medium string
+
+const (
+	MediumInApp      Medium = "in_app"
+	MediumEmail      Medium = "email"
+	MediumSMS        Medium = "sms"
+	MediumWebPush    Medium = "web_push"
+	MediumMobilePush Medium = "mobile_push"
+)
+
+// RecipientContact represents a per-medium contact address for a recipient.
+type RecipientContact struct {
+	ID         int64      `json:"id"`
+	Medium     Medium     `json:"medium"`
+	Address    string     `json:"address"`
+	IsPrimary  bool       `json:"is_primary"`
+	VerifiedAt *time.Time `json:"verified_at"`
+	CreatedAt  time.Time  `json:"created_at"`
+	UpdatedAt  time.Time  `json:"updated_at"`
+}
+
+// CreateRecipientContactRequest is the request to add a contact to a recipient.
+type CreateRecipientContactRequest struct {
+	Medium    Medium `json:"medium"`
+	Address   string `json:"address"`
+	IsPrimary bool   `json:"is_primary"`
+}
+
+// CreateRecipientContactResponse is the response after creating a contact.
+type CreateRecipientContactResponse struct {
+	RecipientContact
+}
+
+// ListRecipientContactsResponse is the response after listing a recipient's contacts.
+type ListRecipientContactsResponse struct {
+	Contacts []RecipientContact `json:"contacts"`
+}
+
+// UpdateRecipientContactRequest updates a contact. Both fields are optional; a
+// changed address invalidates the contact's verification.
+type UpdateRecipientContactRequest struct {
+	Address   *string `json:"address,omitempty"`
+	IsPrimary *bool   `json:"is_primary,omitempty"`
+}
+
+// UpdateRecipientContactResponse is the response after updating a contact.
+type UpdateRecipientContactResponse struct {
+	RecipientContact
+}
+
+// TargetWithLabel represents a target with an optional label. Medium is the
+// medium this preference applies to (in_app or email).
 type TargetWithLabel struct {
 	Target
-	Label *string `json:"label,omitempty"`
+	Medium Medium  `json:"medium,omitempty"`
+	Label  *string `json:"label,omitempty"`
 }
 
 // PreferenceState represents the state of a preference.
@@ -124,17 +180,45 @@ type UpdateRecipientResponse struct {
 	Recipient
 }
 
+// EmailContent is the typed email block on a send. Its presence makes email
+// eligible for this send (direct-only); absence means no email. Bodhveda is a
+// pass-through — the caller renders its own template and passes the result.
+// Subject is required and at least one of HTML/Text must be set; Text is
+// recommended for deliverability and is auto-derived from HTML when omitted.
+type EmailContent struct {
+	Subject string `json:"subject"`
+	HTML    string `json:"html,omitempty"`
+	Text    string `json:"text,omitempty"`
+}
+
 // SendNotificationRequest represents the request to send a notification.
 type SendNotificationRequest struct {
 	Payload     json.RawMessage `json:"payload"`
 	RecipientID *string         `json:"recipient_id"`
 	Target      *Target         `json:"target"`
+	// Email, when present, attempts an email delivery (direct sends only). It is
+	// gated by catalog + per-medium preference + a primary email contact.
+	Email *EmailContent `json:"email,omitempty"`
+}
+
+// NotificationDelivery is a per-medium delivery outcome returned on a direct
+// send (email in v1).
+type NotificationDelivery struct {
+	Medium        string  `json:"medium"`
+	Status        string  `json:"status"`
+	Address       *string `json:"address,omitempty"`
+	FailureReason *string `json:"failure_reason,omitempty"`
+	CreatedAt     string  `json:"created_at"`
+	UpdatedAt     string  `json:"updated_at"`
 }
 
 // SendNotificationResponse represents the response after sending a notification.
 type SendNotificationResponse struct {
 	Notification *Notification `json:"notification"`
 	Broadcast    *Broadcast    `json:"broadcast"`
+	// Deliveries carries per-medium delivery outcomes for a direct send (email).
+	// A partial-medium failure never rejects the send — the outcome is here.
+	Deliveries []*NotificationDelivery `json:"deliveries,omitempty"`
 }
 
 // ListNotificationsRequest represents the request parameters for listing notifications.
@@ -184,27 +268,31 @@ type ListPreferencesResponse struct {
 	Preferences []Preference `json:"preferences"`
 }
 
-// SetPreferenceRequest represents the request to set a preference.
+// SetPreferenceRequest represents the request to set a preference. Medium
+// defaults to in_app when empty.
 type SetPreferenceRequest struct {
 	Target Target `json:"target"`
+	Medium Medium `json:"medium,omitempty"`
 	State  struct {
 		Enabled bool `json:"enabled"`
-	}
+	} `json:"state"`
 }
 
 // SetPreferenceResponse represents the response after setting a preference.
 type SetPreferenceResponse struct {
-	Target Target          `json:"target"`
+	Target TargetWithLabel `json:"target"`
 	State  PreferenceState `json:"state"`
 }
 
-// CheckPreferenceRequest represents the request to check a preference.
+// CheckPreferenceRequest represents the request to check a preference. Medium
+// defaults to in_app when empty.
 type CheckPreferenceRequest struct {
 	Target Target `json:"target"`
+	Medium Medium `json:"medium,omitempty"`
 }
 
 // CheckPreferenceResponse represents the response after checking a preference.
 type CheckPreferenceResponse struct {
-	Target Target          `json:"target"`
+	Target TargetWithLabel `json:"target"`
 	State  PreferenceState `json:"state"`
 }

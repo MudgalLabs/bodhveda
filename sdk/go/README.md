@@ -12,6 +12,7 @@ It offers a simpler way to work with Bodhveda APIs.
 -   [Recipients](#recipients)
     -   [Recipient Notifications](#recipient-notifications)
     -   [Recipient Preferences](#recipient-preferences)
+    -   [Recipient Contacts](#recipient-contacts)
 -   [License](#license)
 
 ## Installation
@@ -63,6 +64,31 @@ resp, _ := client.Notifications.Send(ctx, &bodhveda.SendNotificationRequest{
     Payload:     payload,
 })
 // resp.Notification or resp.Broadcast
+```
+
+### Send with email
+
+Include the optional `Email` block to also send an email. Its presence makes email
+eligible (direct sends only — an email block on a broadcast returns `400`). Bodhveda
+does no templating: you render the subject/HTML/text yourself and pass the result.
+
+Email fires only when the `(target, email)` pair is cataloged, the recipient's email
+preference is enabled, and the recipient has a primary email
+[contact](#recipient-contacts). Per-medium outcomes are returned in `resp.Deliveries`.
+
+```go
+recipientID := "user-123"
+payload, _ := json.Marshal(map[string]any{"title": "Your daily digest is ready."})
+resp, _ := client.Notifications.Send(ctx, &bodhveda.SendNotificationRequest{
+    RecipientID: &recipientID,
+    Target: &bodhveda.Target{Channel: "digest", Topic: "none", Event: "sent"},
+    Payload: payload,
+    Email: &bodhveda.EmailContent{
+        Subject: "Your daily digest",
+        HTML:    "<h1>Your daily digest</h1><p>3 new follow-ups today.</p>",
+    },
+})
+// resp.Notification (in-app) and resp.Deliveries (per-medium email outcome)
 ```
 
 ---
@@ -190,16 +216,19 @@ resp, _ := client.Recipients.Preferences.List(ctx, "user-123")
 
 ### Set a preference
 
-Set a notification preference for a recipient.
+Set a notification preference for a recipient. Pass an optional `Medium`
+(`bodhveda.MediumInApp` or `bodhveda.MediumEmail`) to toggle in-app and email
+independently for the same target. Medium defaults to `in_app` when omitted.
 
 ```go
 resp, _ := client.Recipients.Preferences.Set(ctx, "user-123", &bodhveda.SetPreferenceRequest{
     Target: bodhveda.Target{
-        Channel: "email",
-        Topic:   "news",
-        Event:   "daily",
+        Channel: "digest",
+        Topic:   "none",
+        Event:   "sent",
     },
-    State: struct{ Enabled bool }{Enabled: true},
+    Medium: bodhveda.MediumEmail,
+    State:  struct{ Enabled bool `json:"enabled"` }{Enabled: true},
 })
 // resp.Target, resp.State
 ```
@@ -211,12 +240,60 @@ Check the state of a specific preference for a recipient.
 ```go
 resp, _ := client.Recipients.Preferences.Check(ctx, "user-123", &bodhveda.CheckPreferenceRequest{
     Target: bodhveda.Target{
-        Channel: "email",
-        Topic:   "news",
-        Event:   "daily",
+        Channel: "digest",
+        Topic:   "none",
+        Event:   "sent",
     },
+    Medium: bodhveda.MediumEmail,
 })
 // resp.Target, resp.State
+```
+
+---
+
+## Recipient Contacts
+
+Contacts are per-medium addresses for a recipient. To send **email** to a recipient,
+add an `email` contact and mark it primary. Sync this **server-side** (e.g. on your
+`/me` endpoint) so the address never rides a browser request.
+
+`Create`, `List`, and `Update` work with a `Full access` or `Recipient access` API key;
+`Delete` requires `Full access`.
+
+### Add a contact
+
+```go
+resp, _ := client.Recipients.Contacts.Create(ctx, "user-123", &bodhveda.CreateRecipientContactRequest{
+    Medium:    bodhveda.MediumEmail,
+    Address:   "alice@example.com",
+    IsPrimary: true,
+})
+// resp.RecipientContact
+```
+
+### List contacts
+
+```go
+resp, _ := client.Recipients.Contacts.List(ctx, "user-123")
+// resp.Contacts
+```
+
+### Update a contact
+
+```go
+newAddress := "alice.new@example.com"
+resp, _ := client.Recipients.Contacts.Update(ctx, "user-123", 1, &bodhveda.UpdateRecipientContactRequest{
+    Address: &newAddress,
+})
+// resp.RecipientContact
+```
+
+### Delete a contact
+
+Requires a `Full access` API key.
+
+```go
+err := client.Recipients.Contacts.Delete(ctx, "user-123", 1)
 ```
 
 ---

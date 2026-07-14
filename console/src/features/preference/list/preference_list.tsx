@@ -28,6 +28,7 @@ import { useGetProjectIDFromParams } from "@/features/project/project_hooks";
 import { useGetPreferences } from "@/features/preference/preference_hooks";
 import { CreateProjectPreferenceModal } from "@/features/preference/components/create_project_preference_modal";
 import {
+    mediumLabel,
     PreferenceKind,
     ProjectPreference,
     RecipientPreference,
@@ -168,6 +169,11 @@ const projectPreferenceColumns: ColumnDef<ProjectPreference>[] = [
         header: () => <DataTableColumnHeader title="Label" />,
     },
     {
+        accessorKey: "medium",
+        header: () => <DataTableColumnHeader title="Medium" />,
+        cell: ({ row }) => mediumLabel(row.original.medium),
+    },
+    {
         accessorKey: "subscribers",
         header: () => <DataTableColumnHeader title="Subscribers" />,
         cell: ({ row }) => formatNumber(row.original.subscribers),
@@ -221,6 +227,11 @@ const recipientPreferenceColumns: ColumnDef<RecipientPreference>[] = [
     {
         accessorKey: "recipient_id",
         header: () => <DataTableColumnHeader title="Recipient ID" />,
+    },
+    {
+        accessorKey: "medium",
+        header: () => <DataTableColumnHeader title="Medium" />,
+        cell: ({ row }) => mediumLabel(row.original.medium),
     },
     {
         accessorKey: "enabled",

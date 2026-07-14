@@ -6,3 +6,19 @@ description: "Understand recipients in Bodhveda"
 A **recipient** is an end user who receives notifications. Each recipient has a unique `id` and can have preferences for different notification targets.
 
 Recipients are created when you send notifications or explicitly via the API.
+
+## Contacts
+
+To deliver over a [medium](/docs/concepts/mediums) other than the in-app inbox, a recipient needs a **contact** — a per-medium address. To receive **email**, a recipient must have a **primary email** contact.
+
+Manage contacts under [`/recipients/{recipient_id}/contacts`](/api-reference/endpoint/recipients/contacts/list-contacts):
+
+-   Each contact has a `medium` (only `email` is used today; `sms`, `web_push`, and `mobile_push` are reserved), an `address`, and an `is_primary` flag.
+-   Only **one primary** contact is allowed per `(recipient, medium)`. Email is sent to the primary email contact.
+-   Adding a duplicate address, or a second primary for the same medium, returns `409`.
+-   Creating, listing, and updating contacts work with a `Full access` **or** `Recipient access` API key; **deleting** a contact requires `Full access`.
+
+<Note>
+Sync a recipient's email **server-side** (for example on your `/me` endpoint) rather than from the browser, so the address never travels on a client-side call.
+</Note>
+

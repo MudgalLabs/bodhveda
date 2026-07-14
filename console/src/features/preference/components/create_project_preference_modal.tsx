@@ -18,6 +18,11 @@ import {
     WithLabel,
 } from "netra";
 import { useCreateProjectPreference } from "@/features/preference/preference_hooks";
+import {
+    PREFERENCE_MEDIUMS,
+    PREFERENCE_MEDIUM_LABELS,
+    PreferenceMedium,
+} from "@/features/preference/preference_type";
 import { apiErrorHandler } from "@/lib/api";
 
 interface CreateProjectPreferenceModalProps {
@@ -35,32 +40,42 @@ export const CreateProjectPreferenceModal: FC<
     const [channel, setChannel] = useState("");
     const [event, setEvent] = useState("");
     const [topic, setTopic] = useState("");
+    const [mediums, setMediums] = useState<PreferenceMedium[]>(["in_app"]);
 
-    const { mutate: create, isPending } = useCreateProjectPreference({
-        onSuccess: () => {
-            toast.success(`Preference "${label}" created successfully`);
-            setOpen(false);
-        },
-        onError: apiErrorHandler,
-    });
+    // One catalog row is created per selected medium; the backend stores a
+    // preference per (target, medium).
+    const { mutateAsync: create, isPending } = useCreateProjectPreference();
 
-    const disableCreate = !label.trim() || !channel.trim();
+    const disableCreate =
+        !label.trim() || !channel.trim() || mediums.length === 0;
 
-    const handleSubmit = (e: React.FormEvent) => {
+    const handleSubmit = async (e: React.FormEvent) => {
         e.preventDefault();
 
         if (disableCreate) return;
 
-        create({
-            projectID,
-            payload: {
-                label: label.trim(),
-                default_enabled: defaultEnabled,
-                channel: channel.trim(),
-                event: event.trim() || null,
-                topic: topic.trim() || null,
-            },
-        });
+        try {
+            await Promise.all(
+                mediums.map((medium) =>
+                    create({
+                        projectID,
+                        payload: {
+                            label: label.trim(),
+                            default_enabled: defaultEnabled,
+                            channel: channel.trim(),
+                            event: event.trim() || null,
+                            topic: topic.trim() || null,
+                            medium,
+                        },
+                    })
+                )
+            );
+
+            toast.success(`Preference "${label}" created successfully`);
+            setOpen(false);
+        } catch (err) {
+            apiErrorHandler(err);
+        }
     };
 
     const targetFormatted = useMemo(() => {
@@ -78,6 +93,7 @@ export const CreateProjectPreferenceModal: FC<
             setChannel("");
             setEvent("");
             setTopic("");
+            setMediums(["in_app"]);
         }
     }, [open]);
 
@@ -139,6 +155,24 @@ export const CreateProjectPreferenceModal: FC<
                             <ToggleGroupItem value="disabled">
                                 Disabled
                             </ToggleGroupItem>
+                        </ToggleGroup>
+                    </WithLabel>
+
+                    <WithLabel Label={<Label>Mediums</Label>}>
+                        <ToggleGroup
+                            className="[&_*]:h-8 pl-0!"
+                            type="multiple"
+                            size="small"
+                            value={mediums}
+                            onValueChange={(value: string[]) =>
+                                setMediums(value as PreferenceMedium[])
+                            }
+                        >
+                            {PREFERENCE_MEDIUMS.map((medium) => (
+                                <ToggleGroupItem key={medium} value={medium}>
+                                    {PREFERENCE_MEDIUM_LABELS[medium]}
+                                </ToggleGroupItem>
+                            ))}
                         </ToggleGroup>
                     </WithLabel>
 

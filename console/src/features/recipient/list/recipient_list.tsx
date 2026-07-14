@@ -21,6 +21,7 @@ import {
     IconPlus,
     IconTarget,
     IconTrash,
+    IconUsers,
     Loading,
     LoadingScreen,
     PageHeading,
@@ -36,6 +37,7 @@ import {
 import { CreateRecipientModal } from "@/features/recipient/list/create_recipient_modal";
 import { RecipientListItem } from "@/features/recipient/recipient_types";
 import { EditRecipientModal } from "@/features/recipient/list/edit_recipient_modal";
+import { RecipientContactsModal } from "@/features/recipient/list/recipient_contacts_modal";
 
 export function RecipientList() {
     useDocumentTitle("Recipients  • Bodhveda");
@@ -108,10 +110,16 @@ export function RecipientList() {
 function ActionCell({ recipient }: { recipient: RecipientListItem }) {
     const [dropdownOpen, setDropdownOpen] = useState(false);
     const [editOpen, setEditOpen] = useState(false);
+    const [contactsOpen, setContactsOpen] = useState(false);
 
     const handleEditOpen = () => {
         setDropdownOpen(false);
         setEditOpen(true);
+    };
+
+    const handleContactsOpen = () => {
+        setDropdownOpen(false);
+        setContactsOpen(true);
     };
 
     const projectID = useGetProjectIDFromParams();
@@ -146,6 +154,17 @@ function ActionCell({ recipient }: { recipient: RecipientListItem }) {
 
                     <DropdownMenuItem asChild>
                         <Button
+                            variant="ghost"
+                            className="w-full!"
+                            onClick={handleContactsOpen}
+                        >
+                            <IconUsers size={16} />
+                            Contacts
+                        </Button>
+                    </DropdownMenuItem>
+
+                    <DropdownMenuItem asChild>
+                        <Button
                             variant="destructive"
                             className="w-full!"
                             onClick={() =>
@@ -166,6 +185,12 @@ function ActionCell({ recipient }: { recipient: RecipientListItem }) {
                 recipient={recipient}
                 open={editOpen}
                 setOpen={setEditOpen}
+            />
+
+            <RecipientContactsModal
+                recipientID={recipient.id}
+                open={contactsOpen}
+                setOpen={setContactsOpen}
             />
         </>
     );

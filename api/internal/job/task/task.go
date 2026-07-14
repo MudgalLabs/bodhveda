@@ -3,6 +3,7 @@ package task
 
 const (
 	TaskTypeNotificationDelivery    = "notification:delivery"
+	TaskTypeEmailDelivery           = "email:delivery"
 	TaskTypePrepareBroadcastBatches = "broadcast:prepare_batches"
 	TaskTypeBroadcastDelivery       = "broadcast:delivery"
 	TaskTypeDeleteRecipientData     = "recipient:delete_data"

@@ -26,6 +26,7 @@ import {
 } from "@/features/notification/notification_types";
 import { SendNotificationModal } from "@/features/notification/components/send_notification_modal";
 import { NotificationKindToggle } from "@/features/notification/components/notification_kind_toggle";
+import { EmailDeliveryOverview } from "@/features/notification/components/email_delivery_overview";
 import { useGetProjectIDFromParams } from "@/features/project/project_hooks";
 import {
     useNotifications,
@@ -91,16 +92,22 @@ export function NotificationList() {
             }
 
             return (
-                <NotificationTable
-                    key="direct"
-                    data={notificationsData?.data?.notifications || []}
-                    totalItems={
-                        notificationsData?.data?.pagination.total_items || 0
-                    }
-                    state={directTableState}
-                    onStateChange={setDirectTableState}
-                    isFetching={isFetchingNotifications}
-                />
+                <>
+                    {/* Email is DIRECT-only, so its delivery analytics live above
+                        the direct table. The card self-hides when the project has
+                        not attempted any email. */}
+                    <EmailDeliveryOverview />
+                    <NotificationTable
+                        key="direct"
+                        data={notificationsData?.data?.notifications || []}
+                        totalItems={
+                            notificationsData?.data?.pagination.total_items || 0
+                        }
+                        state={directTableState}
+                        onStateChange={setDirectTableState}
+                        isFetching={isFetchingNotifications}
+                    />
+                </>
             );
         } else if (isViewingBroadcasts) {
             if (isErrorBroadcasts && isViewingBroadcasts) {

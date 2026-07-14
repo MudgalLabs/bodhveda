@@ -1,0 +1,54 @@
+---
+title: "Mediums"
+description: "In-app and email delivery in Bodhveda"
+---
+
+A **medium** is a delivery transport. Bodhveda supports two today:
+
+-   **`in_app`** — the notification inbox you read via the [notifications API](/api-reference/endpoint/recipients/notifications/list-notifications). This is the default and always available.
+-   **`email`** — an email delivered through your own email provider (Resend in v1). Configured per project in the [Console](https://console.bodhveda.com).
+
+A single [send](/api-reference/endpoint/notifications/send-notification) can fan out to both. You control which mediums are attempted per send by the **content blocks** you include.
+
+## Content block implies intent
+
+Each medium has its own content block on the send call, and **including a block is how you say "attempt this medium"**:
+
+-   `payload` ⇒ the notification is written to the **in-app** inbox.
+-   `email` ⇒ email is **eligible** for this send.
+
+There is no `mediums` array to set, and **no fallback that derives an email from `payload`** — if there is no `email` block, no email is sent.
+
+```json
+{
+    "recipient_id": "recipient_123",
+    "target": { "channel": "digest", "topic": "none", "event": "sent" },
+    "payload": { "title": "Your daily digest is ready." },
+    "email": {
+        "subject": "Your daily digest",
+        "html": "<h1>Your daily digest</h1><p>3 new follow-ups today.</p>"
+    }
+}
+```
+
+## Email is direct-only
+
+Email is sent **only on direct notifications** (when `recipient_id` is set). Including an `email` block on a **broadcast** returns a `400`. Broadcasts remain in-app only — bulk email is deliberately out of scope in v1 to protect sender reputation.
+
+## Each medium is gated independently
+
+Even when an `email` block is present, email fires only when **all** of the following hold:
+
+1.  **Catalog** — the project has declared the `(target, email)` pair as a subscribable [preference](/docs/concepts/preferences).
+2.  **Preference** — the recipient's **email** preference for that target is enabled.
+3.  **Contact** — the recipient has a **primary email** [contact](/docs/concepts/recipients).
+
+In-app and email preferences are toggled **independently** for the same target, so a recipient can keep the in-app bell while turning email off (and vice-versa).
+
+When a medium is skipped or fails, the send still succeeds (a partial-medium failure never rejects the whole send). The per-medium outcome is reported in the `deliveries` array of the [send response](/api-reference/endpoint/notifications/send-notification).
+
+## Unsubscribe
+
+Every outbound email carries the one-click `List-Unsubscribe` headers that Gmail and Yahoo require. Bodhveda hosts the unsubscribe page itself — when a recipient clicks it, Bodhveda flips that recipient's **email** preference for that target off, exactly as if they had toggled it in your settings UI. Subsequent sends then record the email as `muted`.
+
+This is automatic — there is no API endpoint for you to call. Spam complaints reported by the email provider have the same effect (they auto-unsubscribe the recipient from that target's email).

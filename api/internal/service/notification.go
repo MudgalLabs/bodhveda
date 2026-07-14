@@ -7,11 +7,16 @@ import (
 	"fmt"
 
 	"github.com/hibiken/asynq"
+	"github.com/mudgallabs/bodhveda/internal/email"
+	"github.com/mudgallabs/bodhveda/internal/env"
 	"github.com/mudgallabs/bodhveda/internal/job/task"
 	"github.com/mudgallabs/bodhveda/internal/model/dto"
 	"github.com/mudgallabs/bodhveda/internal/model/entity"
+	"github.com/mudgallabs/bodhveda/internal/model/enum"
 	"github.com/mudgallabs/bodhveda/internal/model/repository"
+	"github.com/mudgallabs/tantra/logger"
 	"github.com/mudgallabs/tantra/query"
+	tantraRepo "github.com/mudgallabs/tantra/repository"
 	"github.com/mudgallabs/tantra/service"
 )
 
@@ -21,6 +26,9 @@ type NotificationService struct {
 	preferenceRepo     repository.PreferenceRepository
 	broadcastRepo      repository.BroadcastRepository
 	broadcastBatchRepo repository.BroadcastBatchRepository
+	deliveryRepo       repository.NotificationDeliveryRepository
+	contactRepo        repository.RecipientContactRepository
+	projectEmailRepo   repository.ProjectEmailSettingsRepository
 
 	billingService   *BillingService
 	recipientService *RecipientService
@@ -32,6 +40,8 @@ func NewNotificationService(
 	repo repository.NotificationRepository, recipientRepo repository.RecipientRepository,
 	preferenceRepo repository.PreferenceRepository, broadcastRepo repository.BroadcastRepository,
 	broadcastBatchRepo repository.BroadcastBatchRepository,
+	deliveryRepo repository.NotificationDeliveryRepository, contactRepo repository.RecipientContactRepository,
+	projectEmailRepo repository.ProjectEmailSettingsRepository,
 	billingService *BillingService, recipientService *RecipientService,
 	asynqClient *asynq.Client,
 ) *NotificationService {
@@ -41,6 +51,9 @@ func NewNotificationService(
 		preferenceRepo:     preferenceRepo,
 		broadcastRepo:      broadcastRepo,
 		broadcastBatchRepo: broadcastBatchRepo,
+		deliveryRepo:       deliveryRepo,
+		contactRepo:        contactRepo,
+		projectEmailRepo:   projectEmailRepo,
 
 		billingService:   billingService,
 		recipientService: recipientService,
@@ -58,14 +71,17 @@ func (s *NotificationService) Send(ctx context.Context, userID int, payload dto.
 	result := &dto.SendNotificationResult{}
 
 	if payload.IsDirect() {
-		result.Notification, err = s.sendDirectNotification(ctx, userID, payload)
+		result.Notification, result.Deliveries, err = s.sendDirectNotification(ctx, userID, payload)
 		if err != nil {
 			return nil, "", service.ErrInternalServerError, fmt.Errorf("send direct notification: %w", err)
 		}
 	} else {
 		// Check if a project preference exists that matches the target.
 		// If not, we should return an error as no recipients would be able to receive this broadcast.
-		prefExists, err := s.preferenceRepo.DoesProjectPreferenceExist(ctx, payload.ProjectID, *payload.Target)
+		// Broadcasts are in-app only in v1 (email is direct-only — see the HARD
+		// RULE in agent-docs/overview.md), so the catalog precondition is checked
+		// against the in_app medium.
+		prefExists, err := s.preferenceRepo.DoesProjectPreferenceExist(ctx, payload.ProjectID, *payload.Target, enum.MediumInApp)
 		if err != nil {
 			return nil, "", service.ErrInternalServerError, fmt.Errorf("check if project preference exists: %w", err)
 		}
@@ -96,7 +112,7 @@ func (s *NotificationService) Send(ctx context.Context, userID int, payload dto.
 	return result, message, service.ErrNone, nil
 }
 
-func (s *NotificationService) sendDirectNotification(ctx context.Context, userID int, payload dto.SendNotificationPayload) (*dto.Notification, error) {
+func (s *NotificationService) sendDirectNotification(ctx context.Context, userID int, payload dto.SendNotificationPayload) (*dto.Notification, []*dto.NotificationDelivery, error) {
 	// This is to ensure that we can send notifications to recipients that are not yet created.
 	_, _, err := s.recipientService.CreateIfNotExists(ctx, dto.CreateRecipientPayload{
 		ProjectID:  payload.ProjectID,
@@ -104,7 +120,7 @@ func (s *NotificationService) sendDirectNotification(ctx context.Context, userID
 	})
 
 	if err != nil {
-		return nil, fmt.Errorf("create recipient: %w", err)
+		return nil, nil, fmt.Errorf("create recipient: %w", err)
 	}
 
 	var channel, topic, event string
@@ -126,22 +142,179 @@ func (s *NotificationService) sendDirectNotification(ctx context.Context, userID
 
 	notification, err = s.repo.Create(ctx, notification)
 	if err != nil {
-		return nil, fmt.Errorf("create notification: %w", err)
+		return nil, nil, fmt.Errorf("create notification: %w", err)
 	}
 
+	// In-app delivery (the inbox write) — byte-for-byte unchanged.
 	taskPayload, err := json.Marshal(dto.NotificationDeliveryTaskPayload{UserID: userID, Notification: notification})
 	if err != nil {
-		return nil, fmt.Errorf("marshal notification delivery task payload: %w", err)
+		return nil, nil, fmt.Errorf("marshal notification delivery task payload: %w", err)
 	}
 
 	task := asynq.NewTask(task.TaskTypeNotificationDelivery, taskPayload)
 
 	_, err = s.asynqClient.Enqueue(task, asynq.MaxRetry(5))
 	if err != nil {
-		return nil, fmt.Errorf("enqueue notification delivery task: %w", err)
+		return nil, nil, fmt.Errorf("enqueue notification delivery task: %w", err)
 	}
 
-	return dto.FromNotification(notification), nil
+	// Email fan-out (additional medium, DIRECT-only). Presence of the `email`
+	// block is the sender's intent signal; catalog + per-medium preference +
+	// primary contact + configured provider gate the actual send. A failure here
+	// NEVER rejects the send (old doc #19) — the outcome is recorded on a
+	// notification_delivery row and returned to the caller.
+	var deliveries []*dto.NotificationDelivery
+	if payload.HasEmail() {
+		delivery, ferr := s.fanOutEmail(ctx, notification, payload.Email)
+		if ferr != nil {
+			// Best-effort: log and continue. The send still succeeded in-app.
+			logger.Get().Errorf("email fan-out for notification %d: %v", notification.ID, ferr)
+		}
+		if delivery != nil {
+			deliveries = append(deliveries, dto.FromNotificationDelivery(delivery))
+		}
+	}
+
+	return dto.FromNotification(notification), deliveries, nil
+}
+
+// fanOutEmail resolves whether email may fire for a direct send and records the
+// outcome as a notification_delivery row. When everything passes it creates a
+// `pending` row and enqueues the email:delivery task; otherwise it records a
+// terminal skip outcome (muted / no_contact / failed) so the outcome is visible
+// rather than silently dropped. The returned error is for logging only — it must
+// never reject the send.
+func (s *NotificationService) fanOutEmail(ctx context.Context, notification *entity.Notification, email *dto.EmailContent) (*entity.NotificationDelivery, error) {
+	projectID := notification.ProjectID
+	recipientExtID := notification.RecipientExtID
+	target := dto.TargetFromNotification(notification)
+
+	newRow := func(status enum.DeliveryStatus, reason string) *entity.NotificationDelivery {
+		d := entity.NewNotificationDelivery(notification.ID, projectID, recipientExtID, enum.MediumEmail, status)
+		if reason != "" {
+			d.FailureReason = &reason
+		}
+		return d
+	}
+
+	record := func(d *entity.NotificationDelivery) (*entity.NotificationDelivery, error) {
+		created, err := s.deliveryRepo.Create(ctx, d)
+		if err != nil {
+			return nil, fmt.Errorf("create email delivery row: %w", err)
+		}
+		return created, nil
+	}
+
+	// 1. Catalog + per-medium preference gate. For a non-in_app medium this
+	//    defaults to NOT deliver unless the target is cataloged (a project-level
+	//    row exists) or the recipient explicitly enabled it.
+	shouldDeliver, err := s.preferenceRepo.ShouldDirectNotificationBeDelivered(ctx, projectID, recipientExtID, target, enum.MediumEmail)
+	if err != nil {
+		return record(newRow(enum.DeliveryFailed, "gating_error"))
+	}
+	if !shouldDeliver {
+		// Distinguish "no catalog entry" from "explicitly disabled" for visibility.
+		reason := "preference_disabled"
+		cataloged, cerr := s.preferenceRepo.DoesProjectPreferenceExist(ctx, projectID, target, enum.MediumEmail)
+		if cerr == nil && !cataloged {
+			reason = "not_cataloged"
+		}
+		return record(newRow(enum.DeliverySkippedMuted, reason))
+	}
+
+	// 2. Configured provider. Without email settings the project can't send.
+	settings, err := s.projectEmailRepo.Get(ctx, projectID)
+	if err != nil {
+		if errors.Is(err, tantraRepo.ErrNotFound) {
+			return record(newRow(enum.DeliveryFailed, "provider_not_configured"))
+		}
+		return record(newRow(enum.DeliveryFailed, "provider_lookup_error"))
+	}
+
+	// 3. Primary email contact.
+	contact, err := s.contactRepo.GetPrimary(ctx, projectID, recipientExtID, enum.MediumEmail)
+	if err != nil {
+		if errors.Is(err, tantraRepo.ErrNotFound) {
+			return record(newRow(enum.DeliverySkippedNoContact, ""))
+		}
+		return record(newRow(enum.DeliveryFailed, "contact_lookup_error"))
+	}
+
+	// 4. Everything passed — record a pending row and enqueue the send.
+	provider := string(settings.Provider)
+	pending := newRow(enum.DeliveryPending, "")
+	pending.ContactID = &contact.ID
+	pending.AddressSnapshot = &contact.Address
+	pending.Provider = &provider
+
+	created, err := record(pending)
+	if err != nil {
+		return nil, err
+	}
+
+	// Build the one-click unsubscribe URL (Phase 6). Best-effort: if the token
+	// can't be built the email still sends, just without the List-Unsubscribe
+	// header. The token identifies (project, recipient, target); the endpoint
+	// re-derives + verifies it (no DB row).
+	unsubscribeURL := s.buildUnsubscribeURL(projectID, recipientExtID, target)
+
+	taskPayload, err := json.Marshal(dto.EmailDeliveryTaskPayload{
+		DeliveryID:     created.ID,
+		ProjectID:      projectID,
+		To:             contact.Address,
+		Subject:        email.Subject,
+		HTML:           email.HTML,
+		Text:           email.ResolvedText(),
+		UnsubscribeURL: unsubscribeURL,
+	})
+	if err != nil {
+		s.markDeliveryFailed(ctx, created.ID, "enqueue_marshal_error")
+		created.Status = enum.DeliveryFailed
+		return created, fmt.Errorf("marshal email delivery task payload: %w", err)
+	}
+
+	emailTask := asynq.NewTask(task.TaskTypeEmailDelivery, taskPayload)
+	if _, err := s.asynqClient.Enqueue(emailTask, asynq.MaxRetry(5)); err != nil {
+		s.markDeliveryFailed(ctx, created.ID, "enqueue_error")
+		created.Status = enum.DeliveryFailed
+		return created, fmt.Errorf("enqueue email delivery task: %w", err)
+	}
+
+	return created, nil
+}
+
+// markDeliveryFailed flips a pending delivery row to failed when enqueue fails
+// after the row was created (best-effort; logs on error).
+func (s *NotificationService) markDeliveryFailed(ctx context.Context, deliveryID int64, reason string) {
+	err := s.deliveryRepo.UpdateResult(ctx, deliveryID, repository.NotificationDeliveryResult{
+		Status:        enum.DeliveryFailed,
+		FailureReason: &reason,
+	})
+	if err != nil {
+		logger.Get().Errorf("mark email delivery %d failed: %v", deliveryID, err)
+	}
+}
+
+// buildUnsubscribeURL signs a Phase 6 unsubscribe token for (project, recipient,
+// target) and returns the public one-click URL. Returns "" (no header injected) if
+// the token can't be built or no API base URL is configured — the email still
+// sends, just without List-Unsubscribe.
+func (s *NotificationService) buildUnsubscribeURL(projectID int, recipientExtID string, target dto.Target) string {
+	if env.APIURL == "" {
+		return ""
+	}
+	token, err := email.BuildUnsubscribeToken(email.UnsubscribeClaims{
+		ProjectID:      projectID,
+		RecipientExtID: recipientExtID,
+		Channel:        target.Channel,
+		Topic:          target.Topic,
+		Event:          target.Event,
+	}, []byte(env.HashKey))
+	if err != nil {
+		logger.Get().Errorf("build unsubscribe token for project %d recipient %s: %v", projectID, recipientExtID, err)
+		return ""
+	}
+	return email.UnsubscribeURL(env.APIURL, token)
 }
 
 func (s *NotificationService) sendBroadcastNotification(ctx context.Context, userID int, payload dto.SendNotificationPayload) (*dto.Broadcast, error) {
@@ -177,6 +350,19 @@ func (s *NotificationService) Overview(ctx context.Context, projectID int) (*dto
 	result, err := s.repo.Overview(ctx, projectID)
 	if err != nil {
 		return nil, service.ErrInternalServerError, fmt.Errorf("notification repo overview: %w", err)
+	}
+	return result, service.ErrNone, nil
+}
+
+// EmailDeliveryOverview returns the per-status email delivery counts for a
+// project, powering the console's email analytics (Phase 5).
+func (s *NotificationService) EmailDeliveryOverview(ctx context.Context, projectID int) (*dto.EmailDeliveryOverview, service.Error, error) {
+	if projectID <= 0 {
+		return nil, service.ErrInvalidInput, fmt.Errorf("projectID required")
+	}
+	result, err := s.deliveryRepo.EmailDeliveryOverviewForProject(ctx, projectID)
+	if err != nil {
+		return nil, service.ErrInternalServerError, fmt.Errorf("email delivery overview: %w", err)
 	}
 	return result, service.ErrNone, nil
 }
