@@ -1,0 +1,8 @@
+---
+title: "Add contact"
+openapi: "POST /recipients/{recipient_id}/contacts"
+---
+
+Register a contact address for a recipient. To send email to a recipient, add an `email` contact and mark it `is_primary`.
+
+💡 Sync this **server-side** (e.g. on your `/me` endpoint) so the address never rides a browser request.

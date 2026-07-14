@@ -412,6 +412,7 @@ class RecipientsPreferences implements RecipientsPreferencesClient {
             ROUTES.recipients.preferences.set(recipientID),
             {
                 target: req.target,
+                medium: req.medium,
                 state: req.state,
             }
         );
@@ -425,7 +426,7 @@ class RecipientsPreferences implements RecipientsPreferencesClient {
         const response = await this.client.get(
             ROUTES.recipients.preferences.check(recipientID),
             {
-                params: req.target,
+                params: { ...req.target, medium: req.medium },
             }
         );
         return response.data as CheckPreferenceResponse;

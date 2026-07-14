@@ -8,9 +8,19 @@ export interface Target {
 }
 
 /**
+ * A medium a preference applies to. In-app and email are toggled independently
+ * for the same target.
+ */
+export type PreferenceMedium = "in_app" | "email";
+
+/**
  * Represents a preference target, extending the Target interface.
  */
 export interface TargetWithLabel extends Target {
+    /**
+     * The medium this preference applies to (`in_app` or `email`).
+     */
+    medium?: PreferenceMedium;
     label?: string;
 }
 
@@ -261,6 +271,10 @@ export interface ListPreferencesResponse {
  */
 export interface SetPreferenceRequest {
     target: Target;
+    /**
+     * The medium this preference applies to. Defaults to `in_app` when omitted.
+     */
+    medium?: PreferenceMedium;
     state: {
         enabled: boolean;
     };
@@ -270,7 +284,7 @@ export interface SetPreferenceRequest {
  * Represents the response after setting a preference.
  */
 export interface SetPreferenceResponse {
-    target: Target;
+    target: TargetWithLabel;
     state: PreferenceState;
 }
 
@@ -279,13 +293,17 @@ export interface SetPreferenceResponse {
  */
 export interface CheckPreferenceRequest {
     target: Target;
+    /**
+     * The medium to check. Defaults to `in_app` when omitted.
+     */
+    medium?: PreferenceMedium;
 }
 
 /**
  * Represents the response after checking a preference.
  */
 export interface CheckPreferenceResponse {
-    target: Target;
+    target: TargetWithLabel;
     state: PreferenceState;
 }
 

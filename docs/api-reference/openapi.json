@@ -26,6 +26,10 @@
                     {
                         "lang": "curl",
                         "source": "curl -X POST https://api.bodhveda.com/notifications/send \\\n  -H \"Authorization: Bearer bv_xxxxxxxxx\" \\\n  -H \"Content-Type: application/json\" \\\n  -d '{\n    \"recipient_id\": \"recipient_123\",\n    \"target\": {\n      \"channel\": \"posts\",\n      \"topic\": \"post_id_123\",\n      \"event\": \"new_comment\"\n    },\n    \"payload\": {\n      \"title\": \"Elon, Zuck and others commented on your post.\",\n      \"post_url\": \"/posts/post_id_123#comments\"\n    }\n  }'"
+                    },
+                    {
+                        "lang": "curl",
+                        "source": "# Direct send fanned out to inbox + email.\n# The `email` block makes email eligible (direct sends only).\ncurl -X POST https://api.bodhveda.com/notifications/send \\\n  -H \"Authorization: Bearer bv_xxxxxxxxx\" \\\n  -H \"Content-Type: application/json\" \\\n  -d '{\n    \"recipient_id\": \"recipient_123\",\n    \"target\": {\n      \"channel\": \"digest\",\n      \"topic\": \"none\",\n      \"event\": \"sent\"\n    },\n    \"payload\": {\n      \"title\": \"Your daily digest is ready.\"\n    },\n    \"email\": {\n      \"subject\": \"Your daily digest\",\n      \"html\": \"<h1>Your daily digest</h1><p>3 new follow-ups today.</p>\",\n      \"text\": \"Your daily digest\\n3 new follow-ups today.\"\n    }\n  }'"
                     }
                 ],
                 "responses": {
@@ -91,6 +95,41 @@
                                             "data": {
                                                 "notification": null,
                                                 "broadcast": null
+                                            }
+                                        }
+                                    },
+                                    "Direct notification with email": {
+                                        "summary": "Direct Notification Fanned Out to Inbox + Email",
+                                        "value": {
+                                            "message": "Direct notification sent successfully to recipient recipient_123.",
+                                            "data": {
+                                                "notification": {
+                                                    "id": 42070,
+                                                    "recipient_id": "recipient_123",
+                                                    "payload": {
+                                                        "title": "Your daily digest is ready."
+                                                    },
+                                                    "broadcast_id": null,
+                                                    "target": {
+                                                        "channel": "digest",
+                                                        "topic": "none",
+                                                        "event": "sent"
+                                                    },
+                                                    "read": false,
+                                                    "opened": false,
+                                                    "created_at": "2025-11-07T05:31:56Z",
+                                                    "updated_at": "2025-11-07T05:31:56Z"
+                                                },
+                                                "broadcast": null,
+                                                "deliveries": [
+                                                    {
+                                                        "medium": "email",
+                                                        "status": "pending",
+                                                        "address": "alice@example.com",
+                                                        "created_at": "2025-11-07T05:31:56Z",
+                                                        "updated_at": "2025-11-07T05:31:56Z"
+                                                    }
+                                                ]
                                             }
                                         }
                                     }
@@ -440,6 +479,249 @@
                 ]
             }
         },
+        "/recipients/{recipient_id}/contacts": {
+            "get": {
+                "summary": "List a recipient's contacts",
+                "operationId": "listRecipientContacts",
+                "tags": ["Contacts"],
+                "description": "List all of a recipient's per-medium contact addresses.",
+                "parameters": [
+                    {
+                        "name": "recipient_id",
+                        "in": "path",
+                        "required": true,
+                        "schema": { "type": "string" },
+                        "description": "The unique identifier of the recipient."
+                    }
+                ],
+                "responses": {
+                    "200": {
+                        "description": "List of the recipient's contacts.",
+                        "content": {
+                            "application/json": {
+                                "examples": {
+                                    "Contacts": {
+                                        "summary": "Contacts Response",
+                                        "value": {
+                                            "data": {
+                                                "contacts": [
+                                                    {
+                                                        "id": 1,
+                                                        "medium": "email",
+                                                        "address": "alice@example.com",
+                                                        "is_primary": true,
+                                                        "verified_at": null,
+                                                        "created_at": "2025-11-07T05:31:56Z",
+                                                        "updated_at": "2025-11-07T05:31:56Z"
+                                                    }
+                                                ]
+                                            }
+                                        }
+                                    }
+                                }
+                            }
+                        }
+                    }
+                },
+                "security": [
+                    {
+                        "BearerAuthWithAPIKeyWithEitherScope": []
+                    }
+                ]
+            },
+            "post": {
+                "summary": "Add a contact to a recipient",
+                "operationId": "createRecipientContact",
+                "tags": ["Contacts"],
+                "description": "Register a per-medium contact address for a recipient. Email needs a **primary** email contact to receive email. A duplicate `(medium, address)`, or a second primary for the same `(recipient, medium)`, returns `409`.",
+                "parameters": [
+                    {
+                        "name": "recipient_id",
+                        "in": "path",
+                        "required": true,
+                        "schema": { "type": "string" },
+                        "description": "The unique identifier of the recipient."
+                    }
+                ],
+                "requestBody": {
+                    "required": true,
+                    "content": {
+                        "application/json": {
+                            "schema": {
+                                "$ref": "#/components/schemas/CreateRecipientContactPayload"
+                            }
+                        }
+                    }
+                },
+                "x-codeSamples": [
+                    {
+                        "lang": "curl",
+                        "source": "curl -X POST https://api.bodhveda.com/recipients/recipient_123/contacts \\\n  -H \"Authorization: Bearer bv_xxxxxxxxx\" \\\n  -H \"Content-Type: application/json\" \\\n  -d '{\n    \"medium\": \"email\",\n    \"address\": \"alice@example.com\",\n    \"is_primary\": true\n  }'"
+                    }
+                ],
+                "responses": {
+                    "201": {
+                        "description": "Contact created",
+                        "content": {
+                            "application/json": {
+                                "examples": {
+                                    "Contact created": {
+                                        "summary": "Contact Created Response",
+                                        "value": {
+                                            "message": "Contact created",
+                                            "data": {
+                                                "id": 1,
+                                                "medium": "email",
+                                                "address": "alice@example.com",
+                                                "is_primary": true,
+                                                "verified_at": null,
+                                                "created_at": "2025-11-07T05:31:56Z",
+                                                "updated_at": "2025-11-07T05:31:56Z"
+                                            }
+                                        }
+                                    }
+                                }
+                            }
+                        }
+                    },
+                    "409": {
+                        "description": "A contact with this address, or a primary contact for this medium, already exists.",
+                        "content": {
+                            "application/json": {
+                                "examples": {
+                                    "Conflict": {
+                                        "summary": "Contact Conflict",
+                                        "value": {
+                                            "message": "Contact already exists"
+                                        }
+                                    }
+                                }
+                            }
+                        }
+                    }
+                },
+                "security": [
+                    {
+                        "BearerAuthWithAPIKeyWithEitherScope": []
+                    }
+                ]
+            }
+        },
+        "/recipients/{recipient_id}/contacts/{contact_id}": {
+            "patch": {
+                "summary": "Update a recipient's contact",
+                "operationId": "updateRecipientContact",
+                "tags": ["Contacts"],
+                "description": "Update a contact's address and/or primary flag. Provide at least one field. Changing the address resets the contact's verification.",
+                "parameters": [
+                    {
+                        "name": "recipient_id",
+                        "in": "path",
+                        "required": true,
+                        "schema": { "type": "string" },
+                        "description": "The unique identifier of the recipient."
+                    },
+                    {
+                        "name": "contact_id",
+                        "in": "path",
+                        "required": true,
+                        "schema": { "type": "integer" },
+                        "description": "The unique identifier of the contact."
+                    }
+                ],
+                "requestBody": {
+                    "required": true,
+                    "content": {
+                        "application/json": {
+                            "schema": {
+                                "$ref": "#/components/schemas/UpdateRecipientContactPayload"
+                            }
+                        }
+                    }
+                },
+                "x-codeSamples": [
+                    {
+                        "lang": "curl",
+                        "source": "curl -X PATCH https://api.bodhveda.com/recipients/recipient_123/contacts/1 \\\n  -H \"Authorization: Bearer bv_xxxxxxxxx\" \\\n  -H \"Content-Type: application/json\" \\\n  -d '{\n    \"address\": \"alice.new@example.com\"\n  }'"
+                    }
+                ],
+                "responses": {
+                    "200": {
+                        "description": "Contact updated",
+                        "content": {
+                            "application/json": {
+                                "examples": {
+                                    "Contact updated": {
+                                        "summary": "Contact Updated Response",
+                                        "value": {
+                                            "message": "Contact updated",
+                                            "data": {
+                                                "id": 1,
+                                                "medium": "email",
+                                                "address": "alice.new@example.com",
+                                                "is_primary": true,
+                                                "verified_at": null,
+                                                "created_at": "2025-11-07T05:31:56Z",
+                                                "updated_at": "2025-11-07T06:00:00Z"
+                                            }
+                                        }
+                                    }
+                                }
+                            }
+                        }
+                    }
+                },
+                "security": [
+                    {
+                        "BearerAuthWithAPIKeyWithEitherScope": []
+                    }
+                ]
+            },
+            "delete": {
+                "summary": "Delete a recipient's contact",
+                "operationId": "deleteRecipientContact",
+                "tags": ["Contacts"],
+                "description": "Delete a recipient's contact. Requires an API key with **Full access** scope.",
+                "parameters": [
+                    {
+                        "name": "recipient_id",
+                        "in": "path",
+                        "required": true,
+                        "schema": { "type": "string" },
+                        "description": "The unique identifier of the recipient."
+                    },
+                    {
+                        "name": "contact_id",
+                        "in": "path",
+                        "required": true,
+                        "schema": { "type": "integer" },
+                        "description": "The unique identifier of the contact."
+                    }
+                ],
+                "responses": {
+                    "200": {
+                        "description": "Contact deleted",
+                        "content": {
+                            "application/json": {
+                                "examples": {
+                                    "Contact deleted": {
+                                        "summary": "Contact Deleted Response",
+                                        "value": {
+                                            "message": "Contact deleted"
+                                        }
+                                    }
+                                }
+                            }
+                        }
+                    }
+                },
+                "security": [
+                    {
+                        "BearerAuthWithAPIKeyWithFullAcessScope": []
+                    }
+                ]
+            }
+        },
         "/recipients/{recipient_id}/preferences": {
             "get": {
                 "summary": "List preferences for a recipient",
@@ -471,6 +753,7 @@
                                                             "channel": "posts",
                                                             "topic": "any",
                                                             "event": "new_comment",
+                                                            "medium": "in_app",
                                                             "label": "Comments on your posts"
                                                         },
                                                         "state": {
@@ -483,6 +766,7 @@
                                                             "channel": "announcements",
                                                             "topic": "none",
                                                             "event": "new_feature",
+                                                            "medium": "email",
                                                             "label": "Product Announcements"
                                                         },
                                                         "state": {
@@ -529,12 +813,18 @@
                                     "target": {
                                         "$ref": "#/components/schemas/Target"
                                     },
+                                    "medium": {
+                                        "type": "string",
+                                        "description": "The medium this preference applies to. In-app and email are toggled independently for the same target. Defaults to `in_app` when omitted.",
+                                        "enum": ["in_app", "email"],
+                                        "default": "in_app"
+                                    },
                                     "state": {
                                         "type": "object",
                                         "properties": {
                                             "enabled": {
                                                 "type": "boolean",
-                                                "description": "Whether the recipient is subscribed to this target."
+                                                "description": "Whether the recipient is subscribed to this target for this medium."
                                             }
                                         },
                                         "required": ["enabled"]
@@ -548,7 +838,7 @@
                 "x-codeSamples": [
                     {
                         "lang": "curl",
-                        "source": "curl -X PATCH https://api.bodhveda.com/recipients/recipient_123/preferences \\\n  -H \"Authorization: Bearer bv_xxxxxxxxx\" \\\n  -H \"Content-Type: application/json\" \\\n  -d '{\n    \"target\": {\n      \"channel\": \"posts\",\n      \"topic\": \"post_id_123\",\n      \"event\": \"new_comment\"\n    },\n    \"state\": {\n      \"subscribed\": false\n    }\n  }'"
+                        "source": "curl -X PATCH https://api.bodhveda.com/recipients/recipient_123/preferences \\\n  -H \"Authorization: Bearer bv_xxxxxxxxx\" \\\n  -H \"Content-Type: application/json\" \\\n  -d '{\n    \"target\": {\n      \"channel\": \"posts\",\n      \"topic\": \"post_id_123\",\n      \"event\": \"new_comment\"\n    },\n    \"medium\": \"email\",\n    \"state\": {\n      \"enabled\": false\n    }\n  }'"
                     }
                 ],
                 "responses": {
@@ -564,7 +854,8 @@
                                                 "target": {
                                                     "channel": "posts",
                                                     "topic": "post_id_123",
-                                                    "event": "new_comment"
+                                                    "event": "new_comment",
+                                                    "medium": "email"
                                                 },
                                                 "state": {
                                                     "enabled": false,
@@ -619,6 +910,17 @@
                         "required": true,
                         "schema": { "type": "string" },
                         "description": "Event to check."
+                    },
+                    {
+                        "name": "medium",
+                        "in": "query",
+                        "required": false,
+                        "schema": {
+                            "type": "string",
+                            "enum": ["in_app", "email"],
+                            "default": "in_app"
+                        },
+                        "description": "Which medium to check the subscription state for. Defaults to `in_app`."
                     }
                 ],
                 "responses": {
@@ -634,7 +936,8 @@
                                                 "target": {
                                                     "channel": "posts",
                                                     "topic": "post_id_123",
-                                                    "event": "new_comment"
+                                                    "event": "new_comment",
+                                                    "medium": "email"
                                                 },
                                                 "state": {
                                                     "enabled": true,
@@ -959,10 +1262,73 @@
                     },
                     "payload": {
                         "type": "object",
-                        "description": "Arbitrary JSON payload for the notification."
+                        "description": "Arbitrary JSON payload for the notification. This is the **in-app** content block — its presence makes the notification eligible for in-app delivery."
+                    },
+                    "email": {
+                        "$ref": "#/components/schemas/EmailContent"
                     }
                 },
                 "required": ["payload"]
+            },
+            "EmailContent": {
+                "type": "object",
+                "description": "Optional typed **email** content block. Its **presence** is your signal that email is eligible for this send (content-block-implies-intent). Absence ⇒ no email — there is **no** fallback that derives email from `payload`.\n\n- **Direct sends only.** Including an `email` block on a broadcast returns `400` (email is never sent on broadcasts).\n- Bodhveda does **no** templating in v1 — you render your own subject/HTML/text (e.g. with `@react-email`) and pass the result.\n- Email still fires only if the `(target, email)` pair is in the project catalog, the recipient's email preference is enabled, and the recipient has a primary email contact.",
+                "properties": {
+                    "subject": {
+                        "type": "string",
+                        "description": "The email subject line. Required when an `email` block is present."
+                    },
+                    "html": {
+                        "type": "string",
+                        "description": "Rendered HTML body. At least one of `html` or `text` must be provided."
+                    },
+                    "text": {
+                        "type": "string",
+                        "description": "Plain-text body. Recommended for deliverability. If omitted, it is derived from `html`."
+                    }
+                },
+                "required": ["subject"]
+            },
+            "NotificationDelivery": {
+                "type": "object",
+                "description": "A per-medium delivery outcome for a **direct** send (email in v1). A failed medium never rejects the send — the outcome is reported here instead.",
+                "properties": {
+                    "medium": {
+                        "type": "string",
+                        "description": "The delivery transport, e.g. `email`.",
+                        "example": "email"
+                    },
+                    "status": {
+                        "type": "string",
+                        "description": "Delivery status. At send time one of `pending` (queued to the provider), `muted` (catalog/preference disallows email), `no_contact` (recipient has no primary email contact), or `failed` (e.g. email provider not configured). Later transitions to `sent`/`delivered`/`bounced`/`complained` via provider webhooks.",
+                        "enum": [
+                            "pending",
+                            "sent",
+                            "delivered",
+                            "bounced",
+                            "complained",
+                            "failed",
+                            "muted",
+                            "no_contact"
+                        ]
+                    },
+                    "address": {
+                        "type": "string",
+                        "description": "The address the delivery was sent to (captured at send time), when known."
+                    },
+                    "failure_reason": {
+                        "type": "string",
+                        "description": "Set when the medium did not send. E.g. `not_cataloged`, `preference_disabled`, `provider_not_configured`."
+                    },
+                    "created_at": {
+                        "type": "string",
+                        "format": "date-time"
+                    },
+                    "updated_at": {
+                        "type": "string",
+                        "format": "date-time"
+                    }
+                }
             },
             "Target": {
                 "type": "object",
@@ -995,6 +1361,13 @@
                     },
                     "broadcast": {
                         "$ref": "#/components/schemas/Broadcast"
+                    },
+                    "deliveries": {
+                        "type": "array",
+                        "description": "Per-medium delivery outcomes for a **direct** send (email in v1). In-app is intentionally absent — its outcome lives on the `notification` object.",
+                        "items": {
+                            "$ref": "#/components/schemas/NotificationDelivery"
+                        }
                     }
                 }
             },
@@ -1094,6 +1467,77 @@
                     }
                 },
                 "required": ["id"]
+            },
+            "RecipientContact": {
+                "type": "object",
+                "description": "A per-medium contact address for a recipient.",
+                "properties": {
+                    "id": {
+                        "type": "integer",
+                        "description": "Unique identifier for the contact."
+                    },
+                    "medium": {
+                        "type": "string",
+                        "description": "The delivery transport this address is for. Only `email` is exercised today; `sms`, `web_push`, and `mobile_push` are reserved for future transports.",
+                        "enum": ["email", "sms", "web_push", "mobile_push"]
+                    },
+                    "address": {
+                        "type": "string",
+                        "description": "The contact address (e.g. an email address). Email addresses are stored lowercased."
+                    },
+                    "is_primary": {
+                        "type": "boolean",
+                        "description": "Whether this is the recipient's primary contact for its medium. Email is sent to the primary email contact."
+                    },
+                    "verified_at": {
+                        "type": "string",
+                        "format": "date-time",
+                        "nullable": true,
+                        "description": "When the contact was verified, or `null` if unverified."
+                    },
+                    "created_at": {
+                        "type": "string",
+                        "format": "date-time"
+                    },
+                    "updated_at": {
+                        "type": "string",
+                        "format": "date-time"
+                    }
+                }
+            },
+            "CreateRecipientContactPayload": {
+                "type": "object",
+                "properties": {
+                    "medium": {
+                        "type": "string",
+                        "description": "The delivery transport. Only `email` is exercised today.",
+                        "enum": ["email", "sms", "web_push", "mobile_push"]
+                    },
+                    "address": {
+                        "type": "string",
+                        "description": "The contact address. For email it must contain `@` and is stored lowercased."
+                    },
+                    "is_primary": {
+                        "type": "boolean",
+                        "description": "Mark this as the primary contact for its medium. Only one primary is allowed per `(recipient, medium)`.",
+                        "default": false
+                    }
+                },
+                "required": ["medium", "address"]
+            },
+            "UpdateRecipientContactPayload": {
+                "type": "object",
+                "description": "Provide at least one field. Changing the address resets `verified_at`.",
+                "properties": {
+                    "address": {
+                        "type": "string",
+                        "description": "New contact address."
+                    },
+                    "is_primary": {
+                        "type": "boolean",
+                        "description": "Set or unset this contact as the primary for its medium."
+                    }
+                }
             }
         }
     }

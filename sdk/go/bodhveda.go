@@ -225,6 +225,9 @@ func (recipientsPreferences *RecipientsPreferences) Check(ctx context.Context, r
 		params.Set("channel", req.Target.Channel)
 		params.Set("topic", req.Target.Topic)
 		params.Set("event", req.Target.Event)
+		if req.Medium != "" {
+			params.Set("medium", string(req.Medium))
+		}
 	}
 
 	path := routes.RecipientsPreferencesCheck(recipientID)

@@ -53,11 +53,14 @@ type Recipient struct {
 	UpdatedAt time.Time `json:"updated_at"`
 }
 
-// Medium is a delivery transport a recipient contact can be registered for.
-// Only Email is exercised today; the rest are reserved for future transports.
+// Medium is a delivery transport. MediumInApp and MediumEmail are the mediums a
+// preference can apply to; the contact mediums (email/sms/web_push/mobile_push)
+// are the transports a recipient contact can be registered for. Only in-app and
+// email are active today; the rest are reserved for future transports.
 type Medium string
 
 const (
+	MediumInApp      Medium = "in_app"
 	MediumEmail      Medium = "email"
 	MediumSMS        Medium = "sms"
 	MediumWebPush    Medium = "web_push"
@@ -104,10 +107,12 @@ type UpdateRecipientContactResponse struct {
 	RecipientContact
 }
 
-// TargetWithLabel represents a target with an optional label.
+// TargetWithLabel represents a target with an optional label. Medium is the
+// medium this preference applies to (in_app or email).
 type TargetWithLabel struct {
 	Target
-	Label *string `json:"label,omitempty"`
+	Medium Medium  `json:"medium,omitempty"`
+	Label  *string `json:"label,omitempty"`
 }
 
 // PreferenceState represents the state of a preference.
@@ -263,27 +268,31 @@ type ListPreferencesResponse struct {
 	Preferences []Preference `json:"preferences"`
 }
 
-// SetPreferenceRequest represents the request to set a preference.
+// SetPreferenceRequest represents the request to set a preference. Medium
+// defaults to in_app when empty.
 type SetPreferenceRequest struct {
 	Target Target `json:"target"`
+	Medium Medium `json:"medium,omitempty"`
 	State  struct {
 		Enabled bool `json:"enabled"`
-	}
+	} `json:"state"`
 }
 
 // SetPreferenceResponse represents the response after setting a preference.
 type SetPreferenceResponse struct {
-	Target Target          `json:"target"`
+	Target TargetWithLabel `json:"target"`
 	State  PreferenceState `json:"state"`
 }
 
-// CheckPreferenceRequest represents the request to check a preference.
+// CheckPreferenceRequest represents the request to check a preference. Medium
+// defaults to in_app when empty.
 type CheckPreferenceRequest struct {
 	Target Target `json:"target"`
+	Medium Medium `json:"medium,omitempty"`
 }
 
 // CheckPreferenceResponse represents the response after checking a preference.
 type CheckPreferenceResponse struct {
-	Target Target          `json:"target"`
+	Target TargetWithLabel `json:"target"`
 	State  PreferenceState `json:"state"`
 }

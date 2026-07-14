@@ -456,8 +456,9 @@ handler→service→pg pattern; don't refactor domains mid-phase (see top of doc
 - Phase 4 — Email delivery core (adapter + `email:delivery` worker + `notification_delivery` + send `email` block; DIRECT-only) — **DONE** (see "Phase 4 — deviations (as built)" below)
 - Phase 5 — Delivery status via Resend webhooks — **DONE** (see "Phase 5 — deviations (as built)" below)
 - Phase 6 — Unsubscribe (List-Unsubscribe header + public endpoint) — **DONE** (see "Phase 6 — deviations (as built)" below)
-- Phase 7 — Public docs (Mintlify) for the email medium — **TODO**
-- Phase 8 — Resurface cutover (the final end-to-end test) — **TODO**
+- Phase 7 — Release prep: Mintlify docs + SDK bump/README + publish runbook — **DONE** (see "Phase 7 — deviations (as built)" below)
+- Phase 7.5 — Deploy email medium to VPS + Cloudflare, verify live — **TODO**
+- Phase 8 — Resurface cutover against the LIVE instance (the final end-to-end test) — **TODO**
 
 ---
 
@@ -1195,21 +1196,276 @@ complaint hook). `go build`/`go vet`/tests pass; the full unsubscribe loop and t
   gained a `complained`→suppression assertion. The full HTTP surface (POST 200 one-click, GET
   HTML page, bad-token 400) was additionally driven **live** against the running API.
 
-### Phase 7 — Public docs (Mintlify)
+### Phase 7 — Release prep: Mintlify docs + SDK bump/README + publish runbook
 
-- **Goal:** the published docs site documents the email medium.
-- **In scope:** `docs/` (Mintlify) updates — mediums concept, the send API `email` block,
-  recipient email, per-medium preferences, unsubscribe behavior; `docs.json` nav; API
-  reference. (This is the ONLY phase that touches `docs/`; agent notes stay in `agent-docs/`.)
-- **Depends on:** Phases 1–6 (documents shipped behavior).
-- **Done when:** docs build and cover the whole email flow.
+- **Goal:** everything a downstream consumer (incl. the Phase 8 Resurface cutover) needs is
+  written, versioned, and **ready to publish** — the published docs document the email medium,
+  and the SDKs expose it with a bumped version + updated README. Publishing itself is a human
+  step (see the runbook this phase produces).
+- **In scope:**
+  - `docs/` (Mintlify) — mediums concept, send API `email` block, recipient contacts,
+    per-medium preferences, unsubscribe. (The ONLY phase that touches `docs/`; agent notes stay
+    in `agent-docs/`.)
+  - **SDKs** (`sdk/go`, `sdk/js/core` = npm `bodhveda`, `sdk/js/react` = `@bodhveda/react`):
+    audit that email is fully exposed (types + client methods for the send `email` block,
+    `deliveries[]` on the direct-send response, and recipient-contacts CRUD — much of this
+    landed incrementally in Phases 1–6; this phase confirms parity & fills gaps), refresh each
+    README, add/adjust a CHANGELOG note, and **bump versions** (JS is at `0.0.6`; Go versions
+    via a `sdk/go/vX.Y.Z` git tag on the module subpath).
+  - A **publish RUNBOOK** (the exact human steps: `npm publish` for both JS packages, the Go
+    module git tag, and Mintlify deploy) committed to `agent-docs/`.
+- **Out of scope:** actually running `npm publish` / pushing tags / deploying (the human does
+  that from the runbook — publishes are irreversible & credential-gated); VPS/Cloudflare app
+  deploy (Phase 7.5).
+- **Depends on:** Phases 1–6 (documents + wraps shipped behavior).
+- **Done when:** docs build (`mint`) and cover the whole email flow; SDKs build/typecheck with
+  email exposed and versions bumped; the publish runbook is written; nothing is published yet.
 
 ```
-Read agent-docs/overview.md in full first. Implement Phase 7 (Public docs) as scoped: update
-the Mintlify site under docs/ (NOT agent-docs/) to document the email medium — mediums concept,
-send API `email` block, recipient email, per-medium preferences, and unsubscribe — including
-docs.json nav and API reference. Match the existing MDX style under docs/docs and
-docs/api-reference. Update Phase 7 status to DONE when finished.
+Read agent-docs/overview.md in full first, esp. the Phase 1–6 "deviations (as built)" sections
+— they are the source of truth. This is a RELEASE-PREP phase: you PREPARE and verify locally,
+but do NOT publish or deploy anything (no `npm publish`, no `git push --tags`, no Mintlify
+deploy) — those are irreversible/credential-gated human steps you instead write into a runbook.
+Do NOT change backend behavior; SDK changes are limited to exposing already-shipped email
+features. If code and docs disagree, the code wins — note it, don't "fix" it here.
+
+PART A — Mintlify docs (docs/ only; NOT agent-docs/).
+Know the structure: prose in `docs/docs/` (`introduction`, `quickstart`, `sdks`,
+`concepts/{recipients,targets,preferences,notifications}.mdx`); nav in `docs/docs.json`; the API
+Reference is **OpenAPI-driven** — each endpoint MDX is a thin stub
+(`openapi: "POST /notifications/send"`) rendered from `docs/api-reference/openapi.json`, so
+document request/response changes by editing **`openapi.json` FIRST**, not by hand-writing tables.
+Add new pages to BOTH the file tree and docs.json. Document (all shipped in Phases 1–6):
+1. New **Mediums** concept page (`docs/docs/concepts/mediums.mdx`, add to nav): in_app vs email;
+   content-block-implies-intent (`payload` ⇒ in-app, `email` block ⇒ email eligible; no
+   `mediums[]`, no payload→email fallback); **email is DIRECT-only, never broadcast**; each medium
+   independently preference-gated.
+2. **Send API `email` block** — add `email: {subject, html, text}` to the send request in
+   `openapi.json` (no templating; caller supplies rendered html/text; `text` optional, derived
+   from html); DIRECT-only (email on broadcast ⇒ 400). Update the send-notification MDX prose.
+3. **Recipient contacts** — Phase 1's `recipient_contact` + contacts API is currently
+   UNDOCUMENTED. Add the contacts endpoints (create/list/update/delete under
+   `/recipients/{recipient_external_id}/contacts`, Phase 1 scope rules) to `openapi.json` + new
+   endpoint MDX stubs, and a contacts section on `concepts/recipients.mdx` (email needs a primary
+   email contact).
+4. **Per-medium preferences** — update `concepts/preferences.mdx` + the preferences endpoints in
+   `openapi.json` for the `medium` dimension (catalog + recipient opt-in/out are per (target, medium)).
+5. **Unsubscribe** — short section: outbound email carries `List-Unsubscribe` one-click headers;
+   Bodhveda hosts the unsubscribe which flips the recipient's email preference for that target off.
+   Automatic — no dev-API endpoint to document. Delivery-status webhooks + console delivery overview
+   are console/provider-facing (mention conceptually, not as a dev-API surface).
+
+PART B — SDKs (expose already-shipped email; do NOT invent new API surface).
+Audit all three packages for parity with the live API, then bump + document:
+- `sdk/go` (module `github.com/MudgalLabs/bodhveda/sdk/go`): confirm the send call accepts the
+  `email` block, the direct-send response exposes `deliveries[]`, and recipient-contacts CRUD
+  exists (routes already in `sdk/go/routes/routes.go`; verify client methods + types in
+  `types.go`). Update `sdk/go/README.md`. Go is versioned by a git tag `sdk/go/vX.Y.Z` — do NOT
+  create the tag (runbook), but decide the version and put it in the README/CHANGELOG.
+- `sdk/js/core` (npm `bodhveda`, currently `0.0.6`): it already has `contacts.*`, `send()` email,
+  and `deliveries` in `src/types.ts` — verify end-to-end, update `README.md`, bump `package.json`
+  version, `npm run build` to refresh `dist/`.
+- `sdk/js/react` (`@bodhveda/react`, `0.0.6`): bump in lockstep if it re-exports changed core
+  types; update README if it surfaces email.
+- Pick ONE coherent version bump across JS (e.g. 0.0.6 → 0.1.0 since this is the email feature)
+  and a matching Go tag version; record it. Add a short CHANGELOG entry per package.
+
+PART C — publish runbook.
+Write `agent-docs/release-email-medium.md` — the exact human publish steps IN ORDER:
+`cd sdk/js/core && npm publish`; `cd sdk/js/react && npm publish`; the Go module tag
+(`git tag sdk/go/vX.Y.Z && git push origin sdk/go/vX.Y.Z`); and how the Mintlify site deploys
+(confirm whether docs.bodhveda.com auto-deploys from git or needs `mint deploy` — check
+docs/docs.json / any Mintlify config and state which). Note npm needs `npm login` and that npm
+un-publish is restricted — versions are effectively permanent. This runbook feeds Phase 7.5.
+
+Verify locally: `mint` builds the docs & nav resolves; `go build ./...` in sdk/go; `npm run build`
+in both JS packages; openapi.json stays valid JSON. Commit everything. Update Phase 7 status to
+DONE and add a "Phase 7 — deviations (as built)" section listing the docs pages/nav/openapi ops
+added, the SDK gaps found+filled, the chosen version numbers, and the runbook path. Do NOT publish.
+```
+
+#### Phase 7 — deviations (as built)
+
+Release-prep only: **nothing was published or deployed** (that's Phase 7.5, from the runbook).
+No backend behavior changed. `go build ./...` (sdk/go), `npm run build` (both JS packages), and
+`mint broken-links` (docs) all pass; `openapi.json` + `docs.json` stay valid JSON.
+
+**Chosen versions.** JS core `bodhveda` **0.0.6 → 0.1.0**; JS react `@bodhveda/react`
+**0.0.6 → 0.1.0** (its `bodhveda` dep bumped `^0.0.5 → ^0.1.0` so it resolves the new core). Go
+SDK is tagged, not un-versioned as the prompt assumed — the latest tag is **`sdk/go/v0.1.9`**,
+so the next is **`sdk/go/v0.2.0`** (the tag is created by the human in the runbook, not here). A
+coherent minor bump everywhere for the additive email feature.
+
+**PART A — Mintlify docs (`docs/`).**
+- **New concept page** `docs/docs/concepts/mediums.mdx` (added to `docs.json` Concepts nav):
+  in_app vs email, content-block-implies-intent (`payload` ⇒ in-app, `email` ⇒ email eligible;
+  no `mediums[]`, no payload→email fallback), email DIRECT-only, per-medium gating (catalog +
+  preference + primary contact), and the automatic `List-Unsubscribe` behavior.
+- **`openapi.json` (edited first, MDX renders from it):**
+  - `SendNotificationPayload` gained an `email` prop → new **`EmailContent`** schema
+    (`subject` required, `html`/`text`, direct-only note); `SendNotificationResponse` gained
+    **`deliveries[]`** → new **`NotificationDelivery`** schema; added a fan-out response example
+    + an email-block curl code sample.
+  - **Contacts endpoints (were UNDOCUMENTED):** `GET`/`POST` `/recipients/{recipient_id}/contacts`
+    and `PATCH`/`DELETE` `/recipients/{recipient_id}/contacts/{contact_id}`, tagged `Contacts`,
+    with `RecipientContact` / `CreateRecipientContactPayload` / `UpdateRecipientContactPayload`
+    schemas. Scope rules encoded via `security` (POST/GET/PATCH either-scope, DELETE full-scope).
+  - **Per-medium preferences:** `medium` added to the set-preference request body, the
+    check-preference query params, and the list/set/check response target examples
+    (default `in_app`). Also corrected the stale set-preference example (`state.subscribed` →
+    `state.enabled`) while there.
+- **MDX stubs:** `docs/api-reference/endpoint/recipients/contacts/{list,create,update,delete}-contact.mdx`
+  (thin `openapi:` stubs), added to `docs.json` under a new **Contacts** group.
+- **Prose updates:** `concepts/recipients.mdx` (Contacts section), `concepts/preferences.mdx`
+  (per-medium section), `concepts/notifications.mdx` (email fan-out note), and the
+  send-notification endpoint MDX ("Delivering email" section).
+- **Left as-is (noted, not fixed):** `mint broken-links` reports two PRE-EXISTING broken links in
+  `docs/quickstart.mdx` (`/docs/concepts/target`, `/docs/concepts/introduction`) — unrelated to
+  email, out of this phase's scope. All new email pages/links resolve.
+
+**PART B — SDKs.** The three enumerated items (send `email` block, `deliveries[]`,
+recipient-contacts CRUD) were **already present** in both JS core (`src/types.ts` +
+`recipients.contacts.*`) and Go (`types.go` + `client.Recipients.Contacts.*`) from Phases 1/4 —
+parity confirmed. **Gap found + filled: per-medium preferences were not exposed.** The preference
+`set`/`check` calls silently dropped `medium` (JS `set` posted only `{target, state}`; Go/JS
+`check` sent only the target), so email preferences (needed for the Phase 8 Resurface cutover)
+were unreachable via SDK. Added an optional `medium` to the preference set/check requests + the
+preference response target types in both SDKs (JS `PreferenceMedium = "in_app" | "email"`; Go
+`MediumInApp` constant), defaulting to `in_app` — additive and backward-compatible. READMEs got
+Email-send, Recipient-Contacts, and per-medium-preference sections; each package got a
+`CHANGELOG.md`. React re-exports the changed core types (`export * from "bodhveda"`) so it's
+bumped in lockstep with a short README note (no new hooks — email/contacts are server-side).
+- **Noted, NOT fixed (out of scope):** the Go SDK's `RecipientsNotifications.UnreadCount` route
+  uses `/notifications/unread_count` while the live API is `/notifications/unread-count` — a
+  pre-existing, non-email bug. Left per "code wins; don't fix unrelated things here."
+
+**PART C — runbook.** `agent-docs/release-email-medium.md` — ordered human steps: publish
+`bodhveda` (core) first, then `@bodhveda/react`, then `git tag sdk/go/v0.2.0 && git push`, then
+the docs. **Docs deploy = Mintlify GitHub App auto-deploy from `main`** (confirmed: there is NO
+docs job in `.github/workflows/deploy.yml` and no `mint` config beyond `docs.json`); the runbook
+gives the dashboard-confirm path + `mint deploy` fallback. Notes `npm login` and that npm
+un-publish is effectively permanent.
+
+**Verification notes.** React's `node_modules` was absent and its `bodhveda` dep now points at
+the unpublished `0.1.0`; verified its build by installing the **local** core
+(`npm install --no-save ../core …`) — package.json/lockfiles untouched by that. The runbook's
+core-before-react ordering is what makes a clean `npm install` work at publish time.
+
+<!-- retained detailed docs-only prompt fragment below for reference; superseded by the release-prep prompt above -->
+<details><summary>Earlier docs-only Phase 7 prompt (superseded)</summary>
+
+```
+Read agent-docs/overview.md in full first, esp. the Phase 1–6 "deviations (as built)" sections
+— they are the source of truth for what to document. This phase touches ONLY docs/ (the public
+Mintlify site). Do NOT touch agent-docs/, and do NOT change any Go/console/SDK code — you are
+documenting SHIPPED behavior, not adding features. If reality and the docs disagree, the code
+wins; note the discrepancy rather than "fixing" it here.
+
+Know the docs structure before editing:
+- Prose lives in `docs/docs/` (`introduction`, `quickstart`, `sdks`, and `concepts/{recipients,
+  targets,preferences,notifications}.mdx`). Nav is `docs/docs.json` (the "Documentation" tab's
+  Concepts group + the "API Reference" tab's groups). Add new pages to BOTH the file tree and
+  docs.json.
+- The API Reference is **OpenAPI-driven**: each endpoint MDX is a thin stub with frontmatter
+  `openapi: "POST /notifications/send"` that renders from `docs/api-reference/openapi.json`. So
+  documenting new/changed request or response fields means **editing `openapi.json` FIRST**, then
+  the MDX renders it. Match this pattern — do not hand-write request tables in MDX.
+
+Document the email medium (all shipped in Phases 1–6):
+1. **New "Mediums" concept page** (`docs/docs/concepts/mediums.mdx`, add to nav): in_app vs email;
+   content-block-implies-intent (a `payload` block ⇒ in-app, an `email` block ⇒ email eligible;
+   no `mediums[]` array, no payload→email fallback); **email is DIRECT-only, never broadcast**;
+   each medium is independently gated by preferences.
+2. **Send API `email` block** — add `email: {subject, html, text}` to the send-notification request
+   in `openapi.json` (Bodhveda does NO templating; caller supplies rendered html/text; `text` is
+   optional and derived from html if omitted). Note the DIRECT-only rule (email on a broadcast is
+   a 400). Update `docs/api-reference/endpoint/notifications/send-notification.mdx` prose.
+3. **Recipient email contacts** — Phase 1 shipped a `recipient_contact` table + a contacts API that
+   is **currently UNDOCUMENTED**. Add the recipient contacts endpoints (create/list/update/delete
+   under `/recipients/{recipient_external_id}/contacts`, scope rules per Phase 1) to `openapi.json`
+   + new endpoint MDX stubs under `docs/api-reference/endpoint/recipients/contacts/`, and a
+   contacts section on `concepts/recipients.mdx` (a recipient needs a primary email contact to get
+   email).
+4. **Per-medium preferences** — update `concepts/preferences.mdx` + the preferences endpoints
+   (`openapi.json`) for the `medium` dimension (catalog entries are per (target, medium); recipient
+   opt-in/out is per (target, medium)).
+5. **Unsubscribe** — a short section (on the mediums or preferences page): every outbound email
+   carries `List-Unsubscribe` one-click headers and Bodhveda hosts the unsubscribe; it flips the
+   recipient's email preference for that target off (same effect as toggling the preference). This
+   is automatic — there's no dev-API endpoint to document (the public `/unsubscribe/email` route is
+   hit by mail clients, not SDK callers). Delivery-status webhooks + the console delivery overview
+   (Phase 5) are console/provider-facing; mention delivery statuses conceptually but they are not a
+   developer-API surface.
+
+Match the existing MDX voice/style. Verify the docs build (mint dev / mint build) and the nav
+resolves. Keep openapi.json valid. Update Phase 7 status to DONE and add a short "Phase 7 —
+deviations (as built)" section listing exactly which pages/nav entries + openapi.json operations
+were added or changed (and note the contacts API was newly documented, not just email).
+```
+
+</details>
+
+### Phase 7.5 — Deploy email medium to VPS + Cloudflare, verify live
+
+- **Goal:** the email medium is running on the LIVE Bodhveda (api.bodhveda.com + worker) and the
+  live Console, verified end-to-end, so the Phase 8 Resurface cutover can point at production
+  instead of a local dev instance.
+- **In scope (human-executed, this doc guides):**
+  - Apply the email-medium migrations to the **production** DB (goose, manual — no runner is
+    wired): the Phase 1–6 migrations, notably `recipient_contact`, `project_email_settings`
+    (+ `webhook_secret`), `notification_delivery`, and preference `medium`.
+  - Set the new **`BODHVEDA_API_URL`** env var on the prod api **and** worker (Phase 6 added it to
+    `compose.yaml`; the VPS `.env` must define it — it builds the unsubscribe link).
+  - Ship the API/worker image: merging to `main` triggers `.github/workflows/deploy.yml`
+    (build+push `bodhveda_api` image → SSH deploy). Confirm the **worker** picks up the new image
+    too (compose `deploy` overlay), since `email:delivery` runs there.
+  - Deploy the **Console** to Cloudflare (separate from deploy.yml — see
+    [[project-console-cloudflare-deploy]]; fresh `npm ci` means a broken lockfile only surfaces here).
+  - Publish the SDKs + docs from the **Phase 7 runbook** (`agent-docs/release-email-medium.md`) if
+    not already done.
+- **Out of scope:** any code changes (this is deploy + verify only; a bug found here loops back to
+  the owning phase).
+- **Depends on:** Phase 7 (docs/SDK ready + runbook).
+- **Done when:** against the LIVE instance, a real project can configure Resend email settings,
+  a direct send with an `email` block delivers a real email, the Resend delivery webhook flips the
+  delivery row to `delivered`, and the one-click unsubscribe link flips the pref (subsequent sends
+  go `muted`). Record the results.
+
+```
+Read agent-docs/overview.md in full first (esp. Phase 3–6 deviations + the Phase 7 runbook
+`agent-docs/release-email-medium.md`). This is a DEPLOY + VERIFY phase — no code changes. Your job
+is to guide/execute the production rollout and then prove the email medium works live. Anything
+irreversible or credential-gated (prod DB migration, prod env edits, merge-to-main that triggers
+the CI deploy, Cloudflare deploy, npm/tag publish) is confirmed with the human before running; you
+prepare exact commands and a checklist.
+
+1. DB migration (prod): the app has NO migration runner — migrations are applied manually with
+   goose. List every email-medium migration under migrations/ that must be applied to the
+   production DB (recipient_contact, project_email_settings incl. the webhook_secret column,
+   notification_delivery, preference medium) and give the exact `goose -dir migrations postgres
+   "$PROD_DB_URL" up` invocation. Have the human run it (or run against a prod DB URL they supply).
+2. Env: `BODHVEDA_API_URL` is newly read by the Go side (Phase 6) for the unsubscribe link and is
+   in compose.yaml for api+worker — confirm it's set in the VPS `.env` (value = the public API
+   URL, e.g. https://api.bodhveda.com). Flag any other new env the email medium needs.
+3. Ship api+worker: merging to `main` fires `.github/workflows/deploy.yml` (builds+pushes the
+   `bodhveda_api` image, SSH-deploys via `docker compose -f compose.yaml -f compose.deploy.yaml`).
+   Confirm the **worker** service is redeployed on the new image too (it runs `email:delivery`),
+   and that migrate/asynqmon behave as expected in prod (asynqmon is dev-only — must stay absent).
+4. Console → Cloudflare: deploy the console separately (not deploy.yml). Watch for lockfile drift
+   surfacing only under Cloudflare's fresh `npm ci`.
+5. Publish SDKs + docs per the Phase 7 runbook if not already done.
+6. VERIFY LIVE (the real point): on the live instance, create/pick a project, set Resend email
+   settings (real key + verified from-domain), configure the Resend webhook to
+   `https://<api>/webhooks/email/<project_id>` with the signing secret, register a recipient email
+   contact, catalog + opt-in the target for the email medium, then send a DIRECT notification with
+   an `email` block. Confirm: the email arrives; `notification_delivery` goes pending→sent→delivered
+   (webhook); the email's List-Unsubscribe one-click flips the pref and a resend records `muted`.
+   Capture the outcomes.
+
+Update Phase 7.5 status to DONE and add a "Phase 7.5 — deviations (as built)" section recording
+what was migrated/deployed, the live verification results (with the project id used), and anything
+that had to be fixed (looping the fix back to its owning phase). Then Phase 8 (Resurface cutover)
+can target the live instance + published SDK.
 ```
 
 ### Phase 8 — Resurface cutover (the final end-to-end test)
@@ -1224,7 +1480,8 @@ docs/api-reference. Update Phase 7 status to DONE when finished.
   `inAppDigestEnabled` to Bodhveda preferences (keep the `isPro` entitlement gate in
   Resurface); one `notifications.send({ target: digestSent, payload, email })` fans out to
   inbox + email.
-- **Depends on:** Phases 1–6 (7 optional to precede).
+- **Depends on:** Phases 1–6, **and Phase 7 + 7.5** (Resurface pulls the published SDK, follows
+  the live docs, and talks to the DEPLOYED Bodhveda — not a local dev instance).
 - **Done when:** a digest run sends both the in-app bell notification and the email through
   Bodhveda only, unsubscribe works from the email, and no `RESEND_*` remains in Resurface.
 
