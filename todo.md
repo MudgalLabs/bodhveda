@@ -98,6 +98,12 @@ was stranded on an unpaginated, mis-sorted table).
   "Updated At" column rendered `created_at` (so recency was invisible). Fixed:
   pre-sort by `updated_at` desc + `DataTablePagination` + correct column.
 
+- ✅ **Per-notification email delivery status.** The direct Notifications list
+  Status column now shows the email medium's delivery status + latency on a
+  second line when the send used email (in-app + email split; e.g. `In-app:
+  Muted` / `Email: Delivered`). `ListNotifications` batch-attaches the
+  `notification_delivery` (medium=email) row as an `email` block on the DTO.
+
 - 🔜 **Recipient detail page (`projects/$id/recipients/$recipientId`).** One
   place to see a recipient's display name, contacts, per-medium preferences, and
   recent notifications — the "why didn't this user get it?" view. Full-stack:

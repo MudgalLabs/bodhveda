@@ -161,6 +161,12 @@ delivery outcome. A multi-medium world needs per-medium delivery records instead
 - Features under `src/features/{api_key,auth,billing,home,notification,preference,project,recipient}/`
   mirror backend domains. UI lib: `netra`. Tailwind v4.
 - Vite reads root `.env` (`envDir: "../"`), exposes only `BODHVEDA_`-prefixed vars.
+- **Per-notification delivery status:** the direct Notifications list Status column
+  shows the in-app outcome and, when the send carried email, the email medium's
+  delivery status + latency on a second line (from the `email` block
+  `ListNotifications` attaches per row — `notification_delivery`, medium=email).
+  So a diverging outcome (e.g. in-app muted, email delivered) is visible per row.
+  Recipient preferences (recipient tab) paginate + default-sort by `updated_at`.
 
 ## Conventions worth remembering
 
@@ -457,8 +463,8 @@ handler→service→pg pattern; don't refactor domains mid-phase (see top of doc
 - Phase 5 — Delivery status via Resend webhooks — **DONE** (see "Phase 5 — deviations (as built)" below)
 - Phase 6 — Unsubscribe (List-Unsubscribe header + public endpoint) — **DONE** (see "Phase 6 — deviations (as built)" below)
 - Phase 7 — Release prep: Mintlify docs + SDK bump/README + publish runbook — **DONE** (see "Phase 7 — deviations (as built)" below)
-- Phase 7.5 — Deploy email medium to VPS + Cloudflare, verify live — **TODO**
-- Phase 8 — Resurface cutover against the LIVE instance (the final end-to-end test) — **TODO**
+- Phase 7.5 — Deploy email medium to VPS + Cloudflare, verify live — **DONE** (live instance serves prod; the Resurface prod project runs against it).
+- Phase 8 — Resurface cutover against the LIVE instance (the final end-to-end test) — **DONE**. Resurface dropped its direct Resend integration entirely and now routes **all** notifications (in-app + email) through one Bodhveda `send` per user, `email` block gated by its own Pro entitlement. Verified in prod: the daily digest fires at the user's 8am, delivers in-app + email for opted-in Pro users, and a recipient who opted out has **both** mediums muted — visible per-notification in the console Notifications list (in-app and email status on separate lines; see Console section). The email medium is shipped and validated end-to-end.
 
 ---
 
