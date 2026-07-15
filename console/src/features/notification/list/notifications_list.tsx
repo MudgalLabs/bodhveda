@@ -22,6 +22,8 @@ import {
 import {
     NotificationKind,
     Notification,
+    NotificationStatus,
+    DeliveryStatus,
     BroadcastListItem,
 } from "@/features/notification/notification_types";
 import { SendNotificationModal } from "@/features/notification/components/send_notification_modal";
@@ -226,27 +228,83 @@ const columns: ColumnDef<Notification>[] = [
         accessorKey: "status",
         header: () => <DataTableColumnHeader title="Status" />,
         cell: ({ row }) => {
-            const completedAt = row.original.completed_at
-                ? new Date(row.original.completed_at)
-                : null;
-            const createdAt = new Date(row.original.created_at);
+            const n = row.original;
+            const createdAt = new Date(n.created_at);
+            const email = n.email;
 
-            return completedAt ? (
-                <span className="flex-x">
-                    <StatusTag status={row.original.status} />
-                    <span className="text-xs text-text-muted">
-                        {formatDuration(createdAt, completedAt)}
-                    </span>
-                </span>
-            ) : (
-                <span className="flex-x gap-x-4">
-                    <StatusTag status={row.original.status} />
-                    <Loading size={18} />
-                </span>
+            const inAppLine = (
+                <MediumStatusLine
+                    label={email ? "In-app" : undefined}
+                    status={n.status}
+                    elapsed={
+                        n.completed_at
+                            ? formatDuration(
+                                  createdAt,
+                                  new Date(n.completed_at)
+                              )
+                            : null
+                    }
+                    pending={!n.completed_at}
+                />
+            );
+
+            // Only the direct table has email (email is direct-only), and only
+            // when the send carried an email block.
+            if (!email) return inAppLine;
+
+            // Prefer the webhook-confirmed delivery time; fall back to the
+            // provider-accepted (sent) time while delivery is unconfirmed.
+            const emailTime = email.delivered_at ?? email.sent_at ?? null;
+
+            return (
+                <div className="space-y-1">
+                    {inAppLine}
+                    <MediumStatusLine
+                        label="Email"
+                        status={email.status}
+                        elapsed={
+                            emailTime
+                                ? formatDuration(createdAt, new Date(emailTime))
+                                : null
+                        }
+                        pending={
+                            email.status === "pending" ||
+                            email.status === "sending"
+                        }
+                    />
+                </div>
             );
         },
     },
 ];
+
+function MediumStatusLine({
+    label,
+    status,
+    elapsed,
+    pending,
+}: {
+    label?: string;
+    status: NotificationStatus | DeliveryStatus;
+    elapsed: string | null;
+    pending?: boolean;
+}) {
+    return (
+        <span className="flex-x gap-x-2">
+            {label && (
+                <span className="text-xs text-text-muted w-14 shrink-0">
+                    {label}
+                </span>
+            )}
+            <StatusTag status={status} />
+            {elapsed ? (
+                <span className="text-xs text-text-muted">{elapsed}</span>
+            ) : pending ? (
+                <Loading size={18} />
+            ) : null}
+        </span>
+    );
+}
 
 interface NotificationTableProps {
     data: Notification[];

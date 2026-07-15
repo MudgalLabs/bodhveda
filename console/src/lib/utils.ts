@@ -3,6 +3,7 @@ import { twMerge } from "tailwind-merge";
 
 import {
     BroadcastStatus,
+    DeliveryStatus,
     NotificationStatus,
     Target,
 } from "@/features/notification/notification_types";
@@ -15,7 +16,9 @@ export function isProd(): boolean {
     return process.env.NODE_ENV === "production";
 }
 
-export function statusToString(status: NotificationStatus | BroadcastStatus) {
+export function statusToString(
+    status: NotificationStatus | BroadcastStatus | DeliveryStatus
+) {
     switch (status) {
         case "enqueued":
             return "Enqueued";
@@ -29,6 +32,22 @@ export function statusToString(status: NotificationStatus | BroadcastStatus) {
             return "Failed";
         case "completed":
             return "Completed";
+        case "pending":
+            return "Pending";
+        case "sending":
+            return "Sending";
+        case "sent":
+            return "Sent";
+        case "bounced":
+            return "Bounced";
+        case "complained":
+            return "Complained";
+        case "no_contact":
+            return "No contact";
+        case "suppressed":
+            return "Suppressed";
+        case "rejected":
+            return "Rejected";
         default:
             return status;
     }

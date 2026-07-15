@@ -343,6 +343,49 @@ func (r *NotificationRepo) ListNotifications(ctx context.Context, projectID int,
 		return nil, 0, fmt.Errorf("rows error: %w", err)
 	}
 
+	// Attach the email-medium delivery outcome per notification in one batch
+	// query (email is the only non-in_app medium written today). A notification
+	// with no email send simply has no matching row, so EmailStatus stays nil.
+	if len(notifications) > 0 {
+		byID := make(map[int]*entity.Notification, len(notifications))
+		ids := make([]int, len(notifications))
+		for i, n := range notifications {
+			ids[i] = n.ID
+			byID[n.ID] = n
+		}
+
+		deliverySQL := `
+			SELECT notification_id, status, sent_at, delivered_at
+			FROM notification_delivery
+			WHERE medium = 'email' AND notification_id = ANY($1)
+		`
+		drows, err := r.db.Query(ctx, deliverySQL, ids)
+		if err != nil {
+			return nil, 0, fmt.Errorf("query email deliveries: %w", err)
+		}
+		defer drows.Close()
+
+		for drows.Next() {
+			var (
+				nid                 int
+				status              enum.DeliveryStatus
+				sentAt, deliveredAt *time.Time
+			)
+			if err := drows.Scan(&nid, &status, &sentAt, &deliveredAt); err != nil {
+				return nil, 0, fmt.Errorf("scan email delivery: %w", err)
+			}
+			if n, ok := byID[nid]; ok {
+				s := status
+				n.EmailStatus = &s
+				n.EmailSentAt = sentAt
+				n.EmailDeliveredAt = deliveredAt
+			}
+		}
+		if err := drows.Err(); err != nil {
+			return nil, 0, fmt.Errorf("email deliveries rows error: %w", err)
+		}
+	}
+
 	countSQL, countArgs := b.Count()
 	var total int
 	err = r.db.QueryRow(ctx, countSQL, countArgs...).Scan(&total)

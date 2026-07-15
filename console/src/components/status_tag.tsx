@@ -1,12 +1,13 @@
 import {
     BroadcastStatus,
+    DeliveryStatus,
     NotificationStatus,
 } from "@/features/notification/notification_types";
 import { statusToString } from "@/lib/utils";
 import { Tag, TagVariant } from "netra";
 
 interface StatusTagProps {
-    status: NotificationStatus | BroadcastStatus;
+    status: NotificationStatus | BroadcastStatus | DeliveryStatus;
 }
 
 export function StatusTag(props: StatusTagProps) {
@@ -14,19 +15,21 @@ export function StatusTag(props: StatusTagProps) {
 
     let variant: TagVariant;
 
-    if (status === "enqueued") {
-        variant = "default";
-    } else if (status === "completed") {
+    if (status === "completed") {
         variant = "success";
-    } else if (status === "failed") {
-        variant = "destructive";
     } else if (status === "delivered") {
         variant = "success";
-    } else if (status === "muted") {
-        variant = "default";
-    } else if (status === "quota_exceeded") {
+    } else if (
+        status === "failed" ||
+        status === "quota_exceeded" ||
+        status === "bounced" ||
+        status === "complained" ||
+        status === "rejected"
+    ) {
         variant = "destructive";
     } else {
+        // enqueued, muted, no_contact, suppressed, pending, sending, sent →
+        // neutral (in-flight or intentionally-not-delivered outcomes).
         variant = "default";
     }
 

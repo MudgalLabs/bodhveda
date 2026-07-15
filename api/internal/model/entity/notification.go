@@ -22,6 +22,14 @@ type Notification struct {
 	CompletedAt    *time.Time
 	CreatedAt      time.Time
 	UpdatedAt      time.Time
+
+	// Email delivery summary for this notification's email medium. Populated
+	// ONLY by ListNotifications (batch-joined from notification_delivery);
+	// nil when the send included no email. The in-app outcome stays on Status
+	// above — email has its own lifecycle (pending → sent → delivered → …).
+	EmailStatus      *enum.DeliveryStatus
+	EmailSentAt      *time.Time
+	EmailDeliveredAt *time.Time
 }
 
 func NewNotification(projectID int, recipientExtID string, payload json.RawMessage, broadcastID *int, channel, topic, event string) *Notification {

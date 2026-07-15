@@ -15,6 +15,29 @@ export type BroadcastStatus =
     | "quota_exceeded"
     | "failed";
 
+// Per-(notification, medium) delivery status. Email is the only non-in_app
+// medium written today. `pending → sending → sent` are set by the worker;
+// `delivered → bounced → complained` arrive via provider webhooks.
+export type DeliveryStatus =
+    | "pending"
+    | "sending"
+    | "sent"
+    | "delivered"
+    | "bounced"
+    | "complained"
+    | "failed"
+    | "muted"
+    | "no_contact"
+    | "suppressed"
+    | "quota_exceeded"
+    | "rejected";
+
+export interface NotificationEmailDelivery {
+    status: DeliveryStatus;
+    sent_at?: string;
+    delivered_at?: string;
+}
+
 export interface Notification {
     id: number;
     recipient_id: string;
@@ -26,6 +49,9 @@ export interface Notification {
     completed_at?: string;
     created_at: string;
     updated_at: string;
+    // Present only when the send included an email block. Lets the list show
+    // the email outcome beside the in-app status.
+    email?: NotificationEmailDelivery;
 }
 
 export interface Broadcast {

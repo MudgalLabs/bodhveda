@@ -23,6 +23,17 @@ type Notification struct {
 	CompletedAt    *time.Time              `json:"completed_at,omitempty"`
 	CreatedAt      time.Time               `json:"created_at"`
 	UpdatedAt      time.Time               `json:"updated_at"`
+	// Email is the email-medium delivery outcome for this notification, present
+	// only when the send included an email block. The console renders it beside
+	// the in-app Status so a diverging outcome (e.g. in-app muted, email
+	// delivered) is visible per row.
+	Email *NotificationEmailDelivery `json:"email,omitempty"`
+}
+
+type NotificationEmailDelivery struct {
+	Status      enum.DeliveryStatus `json:"status"`
+	SentAt      *time.Time          `json:"sent_at,omitempty"`
+	DeliveredAt *time.Time          `json:"delivered_at,omitempty"`
 }
 
 type NotificationState struct {
@@ -54,6 +65,14 @@ func FromNotification(notification *entity.Notification) *Notification {
 		CompletedAt: notification.CompletedAt,
 		CreatedAt:   notification.CreatedAt,
 		UpdatedAt:   notification.UpdatedAt,
+	}
+
+	if notification.EmailStatus != nil {
+		dto.Email = &NotificationEmailDelivery{
+			Status:      *notification.EmailStatus,
+			SentAt:      notification.EmailSentAt,
+			DeliveredAt: notification.EmailDeliveredAt,
+		}
 	}
 
 	return dto
