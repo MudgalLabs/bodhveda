@@ -1535,18 +1535,29 @@ DO:
    getResend(), FROM_EMAIL(), the getResend().emails.send(...) call, the manual List-Unsubscribe
    headers, and signUnsubscribeToken usage. Drop `resend` from cron/package.json. Keep the DigestLog
    claim-before-send idempotency; a Bodhveda send failure marks status "failed" as before.
-5. PREFERENCES MIGRATION (the crux — decide carefully, this is the double-gate):
-   - `isPro` stays a RESURFACE entitlement gate: only include the `email` block when the user is Pro
-     (a free user gets in-app only). Keep that check.
-   - The user's email/in-app OPT-IN moves to Bodhveda per-medium preferences (so the Bodhveda
-     unsubscribe link actually silences future email). Decide + document how findEligibleUsers picks
-     recipients now that emailDigestEnabled/inAppDigestEnabled are no longer the email source of
-     truth. Recommended: send to all Pro users with in-app enabled and always include the email
-     block for Pro; let Bodhveda's preference gate mute unsubscribed users (the response
-     `deliveries[]` tells you it was muted) — do NOT re-query a Prisma email flag for gating. If you
-     keep the Prisma flags as a fast pre-filter, you MUST sync them from Bodhveda unsubscribes
-     (webhook or reconcile) or unsubscribes silently won't take — call this out explicitly and pick
-     one. Migrate existing users' current flag values into Bodhveda recipient preferences (one-off).
+5. PREFERENCES MIGRATION — Bodhveda is the SINGLE SOURCE OF TRUTH; the Settings UI reads/writes it
+   via the @bodhveda/react client SDK (NOT Prisma):
+   - Replace the Prisma-backed emailDigestEnabled / inAppDigestEnabled toggles in the user Settings
+     UI with the React SDK's preference hooks: `usePreferences()` (fetches the current recipient's
+     preferences) and `useUpdatePreference()` (writes them) from `@bodhveda/react`, toggling the
+     in_app and email mediums for the digest target ({channel:"digest",topic:"none",event:"sent"}).
+     These hooks need a `BodhvedaProvider` mounted with the recipient id + a RECIPIENT-SCOPED
+     Bodhveda API key exposed to the client — the in-app bell likely already mounts this Provider
+     (grep for BodhvedaProvider / useNotifications); reuse it. Use `useUpdatePreference` /
+     `usePreferences` with the medium dimension (per-medium opt-in/out). Because the email's
+     one-click unsubscribe flips the SAME Bodhveda email preference, the Settings toggle and the
+     unsubscribe link stay in sync automatically — that's the whole point of this migration.
+   - `isPro` stays a RESURFACE entitlement gate (server-side, from the subscription): only include
+     the `email` block in the cron send when the user is Pro. A free user gets in-app only regardless
+     of the Bodhveda preference.
+   - Cron eligibility (findEligibleUsers) STOPS reading the Prisma digest flags. Send to the usual
+     eligible set (has items, 8am passed, no DigestLog today) with the payload block always and the
+     email block when isPro; let Bodhveda's per-medium preference gate decide actual delivery
+     (opted-out users are muted server-side — the send response `deliveries[]` reports it, and in_app
+     is likewise gated). Do NOT re-introduce a Prisma flag as a gate — that would desync from
+     unsubscribes. Migrate existing users' current emailDigestEnabled/inAppDigestEnabled values into
+     Bodhveda recipient preferences once (a backfill script), then drop/deprecate the Prisma columns
+     (or leave them unused if a migration is heavy — but they must no longer gate anything).
 6. Retire the local unsubscribe surface for the digest: web/lib/unsubscribe.ts, web/app/unsubscribe/
    page.tsx, web/app/api/unsubscribe/route.ts are no longer used by the digest (Bodhveda hosts it).
    Remove or clearly deprecate them if nothing else uses them (grep first — welcome/other emails?).
