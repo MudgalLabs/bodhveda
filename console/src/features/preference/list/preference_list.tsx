@@ -4,6 +4,7 @@ import {
     Button,
     DataTable,
     DataTableColumnHeader,
+    DataTablePagination,
     DataTableSmart,
     DropdownMenu,
     DropdownMenuContent,
@@ -263,7 +264,7 @@ const recipientPreferenceColumns: ColumnDef<RecipientPreference>[] = [
         accessorKey: "updated_at",
         header: () => <DataTableColumnHeader title="Updated At" />,
         cell: ({ row }) =>
-            formatDate(new Date(row.original.created_at), { time: true }),
+            formatDate(new Date(row.original.updated_at), { time: true }),
     },
 ];
 
@@ -274,9 +275,34 @@ interface RecipientPreferenceListTableProps {
 function RecipientPreferenceListTable({
     data,
 }: RecipientPreferenceListTableProps) {
+    // Default sort: most-recently-updated first, so a just-changed preference
+    // (e.g. a fresh opt-out) surfaces at the top instead of being buried on a
+    // later page. netra's table flips to manual/server sorting the moment you
+    // pass `state.sorting`, so we pre-sort here and let it paginate
+    // client-side; column-header clicks still re-sort client-side.
+    const sorted = useMemo(
+        () =>
+            [...data].sort(
+                (a, b) =>
+                    new Date(b.updated_at).getTime() -
+                    new Date(a.updated_at).getTime()
+            ),
+        [data]
+    );
+
     return (
-        <DataTableSmart data={data} columns={recipientPreferenceColumns}>
-            {(table) => <DataTable table={table} />}
+        <DataTableSmart data={sorted} columns={recipientPreferenceColumns}>
+            {(table) => (
+                <div className="space-y-4">
+                    <DataTable table={table} />
+                    {sorted.length > 10 && (
+                        <DataTablePagination
+                            table={table}
+                            total={sorted.length}
+                        />
+                    )}
+                </div>
+            )}
         </DataTableSmart>
     );
 }

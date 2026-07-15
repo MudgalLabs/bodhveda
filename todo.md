@@ -86,3 +86,22 @@ own id — but it can't paper over the gap because the public key + client-suppl
 (where the client key + `recipientID` are handed to the browser) and its
 `docs/team-collaboration.md`. This mirrors the widget's token-isolation model
 (`widget.grahak.dev`, per-user JWT handoff) — apply the same principle here.
+
+## Console — recipient debugging UX
+
+Surfaced while debugging a Resurface recipient's opt-out (a disabled preference
+was stranded on an unpaginated, mis-sorted table).
+
+- ✅ **Recipient preferences: pagination + default sort by `updated_at` desc.**
+  The recipient-tab table (`console/src/features/preference/list/preference_list.tsx`)
+  had no pager, so only the first client-side page was reachable, and the
+  "Updated At" column rendered `created_at` (so recency was invisible). Fixed:
+  pre-sort by `updated_at` desc + `DataTablePagination` + correct column.
+
+- 🔜 **Recipient detail page (`projects/$id/recipients/$recipientId`).** One
+  place to see a recipient's display name, contacts, per-medium preferences, and
+  recent notifications — the "why didn't this user get it?" view. Full-stack:
+  - API: `GET /console/projects/:id/recipients/:recipientId` (new); add an
+    optional `recipient_id` filter to the notifications list endpoint.
+  - Console: new route + feature; make Recipient IDs clickable `<Link>`s from
+    the Recipients list and the recipient preferences table.
