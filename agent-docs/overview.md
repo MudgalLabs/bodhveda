@@ -2070,16 +2070,20 @@ browser against the running API + Postgres (all four tabs, both entry points, th
   target, on the recipient page 9.2 built.
 - **In scope:** turn 9.2's read-only Preferences tab into an editable per-`(target, medium)` grid,
   writing through the **existing** console `PUT /recipients/{recipient_external_id}/preferences`
-  (`UpsertRecipientPreferences` — already exists); show each target's **catalog** state, since a
-  medium can only fire if the project cataloged `(target, medium)` (Phase 2's gate); make the
-  resolved outcome legible — the cascade is recipient-exact → recipient-fallback (`topic='any'`) →
-  project-exact → project-fallback → default, and the default is **medium-dependent** (`in_app`
-  defaults to deliver; every other medium defaults to NOT deliver unless cataloged/enabled).
-- **Out of scope:** new preference endpoints (the write path exists); changing any gating semantics.
+  (`UpsertRecipientPreferences` — already exists); make the resolved outcome legible — the cascade
+  is recipient-exact → recipient-fallback (`topic='any'`) → project-exact → project-fallback →
+  default, and the default is **medium-dependent** (`in_app` defaults to deliver; every other
+  medium defaults to NOT deliver unless cataloged/enabled). Fixing the READ so it resolves the way
+  the send path does is very likely part of this (see the ⚠️ notes in the prompt below).
+- **Out of scope:** changing any gating semantics (the send path's cascade is correct — it is the
+  READ that disagrees with it). New preference *write* endpoints (that path exists); a read-side
+  change is expected.
 - **Depends on:** **9.2** (hard — this is a tab on that page).
 - **Done when:** an operator can flip a recipient's email preference for a target from the console
-  and a subsequent send reflects it (`muted` / `failure_reason=preference_disabled`); an uncataloged
-  `(target, medium)` is visibly unavailable rather than silently off.
+  and a subsequent send reflects it (`muted` / `failure_reason=preference_disabled`); and every
+  cell in the grid states what would ACTUALLY happen on a send, agreeing with
+  `ShouldDirectNotificationBeDelivered` — including uncataloged pairs, where "unavailable" is a
+  lie (see the measured table in the prompt).
 - **Watch for:** do **not** add a parallel write path. Phase 6 established that the authenticated
   toggle, the SDK, and the one-click unsubscribe must all end up writing the *same*
   `(project, recipient, target, medium)` row — that convergence is *why* an unsubscribe and the
@@ -2130,9 +2134,6 @@ REUSE, do NOT re-derive (all verified against the code in 9.2):
   rows in a `DataTableSmart` with an "Inherited" tag. That is the surface 9.3 makes editable.
 
 Semantics you must render honestly (from Phase 2 — do not re-invent):
-- A medium fires only if the project CATALOGED (target, medium) via a project-level preference.
-  An uncataloged (target, email) must read as UNAVAILABLE, not as "off" — those are different
-  states and conflating them is the confusion this grid exists to end.
 - Resolution cascade: recipient-exact → recipient-fallback (topic='any') → project-exact →
   project-fallback → default. The DEFAULT IS MEDIUM-DEPENDENT: in_app defaults to DELIVER (legacy
   "deliver unless muted"); every other medium defaults to NOT deliver unless cataloged/enabled.
@@ -2140,6 +2141,36 @@ Semantics you must render honestly (from Phase 2 — do not re-invent):
   "unset", it's "in_app: on, email: off".
 - Only in_app + email are Active() mediums; web_push/sms/mobile_push are scaffolding — don't
   render toggles for mediums that cannot fire.
+- ⚠️ **"Uncataloged ⇒ UNAVAILABLE" is WRONG** (earlier drafts of this plan said it; measured
+  against the real gating SQL in 9.2):
+  | situation | resolves to |
+  |---|---|
+  | uncataloged `(T, in_app)`, no recipient row | **delivers** (in_app default is true) |
+  | uncataloged `(T, email)`, no recipient row | does not deliver |
+  | uncataloged `(T, email)`, recipient row `enabled=true` | **delivers** |
+  The catalog is a **DEFAULT, not a gate**: an explicit recipient row overrides it (it wins the
+  COALESCE). So "unavailable" is a lie for in_app, and a lie for email whenever a recipient row
+  exists. Only the resolved value is honest.
+- ⚠️ **The read REIMPLEMENTS resolution, more weakly than the send path.**
+  `ShouldDirectNotificationBeDelivered` is the authoritative SQL cascade;
+  `GetRecipientProjectPreferences` is a **Go exact-match merge** (a `prefKey{Channel,Topic,Event,
+  Medium}` map over project prefs) that handles neither the `topic='any'` fallbacks nor the
+  medium-dependent default, and **cannot see a recipient row for an uncataloged pair at all** —
+  it only iterates project prefs, so such a row vanishes from the response while still
+  delivering. A tab labelled "resolved" that disagrees with delivery is the bug this phase exists
+  to kill.
+- **Recommended fix (decide deliberately, record it):** make the read answer per
+  `(target × Active medium)` with `enabled` + `inherited` + `cataloged`, resolved by the SAME
+  cascade the send path uses, as **ONE set-based SQL query** in the preference repo. Do NOT loop
+  `ShouldDirectNotificationBeDelivered` per cell (20 targets × 2 mediums = 40 round trips), and do
+  NOT re-implement the cascade in React — that puts backend semantics on the wrong side of the
+  wire (the argument 9.1 used to keep provider normalization server-side). The cost is a second
+  SQL resolver to keep in step with the gating one; weigh it and say what you chose.
+- **NOT a concern (settled in 9.2):** "revert to inherited" is not a thing to build. A recipient
+  preference is just enabled/disabled and defaults to the project default; there is no delete in
+  the flow. (`repo.Delete` can remove any row by id, but the resolved read returns no row ids.)
+  `inherited` only *matters* if the project default later changes — an explicit `true` keeps
+  delivering while an inherited one follows. Display nuance, not a feature.
 
 VERIFY END-TO-END (do not just typecheck): flip a recipient's email preference off in the console,
 send a direct notification with an email block to that target, and confirm the delivery row records
