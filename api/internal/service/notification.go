@@ -5,6 +5,7 @@ import (
 	"encoding/json"
 	"errors"
 	"fmt"
+	"net/http"
 
 	"github.com/hibiken/asynq"
 	"github.com/mudgallabs/bodhveda/internal/email"
@@ -366,6 +367,99 @@ func (s *NotificationService) EmailDeliveryOverview(ctx context.Context, project
 		return nil, service.ErrInternalServerError, fmt.Errorf("email delivery overview: %w", err)
 	}
 	return result, service.ErrNone, nil
+}
+
+// ListNotificationDeliveries returns the full delivery records for one
+// notification, including each row's provider webhook event history (Phase 9.1).
+//
+// This is a SEPARATE endpoint from the notifications list on purpose: every
+// bounded delivery column rides the list, but provider_response is unbounded (a
+// raw provider event body appended per webhook), so it is fetched only when an
+// operator opens one delivery. See agent-docs/overview.md, "Phase 9.1 —
+// deviations (as built)".
+//
+// A notification whose send carried no email simply has no delivery rows — that
+// is an empty list, not an error.
+func (s *NotificationService) ListNotificationDeliveries(ctx context.Context, projectID, notificationID int) (*dto.ListNotificationDeliveriesResult, service.Error, error) {
+	if projectID <= 0 {
+		return nil, service.ErrInvalidInput, fmt.Errorf("projectID required")
+	}
+	if notificationID <= 0 {
+		return nil, service.ErrInvalidInput, fmt.Errorf("notificationID required")
+	}
+
+	// Scoped by projectID: the route only proves the user owns the PROJECT, so the
+	// repo must refuse a notification id belonging to someone else's project.
+	deliveries, err := s.deliveryRepo.ListForNotification(ctx, projectID, notificationID)
+	if err != nil {
+		return nil, service.ErrInternalServerError, fmt.Errorf("list deliveries for notification: %w", err)
+	}
+
+	result := &dto.ListNotificationDeliveriesResult{
+		Deliveries: make([]*dto.NotificationDeliveryDetail, 0, len(deliveries)),
+	}
+
+	for _, d := range deliveries {
+		result.Deliveries = append(result.Deliveries, dto.FromNotificationDeliveryDetail(d, s.normalizeStoredEvents(d)))
+	}
+
+	return result, service.ErrNone, nil
+}
+
+// normalizeStoredEvents turns a delivery row's provider_response JSONB array into
+// timeline events, reusing the provider adapter's OWN webhook normalizer — the
+// same one the inbound webhook path uses (Phase 5). That keeps provider JSON
+// shape knowledge inside the adapter, so a future provider adapter stays a
+// backend-only change and the console never learns Resend's schema.
+//
+// Normalization is best-effort presentation: anything unparseable degrades to a
+// raw event with an empty Kind rather than failing the request. The Raw body is
+// always preserved.
+func (s *NotificationService) normalizeStoredEvents(d *entity.NotificationDelivery) []dto.DeliveryEvent {
+	if len(d.ProviderResponse) == 0 {
+		return nil
+	}
+
+	var raws []json.RawMessage
+	if err := json.Unmarshal(d.ProviderResponse, &raws); err != nil {
+		// Not an array — shouldn't happen (ApplyWebhookStatus always appends to a
+		// JSONB array), but surface the payload rather than dropping it.
+		logger.Get().Warnw("delivery provider_response is not a JSON array", "delivery_id", d.ID, "error", err)
+		return []dto.DeliveryEvent{{Raw: d.ProviderResponse}}
+	}
+
+	// The adapter is selected by the row's own provider discriminator. No API key
+	// is needed to normalize (the webhook path constructs it the same way).
+	var adapter email.Adapter
+	if d.Provider != nil {
+		a, err := email.NewAdapter(enum.EmailProvider(*d.Provider), "")
+		if err != nil {
+			logger.Get().Warnw("no adapter for delivery provider", "delivery_id", d.ID, "provider", *d.Provider, "error", err)
+		} else {
+			adapter = a
+		}
+	}
+
+	events := make([]dto.DeliveryEvent, 0, len(raws))
+	for _, raw := range raws {
+		ev := dto.DeliveryEvent{Raw: raw}
+
+		if adapter != nil {
+			// Headers are only the Svix idempotency key on the live path; stored
+			// events carry none, and the normalizer does not require them.
+			if n, err := adapter.NormalizeWebhookEvent(http.Header{}, raw); err == nil {
+				ev.Kind = string(n.Kind)
+				if !n.At.IsZero() && n.Kind != email.WebhookEventUnknown {
+					at := n.At
+					ev.At = &at
+				}
+			}
+		}
+
+		events = append(events, ev)
+	}
+
+	return events
 }
 
 func (s *NotificationService) ListForRecipient(ctx context.Context, projectID int, recipientExtID string, cursor *query.Cursor) ([]*dto.Notification, *query.Cursor, service.Error, error) {

@@ -202,6 +202,36 @@ func List(s *service.NotificationService) http.HandlerFunc {
 	}
 }
 
+// ListNotificationDeliveries returns the full delivery records (incl. each row's
+// provider webhook event history) for one notification, powering the console's
+// delivery detail dialog (Phase 9.1). Kept off the notifications list because the
+// event history is unbounded.
+func ListNotificationDeliveries(s *service.NotificationService) http.HandlerFunc {
+	return func(w http.ResponseWriter, r *http.Request) {
+		ctx := r.Context()
+
+		projectID, err := httpx.ParamInt(r, "project_id")
+		if err != nil {
+			httpx.BadRequestResponse(w, r, errors.New("Invalid project ID"))
+			return
+		}
+
+		notificationID, err := httpx.ParamInt(r, "notification_id")
+		if err != nil {
+			httpx.BadRequestResponse(w, r, errors.New("Invalid notification ID"))
+			return
+		}
+
+		result, errKind, err := s.ListNotificationDeliveries(ctx, projectID, notificationID)
+		if err != nil {
+			httpx.ServiceErrResponse(w, r, errKind, err)
+			return
+		}
+
+		httpx.SuccessResponse(w, r, http.StatusOK, "", result)
+	}
+}
+
 // EmailDeliveryOverview returns per-status email delivery counts for a project
 // (console analytics, Phase 5).
 func EmailDeliveryOverview(s *service.NotificationService) http.HandlerFunc {

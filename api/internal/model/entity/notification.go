@@ -27,9 +27,35 @@ type Notification struct {
 	// ONLY by ListNotifications (batch-joined from notification_delivery);
 	// nil when the send included no email. The in-app outcome stays on Status
 	// above — email has its own lifecycle (pending → sent → delivered → …).
-	EmailStatus      *enum.DeliveryStatus
-	EmailSentAt      *time.Time
-	EmailDeliveredAt *time.Time
+	Email *NotificationEmailDelivery
+}
+
+// NotificationEmailDelivery is the email-medium delivery summary attached to a
+// listed notification. It carries every BOUNDED column of the delivery row, so
+// the list can explain an outcome (failure_reason) and the detail dialog can
+// render the lifecycle without a second fetch.
+//
+// It deliberately omits provider_response — the raw webhook event history is
+// unbounded (one provider event body appended per webhook, Phase 5) and would
+// ride every list row on every refetch. It is served per-notification by
+// NotificationDeliveryReader.ListForNotification instead. See
+// agent-docs/overview.md, "Phase 9.1 — deviations (as built)".
+type NotificationEmailDelivery struct {
+	Status            enum.DeliveryStatus
+	FailureReason     *string
+	Attempt           int
+	Provider          *string
+	ProviderMessageID *string
+	AddressSnapshot   *string
+	SentAt            *time.Time
+	DeliveredAt       *time.Time
+	BouncedAt         *time.Time
+	ComplainedAt      *time.Time
+	// OpenedAt / ClickedAt are soft, directional signals — provider open
+	// tracking is unreliable (Apple Mail Privacy Protection pre-fetches images).
+	// In-app ReadAt above is the trustworthy signal.
+	OpenedAt  *time.Time
+	ClickedAt *time.Time
 }
 
 func NewNotification(projectID int, recipientExtID string, payload json.RawMessage, broadcastID *int, channel, topic, event string) *Notification {

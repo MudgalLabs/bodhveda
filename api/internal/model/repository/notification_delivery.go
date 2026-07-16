@@ -18,8 +18,12 @@ type NotificationDeliveryRepository interface {
 type NotificationDeliveryReader interface {
 	// Get returns a delivery row by id.
 	Get(ctx context.Context, id int64) (*entity.NotificationDelivery, error)
-	// ListForNotification returns all delivery rows for a notification.
-	ListForNotification(ctx context.Context, notificationID int) ([]*entity.NotificationDelivery, error)
+	// ListForNotification returns all delivery rows for a notification, scoped to
+	// the owning project. The projectID scope is what keeps one project's console
+	// from reading another's delivery rows by guessing a notification id — the
+	// route's VerifyUserOwnsThisProject only proves ownership of the PROJECT.
+	// Returns an empty slice (not ErrNotFound) when the send carried no email.
+	ListForNotification(ctx context.Context, projectID, notificationID int) ([]*entity.NotificationDelivery, error)
 	// EmailDeliveryOverviewForProject aggregates email delivery rows into
 	// per-status counts for the console analytics view (Phase 5).
 	EmailDeliveryOverviewForProject(ctx context.Context, projectID int) (*dto.EmailDeliveryOverview, error)

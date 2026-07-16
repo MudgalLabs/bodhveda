@@ -32,6 +32,14 @@ export const API_ROUTES = {
                 `/console/projects/${projectId}/notifications/send`,
             list: (projectId: string | number) =>
                 `/console/projects/${projectId}/notifications`,
+            // Full delivery records for ONE notification, incl. the raw provider
+            // webhook history. Separate from the list because that history is
+            // unbounded — see agent-docs/overview.md, Phase 9.1 deviations.
+            deliveries: (
+                projectId: string | number,
+                notificationId: string | number
+            ) =>
+                `/console/projects/${projectId}/notifications/${notificationId}/deliveries`,
             email_deliveries_overview: (projectId: string | number) =>
                 `/console/projects/${projectId}/email-deliveries/overview`,
         },

@@ -31,10 +31,34 @@ type Notification struct {
 	Email *NotificationEmailDelivery `json:"email,omitempty"`
 }
 
+// NotificationEmailDelivery is the email-medium delivery summary on a listed
+// notification. It carries every bounded column of the delivery row: the list
+// renders `status` + `failure_reason` inline, and the delivery detail dialog
+// renders the rest without a second fetch.
+//
+// The raw webhook event history (provider_response) is NOT here — it is
+// unbounded and is fetched per-notification from the deliveries endpoint. See
+// agent-docs/overview.md, "Phase 9.1 — deviations (as built)".
 type NotificationEmailDelivery struct {
-	Status      enum.DeliveryStatus `json:"status"`
-	SentAt      *time.Time          `json:"sent_at,omitempty"`
-	DeliveredAt *time.Time          `json:"delivered_at,omitempty"`
+	Status enum.DeliveryStatus `json:"status"`
+	// FailureReason explains a non-delivering outcome. It is the ONLY thing that
+	// separates the two causes of `muted`: `not_cataloged` (the project has no
+	// (target, email) catalog row) vs `preference_disabled` (the recipient opted
+	// out). See fanOutEmail in service/notification.go.
+	FailureReason     *string    `json:"failure_reason,omitempty"`
+	Attempt           int        `json:"attempt"`
+	Provider          *string    `json:"provider,omitempty"`
+	ProviderMessageID *string    `json:"provider_message_id,omitempty"`
+	AddressSnapshot   *string    `json:"address_snapshot,omitempty"`
+	SentAt            *time.Time `json:"sent_at,omitempty"`
+	DeliveredAt       *time.Time `json:"delivered_at,omitempty"`
+	BouncedAt         *time.Time `json:"bounced_at,omitempty"`
+	ComplainedAt      *time.Time `json:"complained_at,omitempty"`
+	// OpenedAt / ClickedAt are soft, directional signals only (Apple Mail Privacy
+	// Protection inflates opens; blocked images deflate them). In-app `read` is
+	// the trustworthy signal — the console must label these as directional.
+	OpenedAt  *time.Time `json:"opened_at,omitempty"`
+	ClickedAt *time.Time `json:"clicked_at,omitempty"`
 }
 
 type NotificationState struct {
@@ -68,11 +92,20 @@ func FromNotification(notification *entity.Notification) *Notification {
 		UpdatedAt:   notification.UpdatedAt,
 	}
 
-	if notification.EmailStatus != nil {
+	if e := notification.Email; e != nil {
 		dto.Email = &NotificationEmailDelivery{
-			Status:      *notification.EmailStatus,
-			SentAt:      notification.EmailSentAt,
-			DeliveredAt: notification.EmailDeliveredAt,
+			Status:            e.Status,
+			FailureReason:     e.FailureReason,
+			Attempt:           e.Attempt,
+			Provider:          e.Provider,
+			ProviderMessageID: e.ProviderMessageID,
+			AddressSnapshot:   e.AddressSnapshot,
+			SentAt:            e.SentAt,
+			DeliveredAt:       e.DeliveredAt,
+			BouncedAt:         e.BouncedAt,
+			ComplainedAt:      e.ComplainedAt,
+			OpenedAt:          e.OpenedAt,
+			ClickedAt:         e.ClickedAt,
 		}
 	}
 
@@ -383,6 +416,85 @@ type EmailDeliveryOverview struct {
 	Muted      int `json:"muted"`
 	Opened     int `json:"opened"`
 	Clicked    int `json:"clicked"`
+}
+
+// NotificationDeliveryDetail is the FULL delivery record for one
+// (notification, medium), including the provider webhook event history. It is
+// served per-notification (Phase 9.1) rather than on every list row, because
+// Events is unbounded — one raw provider event body per webhook.
+type NotificationDeliveryDetail struct {
+	ID                int64               `json:"id"`
+	Medium            enum.Medium         `json:"medium"`
+	Status            enum.DeliveryStatus `json:"status"`
+	FailureReason     *string             `json:"failure_reason,omitempty"`
+	Attempt           int                 `json:"attempt"`
+	Provider          *string             `json:"provider,omitempty"`
+	ProviderMessageID *string             `json:"provider_message_id,omitempty"`
+	// AddressSnapshot is the address captured at enqueue time — immune to later
+	// edits of the recipient's contact, so it reflects where this email actually went.
+	AddressSnapshot *string    `json:"address_snapshot,omitempty"`
+	SentAt          *time.Time `json:"sent_at,omitempty"`
+	DeliveredAt     *time.Time `json:"delivered_at,omitempty"`
+	BouncedAt       *time.Time `json:"bounced_at,omitempty"`
+	ComplainedAt    *time.Time `json:"complained_at,omitempty"`
+	// OpenedAt / ClickedAt are soft, directional signals only — see the note on
+	// NotificationEmailDelivery.
+	OpenedAt  *time.Time      `json:"opened_at,omitempty"`
+	ClickedAt *time.Time      `json:"clicked_at,omitempty"`
+	Events    []DeliveryEvent `json:"events"`
+	CreatedAt time.Time       `json:"created_at"`
+	UpdatedAt time.Time       `json:"updated_at"`
+}
+
+// DeliveryEvent is one entry of the delivery row's provider_response JSONB array
+// — a raw provider webhook body (appended once per webhook, Phase 5) reduced to
+// what a timeline needs.
+//
+// Kind/At are normalized by the provider's own adapter (the same normalizer the
+// inbound webhook path uses), so the console renders a timeline without knowing
+// any provider's JSON shape — which is what keeps a future provider/managed-SES
+// adapter a backend-only change. Kind is empty for an event the adapter does not
+// recognize; Raw is always the verbatim event.
+type DeliveryEvent struct {
+	Kind string          `json:"kind"`
+	At   *time.Time      `json:"at,omitempty"`
+	Raw  json.RawMessage `json:"raw"`
+}
+
+// FromNotificationDeliveryDetail builds the detail DTO. events are normalized by
+// the caller (the service, which owns adapter selection) and may be nil when no
+// webhook has landed for this row.
+func FromNotificationDeliveryDetail(d *entity.NotificationDelivery, events []DeliveryEvent) *NotificationDeliveryDetail {
+	if events == nil {
+		events = []DeliveryEvent{}
+	}
+
+	return &NotificationDeliveryDetail{
+		ID:                d.ID,
+		Medium:            d.Medium,
+		Status:            d.Status,
+		FailureReason:     d.FailureReason,
+		Attempt:           d.Attempt,
+		Provider:          d.Provider,
+		ProviderMessageID: d.ProviderMessageID,
+		AddressSnapshot:   d.AddressSnapshot,
+		SentAt:            d.SentAt,
+		DeliveredAt:       d.DeliveredAt,
+		BouncedAt:         d.BouncedAt,
+		ComplainedAt:      d.ComplainedAt,
+		OpenedAt:          d.OpenedAt,
+		ClickedAt:         d.ClickedAt,
+		Events:            events,
+		CreatedAt:         d.CreatedAt,
+		UpdatedAt:         d.UpdatedAt,
+	}
+}
+
+// ListNotificationDeliveriesResult is the deliveries-for-one-notification
+// response. Deliveries is empty (not an error) when the send carried no email —
+// in-app has no delivery row in v1.
+type ListNotificationDeliveriesResult struct {
+	Deliveries []*NotificationDeliveryDetail `json:"deliveries"`
 }
 
 func FromNotifications(notifications []*entity.Notification) []*Notification {

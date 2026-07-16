@@ -166,6 +166,12 @@ delivery outcome. A multi-medium world needs per-medium delivery records instead
   delivery status + latency on a second line (from the `email` block
   `ListNotifications` attaches per row — `notification_delivery`, medium=email).
   So a diverging outcome (e.g. in-app muted, email delivered) is visible per row.
+  Since Phase 9.1 that line also **explains itself** (a prose rendering of
+  `failure_reason` — e.g. `muted` reads as "target not cataloged for email" vs
+  "recipient opted out") and offers a **Details** dialog with the full delivery
+  lifecycle + the provider webhook event history, fetched on open from
+  `GET /console/projects/{id}/notifications/{id}/deliveries` (the history is
+  unbounded, so it never rides the list — see Phase 9.1 deviations).
   Recipient preferences (recipient tab) paginate + default-sort by `updated_at`.
 
 ## Conventions worth remembering
@@ -472,7 +478,7 @@ skipped work *because a recipient detail page did not exist* (Phase 1 deviations
 a modal; Phase 2 deviations → the per-medium preference grid was not built). Phase 9 pays that
 down. Sub-phases are ordered by dependency and each is one session.
 
-- Phase 9.1 — Delivery detail (widen the delivery projection + a detail dialog) — **TODO**
+- Phase 9.1 — Delivery detail (widen the delivery projection + a detail dialog) — **DONE** (see "Phase 9.1 — deviations (as built)" below)
 - Phase 9.2 — Recipient detail page (`/projects/$id/recipients/$recipientId`) — **TODO**
 - Phase 9.3 — Recipient preference editing (the per-medium grid deferred in Phase 2) — **TODO**
 - Phase 9.4 — Notification list filters — **TODO**
@@ -1732,6 +1738,140 @@ pipeline, or any gating logic. No migration. Follow the layered handler→servic
 new endpoint URLs to `API_ROUTES` in lib/api.ts, never hardcoded. Update Phase 9.1 status to DONE
 and add a "Phase 9.1 — deviations (as built)" section recording the list-vs-endpoint decision.
 ```
+
+#### Phase 9.1 — deviations (as built)
+
+**No migration** — as predicted, every column already existed (Phase 4 DDL). The work was
+exactly the projection widening: SELECT → entity → DTO → UI. Backend follows the layered
+`handler → service → pg` split; the send path, worker, broadcast pipeline, and all gating logic
+are untouched. `go build`/`go vet` pass; the whole suite (incl. the new real-Postgres tests)
+passes; the console typechecks, lints, and builds.
+
+- **THE DECISION (list vs. endpoint): HYBRID, split on BOUNDEDNESS.** Both, deliberately — the
+  question isn't "list or endpoint", it's "which columns are bounded".
+  - **The list carries every BOUNDED column**: `failure_reason`, `attempt`, `provider`,
+    `provider_message_id`, `address_snapshot`, and all six timestamps (`sent_at`/`delivered_at`/
+    `bounced_at`/`complained_at`/`opened_at`/`clicked_at`). These are fixed-size scalars — a few
+    hundred bytes per row. `failure_reason` **must** be inline (it's the whole point of the
+    phase), and once the query is open, the remaining scalars are free and let the dialog render
+    instantly with no spinner.
+  - **`provider_response` is NOT in the list.** It is the one **unbounded** field: a JSONB array
+    that grows by one raw provider event body (~1–3 KB) per webhook, forever. The notifications
+    list is paginated, refetched with `keepPreviousData`, and invalidated on every send — so
+    putting webhook history there multiplies unbounded payload × page size × every refetch, for
+    data that is only ever read **one delivery at a time**. It is served by a dedicated endpoint
+    the dialog fetches on open (`enabled: open` on the query — that gating *is* the split).
+  - Net: the list response grew by bounded scalars only; the heavy field moved behind an
+    explicit, on-demand fetch. This is the "do not bloat every list row with full webhook
+    history by reflex" instruction taken literally, without giving up the inline explanation.
+- **New endpoint: `GET /console/projects/{project_id}/notifications/{notification_id}/deliveries`**
+  (exactly the shape the phase brief proposed), added to `API_ROUTES` as
+  `project.notifications.deliveries`. Console-only, under the existing
+  `VerifyUserOwnsThisProject` gate. Returns `{deliveries: [...]}` — **empty, not 404**, when the
+  send carried no email (in_app has no delivery row in v1; "no rows" is a legitimate answer, and
+  the dialog says so in prose).
+- **`ListForNotification` was DEAD CODE — repurposed and project-SCOPED rather than duplicated.**
+  Phase 4 declared + implemented it on the delivery repo and never called it. It gained a
+  `projectID` parameter (`ListForNotification(ctx, projectID, notificationID)`) and a
+  `project_id = $2` predicate. **This is a real security boundary, not tidiness:**
+  `VerifyUserOwnsThisProject` only proves the caller owns the *project* in the URL — without the
+  scope, a guessed `notification_id` from another project would resolve. Covered by a test.
+- **The entity's flat `Email*` fields became a struct.** `entity.Notification`'s
+  `EmailStatus`/`EmailSentAt`/`EmailDeliveredAt` became `Email *entity.NotificationEmailDelivery`
+  (12 flat `Email*`-prefixed fields would have been unreadable). `entity.NotificationDelivery`
+  (the full row) gained the Phase 5 timestamp columns + `ProviderResponse`, so the shared
+  `notificationDeliveryFields` const + `scanNotificationDelivery` now cover the whole table —
+  `Create`'s `RETURNING` widened with them for free.
+  - `provider_response` is scanned into `[]byte` (not `json.RawMessage`) so a SQL NULL — the
+    normal state of every terminal-skip row — stays nil instead of attempting a decode. Verified.
+- **Webhook events are normalized SERVER-side by REUSING Phase 5's adapter normalizer.** The
+  detail DTO exposes `events[] = {kind, at, raw}`, built by calling the delivery row's own
+  provider adapter — `email.NewAdapter(provider, "")` (no API key needed to normalize, same as
+  the webhook path) + `NormalizeWebhookEvent(http.Header{}, raw)`. **Empty headers are fine**:
+  headers only supply the Svix `svix-id` idempotency key on the live path, which stored events
+  don't need. This deliberately honors Phase 5's "normalization lives in the adapter interface so
+  other providers slot in later" — teaching the React console to parse Resend's JSON shape would
+  have put provider knowledge on the wrong side of the wire and made a future adapter a
+  frontend change too. Normalization is best-effort presentation: an unparseable event degrades
+  to `kind: ""` with its raw body intact, never a failed request. **No new adapter method was
+  needed.**
+- **`failure_reason` is rendered as prose, never as a slug** (`features/notification/
+  delivery_copy.ts`). Every one of the nine reasons the backend actually writes
+  (`not_cataloged`, `preference_disabled`, `provider_not_configured`, `provider_send_error`,
+  `provider_lookup_error`, `contact_lookup_error`, `gating_error`, `secret_decrypt_error`,
+  `adapter_init_error`) gets a **short** phrase for the space-constrained list line plus a
+  **long** explanation (what happened *and* the fix) in a tooltip and the dialog. The two causes
+  of `muted` now read as "target not cataloged for email" vs "recipient opted out" — the
+  distinction Phase 4 created the field for. The wording deliberately **matches the post-send
+  toast** (`notifyEmailOutcome`, send_notification_modal.tsx:595), so the same skip reads the
+  same way whether seen right after sending or a week later in the list — that asymmetry (the
+  send response could explain a skip, the list couldn't) was the phase's stated motivation. An
+  unrecognized future slug degrades to a de-underscored version of itself rather than vanishing.
+  `no_contact` carries no `failure_reason` (the status says it), so the status itself is given
+  copy too.
+- **Console UI.** The Status column's email line gained the inline reason phrase + `IconInfo`
+  tooltip. `MediumStatusLine` stayed the shared component (the broadcast table still uses it)
+  and took one optional `reason` prop, so in-app/broadcast rendering is unchanged. The dialog
+  (`components/delivery_detail_dialog.tsx`, netra `dialog` — netra has **no** drawer/sheet)
+  shows the resolved outcome + explanation, the address snapshot, attempts, provider + message
+  id, the full lifecycle grid, and the `provider_response` history as a **timeline** (dot/line
+  rail, human event labels, per-event `<details>` for the raw JSON) — not a JSON dump. An empty
+  history distinguishes *"waiting on webhooks"* from *"this email never reached the provider"*
+  (muted/no_contact/failed). Width is `sm:max-w-3xl!` — see the netra cascade gotcha above.
+- **The dialog is NOTIFICATION-scoped, not email-scoped, and the trigger is a row-level
+  "Details" column.** Built email-only first (trigger on the Status cell's email line), which
+  left the most common notification — in-app-only, no email — with **no** detail affordance at
+  all, and made the dialog's own "no email" empty state unreachable. Corrected on review:
+  - The dialog now opens with an **In-app section** rendered from the notification row itself
+    (status, sent/resolved, read/opened) — **no fetch and no backend change**, because `in_app`
+    has no delivery record by design (Phase 4 kept its state on the `notification` row). The
+    dialog names that asymmetry instead of hiding it. Email still renders from its delivery
+    record; only that half is fetched.
+  - It surfaces **`payload`** (the in-app content block as sent) — pretty-printed. It was
+    already in the list response and rendered **nowhere** in the console, so "what did I
+    actually send?" had no answer. `dto.Notification.payload` is `json.RawMessage` ⇒ it
+    serializes as a JSON **object**; the console typed it `payload: string`, which was simply
+    wrong (and unused anywhere, so it was safe to correct to `unknown`).
+  - The trigger moved out of the Status cell into its own trailing **`details` column** — the
+    dialog is per-notification, so a per-medium line was the wrong home; a column also gives
+    every row exactly one trigger without adding a third line to every Status cell.
+  - **Deliberately NOT done:** in-app `read_at`/`opened_at` **timestamps** (the list shows only
+    the `state.read`/`state.opened` booleans). Exposing them means widening `dto.Notification`,
+    which is **shared with the Dev API's** recipient inbox response — an additive but public
+    surface change that belongs with `openapi.json` (Phase 7), not smuggled into a console
+    phase. The booleans are shown instead.
+- ⚠️ **Gotcha for ALL future console UI: netra's stylesheet wins on source order, so overriding
+  a netra default class needs `!`.** `index.html` links `/src/index.css` (the console's Tailwind)
+  in `<head>`, while `main.tsx` imports `"netra/styles.css"` **after** it — so netra's
+  precompiled utilities always come LATER in the cascade and beat the console's at equal
+  specificity (media-query variants add **no** specificity, so even `sm:*` loses to a netra base
+  utility). This is why the console is peppered with `!` classes (`select-text!`, `w-full!`) —
+  they are fighting exactly this, not styling whims. It bit the dialog: netra's `DialogContent`
+  is `cn("… max-w-[calc(100%-2rem)] … sm:max-w-lg", className)` and its `cn` **is**
+  `twMerge(clsx(…))`, so a plain `sm:max-w-2xl` made twMerge drop netra's `sm:max-w-lg` and then
+  lost to netra's base `max-w-[calc(100%-2rem)]` — removing the cap and rendering the dialog
+  **full-bleed**. Fixed with `sm:max-w-3xl!` (768px — comfortable for the 2-column field grid).
+  Note the failure mode is *worse than no override*: you strip the default AND lose.
+- **Soft-signal framing preserved.** The Opened/Clicked fields and any opened/clicked timeline
+  event carry the Apple-MPP caveat tooltip, **reusing Phase 5's exact copy** — lifted verbatim
+  from `email_delivery_overview.tsx` into `OPEN_SOFT_SIGNAL_COPY` (now the single source for
+  both). Email `opened` stays directional; in-app `read` stays the trustworthy signal.
+- **Tests (real-Postgres, gated on `TEST_DB_URL`, self-cleaning — the Phase 3/5/6 pattern):**
+  `internal/service/notification_delivery_detail_test.go` (the widened **list** projection
+  carries `failure_reason`/`attempt`/`address_snapshot`/`opened_at`; the detail returns a
+  normalized 2-event timeline with the raw body preserved; a NULL `provider_response` yields zero
+  events; **another project cannot read the row**) and
+  `internal/handler/notification_deliveries_test.go` (the endpoint over real HTTP through a chi
+  router mounted exactly as `routes.go` mounts it — proves both URL params reach the handler and
+  the JSON serializes as the console expects; plus a non-numeric id ⇒ 400).
+  - ⚠️ **Gotcha for future handler tests: this repo is on chi v1** (`github.com/go-chi/chi`),
+    which is what `routes.go` and tantra's `httpx.ParamInt` (`chi.URLParam`) use — even though
+    `chi/v5` is also in `go.mod` (pulled in elsewhere). Mounting a test router on `chi/v5` makes
+    every URL param resolve **empty** (each version stores its route context under its own key),
+    which surfaces as a misleading `400 Invalid project ID`. Import the **v1** path.
+- **Untouched (as scoped):** the send path, the worker, the broadcast pipeline, all gating logic,
+  the SDKs, and `docs/`. No new endpoints beyond the one deliveries read. The Dev API's
+  notification surface is unchanged — this is console-only.
 
 ### Phase 9.2 — Recipient detail page (the keystone)
 

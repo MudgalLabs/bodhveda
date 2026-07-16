@@ -354,8 +354,14 @@ func (r *NotificationRepo) ListNotifications(ctx context.Context, projectID int,
 			byID[n.ID] = n
 		}
 
+		// Every BOUNDED delivery column is projected here, so the list can explain
+		// an outcome inline (failure_reason) and the detail dialog opens without a
+		// second fetch. provider_response is deliberately EXCLUDED — it is an
+		// unbounded JSONB array of raw webhook bodies (Phase 5) and is served
+		// per-notification instead (see agent-docs/overview.md, Phase 9.1).
 		deliverySQL := `
-			SELECT notification_id, status, sent_at, delivered_at
+			SELECT notification_id, status, failure_reason, attempt, provider, provider_message_id,
+			       address_snapshot, sent_at, delivered_at, bounced_at, complained_at, opened_at, clicked_at
 			FROM notification_delivery
 			WHERE medium = 'email' AND notification_id = ANY($1)
 		`
@@ -367,18 +373,17 @@ func (r *NotificationRepo) ListNotifications(ctx context.Context, projectID int,
 
 		for drows.Next() {
 			var (
-				nid                 int
-				status              enum.DeliveryStatus
-				sentAt, deliveredAt *time.Time
+				nid int
+				d   entity.NotificationEmailDelivery
 			)
-			if err := drows.Scan(&nid, &status, &sentAt, &deliveredAt); err != nil {
+			if err := drows.Scan(&nid, &d.Status, &d.FailureReason, &d.Attempt, &d.Provider,
+				&d.ProviderMessageID, &d.AddressSnapshot, &d.SentAt, &d.DeliveredAt, &d.BouncedAt,
+				&d.ComplainedAt, &d.OpenedAt, &d.ClickedAt); err != nil {
 				return nil, 0, fmt.Errorf("scan email delivery: %w", err)
 			}
 			if n, ok := byID[nid]; ok {
-				s := status
-				n.EmailStatus = &s
-				n.EmailSentAt = sentAt
-				n.EmailDeliveredAt = deliveredAt
+				email := d
+				n.Email = &email
 			}
 		}
 		if err := drows.Err(); err != nil {

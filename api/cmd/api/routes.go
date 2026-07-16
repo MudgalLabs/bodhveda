@@ -188,6 +188,7 @@ func initRouter() http.Handler {
 				r.Route("/notifications", func(r chi.Router) {
 					r.Get("/", handler.List(app.APP.Service.Notification))
 					r.Post("/send", handler.SendNotificationConsole(app.APP.Service.Notification))
+					r.Get("/{notification_id}/deliveries", handler.ListNotificationDeliveries(app.APP.Service.Notification))
 				})
 
 				r.Route("/email-deliveries", func(r chi.Router) {

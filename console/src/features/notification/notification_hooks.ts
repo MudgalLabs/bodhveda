@@ -12,6 +12,7 @@ import {
     EmailDeliveryOverview,
     ListBroadcastsPayload,
     ListBroadcastsResult,
+    ListNotificationDeliveriesResult,
     ListNotificationsPayload,
     ListNotificationsResult,
     NotificationKind,
@@ -84,6 +85,31 @@ export function useNotifications(
         },
         select: (res) => res.data as APIRes<ListNotificationsResult>,
         placeholderData: keepPreviousData,
+    });
+}
+
+// useNotificationDeliveries fetches the full delivery records for ONE
+// notification, including the raw provider webhook event history (Phase 9.1).
+//
+// `enabled` is what keeps the split honest: the history is unbounded, so it is
+// fetched only when an operator actually opens the delivery detail dialog,
+// rather than riding every row of every list refetch.
+export function useNotificationDeliveries(
+    projectID: string,
+    notificationID: number,
+    enabled = true
+) {
+    return useQuery({
+        queryKey: ["useNotificationDeliveries", projectID, notificationID],
+        queryFn: () =>
+            client.get(
+                API_ROUTES.project.notifications.deliveries(
+                    projectID,
+                    notificationID
+                )
+            ),
+        select: (res) => res.data as APIRes<ListNotificationDeliveriesResult>,
+        enabled: enabled && !!projectID && !!notificationID,
     });
 }
 

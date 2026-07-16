@@ -32,16 +32,76 @@ export type DeliveryStatus =
     | "quota_exceeded"
     | "rejected";
 
+// The email-medium delivery summary on a listed notification. Carries every
+// BOUNDED delivery column, so the list can explain an outcome inline and the
+// detail dialog can render the lifecycle without waiting on a fetch.
+//
+// The raw webhook event history (provider_response) is deliberately absent — it
+// is unbounded, so it is fetched per-notification via useNotificationDeliveries.
 export interface NotificationEmailDelivery {
     status: DeliveryStatus;
+    // The only thing separating the two causes of `muted`: `not_cataloged` vs
+    // `preference_disabled`. See deliveryFailureReasonText().
+    failure_reason?: string;
+    attempt: number;
+    provider?: string;
+    provider_message_id?: string;
+    address_snapshot?: string;
     sent_at?: string;
     delivered_at?: string;
+    bounced_at?: string;
+    complained_at?: string;
+    // Soft, directional signals only (Apple MPP inflates opens) — never present
+    // these as equivalent to in-app `read`.
+    opened_at?: string;
+    clicked_at?: string;
+}
+
+// One entry of a delivery's provider_response array: a raw provider webhook body
+// (appended once per webhook), reduced to what a timeline needs. `kind` and `at`
+// are normalized SERVER-side by the provider's adapter, so the console never
+// parses a provider's JSON shape. `kind` is empty for an unrecognized event.
+export interface DeliveryEvent {
+    kind: string;
+    at?: string;
+    raw: unknown;
+}
+
+// The full delivery record for one (notification, medium), including the webhook
+// event history. Served per-notification, not on list rows.
+export interface NotificationDeliveryDetail {
+    id: number;
+    medium: string;
+    status: DeliveryStatus;
+    failure_reason?: string;
+    attempt: number;
+    provider?: string;
+    provider_message_id?: string;
+    // The address captured at enqueue — immune to later contact edits, so it
+    // reflects where this email actually went.
+    address_snapshot?: string;
+    sent_at?: string;
+    delivered_at?: string;
+    bounced_at?: string;
+    complained_at?: string;
+    opened_at?: string;
+    clicked_at?: string;
+    events: DeliveryEvent[];
+    created_at: string;
+    updated_at: string;
+}
+
+export interface ListNotificationDeliveriesResult {
+    deliveries: NotificationDeliveryDetail[];
 }
 
 export interface Notification {
     id: number;
     recipient_id: string;
-    payload: string;
+    // The in-app content block, as sent. The API serializes it from
+    // json.RawMessage, so this is arbitrary customer JSON (an object in
+    // practice), NOT a string.
+    payload: unknown;
     broadcast_id: number | null;
     target: Target;
     state: NotificationState;

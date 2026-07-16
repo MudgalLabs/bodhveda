@@ -27,7 +27,8 @@ func NewNotificationDeliveryRepo(db *pgxpool.Pool) repository.NotificationDelive
 
 const notificationDeliveryFields = `
 	id, notification_id, project_id, recipient_external_id, medium, contact_id, address_snapshot,
-	status, provider, provider_message_id, failure_reason, attempt, sent_at, created_at, updated_at
+	status, provider, provider_message_id, failure_reason, attempt, sent_at, delivered_at, bounced_at,
+	complained_at, opened_at, clicked_at, provider_response, created_at, updated_at
 `
 
 func scanNotificationDelivery(row interface {
@@ -35,15 +36,20 @@ func scanNotificationDelivery(row interface {
 }) (*entity.NotificationDelivery, error) {
 	var d entity.NotificationDelivery
 	var medium, status string
+	// provider_response is scanned as raw bytes rather than json.RawMessage so a
+	// SQL NULL (no webhook has landed yet) stays nil instead of decoding.
+	var providerResponse []byte
 	err := row.Scan(
 		&d.ID, &d.NotificationID, &d.ProjectID, &d.RecipientExtID, &medium, &d.ContactID, &d.AddressSnapshot,
-		&status, &d.Provider, &d.ProviderMessageID, &d.FailureReason, &d.Attempt, &d.SentAt, &d.CreatedAt, &d.UpdatedAt,
+		&status, &d.Provider, &d.ProviderMessageID, &d.FailureReason, &d.Attempt, &d.SentAt, &d.DeliveredAt,
+		&d.BouncedAt, &d.ComplainedAt, &d.OpenedAt, &d.ClickedAt, &providerResponse, &d.CreatedAt, &d.UpdatedAt,
 	)
 	if err != nil {
 		return nil, err
 	}
 	d.Medium = enum.Medium(medium)
 	d.Status = enum.DeliveryStatus(status)
+	d.ProviderResponse = providerResponse
 	return &d, nil
 }
 
@@ -93,15 +99,15 @@ func (r *NotificationDeliveryRepo) Get(ctx context.Context, id int64) (*entity.N
 	return delivery, nil
 }
 
-func (r *NotificationDeliveryRepo) ListForNotification(ctx context.Context, notificationID int) ([]*entity.NotificationDelivery, error) {
+func (r *NotificationDeliveryRepo) ListForNotification(ctx context.Context, projectID, notificationID int) ([]*entity.NotificationDelivery, error) {
 	sql := fmt.Sprintf(`
 		SELECT %s
 		FROM notification_delivery
-		WHERE notification_id = $1
+		WHERE notification_id = $1 AND project_id = $2
 		ORDER BY medium ASC, id ASC
 	`, notificationDeliveryFields)
 
-	rows, err := r.db.Query(ctx, sql, notificationID)
+	rows, err := r.db.Query(ctx, sql, notificationID, projectID)
 	if err != nil {
 		return nil, fmt.Errorf("query: %w", err)
 	}

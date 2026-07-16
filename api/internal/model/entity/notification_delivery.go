@@ -1,6 +1,7 @@
 package entity
 
 import (
+	"encoding/json"
 	"time"
 
 	"github.com/mudgallabs/bodhveda/internal/model/enum"
@@ -8,9 +9,12 @@ import (
 
 // NotificationDelivery is a per-(notification, medium) delivery record. In v1 it
 // is written for EMAIL only — the in-app inbox outcome stays on the notification
-// row (see agent-docs/overview.md). The struct exposes the subset of the
-// `notification_delivery` columns v1 touches; the remaining columns
-// (delivered_at, bounced_at, ...) exist in the table for Phase 5 webhooks.
+// row (see agent-docs/overview.md).
+//
+// This is the FULL row, including the Phase 5 webhook columns and the unbounded
+// ProviderResponse history. The notifications LIST uses the narrower
+// NotificationEmailDelivery projection instead; this struct backs the
+// per-notification delivery detail (Phase 9.1).
 type NotificationDelivery struct {
 	ID                int64
 	NotificationID    int
@@ -25,8 +29,19 @@ type NotificationDelivery struct {
 	FailureReason     *string
 	Attempt           int
 	SentAt            *time.Time
-	CreatedAt         time.Time
-	UpdatedAt         time.Time
+	DeliveredAt       *time.Time
+	BouncedAt         *time.Time
+	ComplainedAt      *time.Time
+	// OpenedAt / ClickedAt are soft, directional signals (Apple MPP inflates
+	// opens) — never treat them as equivalent to in-app `read`.
+	OpenedAt  *time.Time
+	ClickedAt *time.Time
+	// ProviderResponse is a JSONB ARRAY of raw provider webhook bodies, appended
+	// one per event by ApplyWebhookStatus (Phase 5). Unbounded — never project it
+	// into a list response. Nil when no webhook has ever landed for this row.
+	ProviderResponse json.RawMessage
+	CreatedAt        time.Time
+	UpdatedAt        time.Time
 }
 
 // NewNotificationDelivery builds a delivery record with a resolved status. For a
