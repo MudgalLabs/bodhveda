@@ -466,6 +466,18 @@ handler→service→pg pattern; don't refactor domains mid-phase (see top of doc
 - Phase 7.5 — Deploy email medium to VPS + Cloudflare, verify live — **DONE** (live instance serves prod; the Resurface prod project runs against it).
 - Phase 8 — Resurface cutover against the LIVE instance (the final end-to-end test) — **DONE**. Resurface dropped its direct Resend integration entirely and now routes **all** notifications (in-app + email) through one Bodhveda `send` per user, `email` block gated by its own Pro entitlement. Verified in prod: the daily digest fires at the user's 8am, delivers in-app + email for opted-in Pro users, and a recipient who opted out has **both** mediums muted — visible per-notification in the console Notifications list (in-app and email status on separate lines; see Console section). The email medium is shipped and validated end-to-end.
 
+**Console arc (Phase 9) — the email medium is shipped; the console is now the weakest surface.**
+Phases 1–8 bolted console UI onto each email phase as an afterthought, and twice explicitly
+skipped work *because a recipient detail page did not exist* (Phase 1 deviations → contacts became
+a modal; Phase 2 deviations → the per-medium preference grid was not built). Phase 9 pays that
+down. Sub-phases are ordered by dependency and each is one session.
+
+- Phase 9.1 — Delivery detail (widen the delivery projection + a detail dialog) — **TODO**
+- Phase 9.2 — Recipient detail page (`/projects/$id/recipients/$recipientId`) — **TODO**
+- Phase 9.3 — Recipient preference editing (the per-medium grid deferred in Phase 2) — **TODO**
+- Phase 9.4 — Notification list filters — **TODO**
+- Phase 9.5 — Analytics (time-series + per-target/medium breakdowns) — **TODO**
+
 ---
 
 ### Phase 1 — Recipient contacts (`recipient_contact` table)
@@ -1579,4 +1591,389 @@ in-app bell notification AND the email through Bodhveda only (inspect the send r
 `deliveries[]`), the email's one-click unsubscribe flips the Bodhveda email pref (a subsequent run
 shows that user's email delivery `muted` while in-app still delivers), and `grep -ri resend` shows
 no RESEND_* / resend SDK left in Resurface. Report the results.
+```
+
+---
+
+## Phase 9 — Console (UI/UX + power features)
+
+The email medium is shipped and validated (Phases 1–8). The console is now the weakest surface:
+each email phase bolted on the minimum UI it needed, and **twice deferred work explicitly because
+a recipient detail page didn't exist** (Phase 1 → contacts became a modal; Phase 2 → the
+per-medium preference grid was skipped). Phase 9 pays that down.
+
+### The shape of the problem (verified against the code, 2026-07-16)
+
+**Rich data is captured and never shown.** This is the theme of the whole arc.
+`notification_delivery` stores `failure_reason`, `attempt`, `provider`, `provider_message_id`,
+`provider_response` (JSONB — the full raw webhook event history), `address_snapshot`, and five
+timestamps (`sent_at`/`delivered_at`/`bounced_at`/`complained_at`/`opened_at`/`clicked_at`).
+The console shows **status + one elapsed time**.
+
+> ⚠️ **The bottleneck is the projection, not the schema.** The batch query at
+> `pg/notification.go` (~L356, in `List`) selects only
+> `notification_id, status, sent_at, delivered_at`; `entity.Notification` carries only
+> `EmailStatus`/`EmailSentAt`/`EmailDeliveredAt` (`entity/notification.go:30-32`); and
+> `dto.NotificationEmailDelivery` (`dto/notification.go:34`) exposes only those three.
+> **No migration is needed for any of Phase 9** — every column already exists (Phase 4 DDL,
+> recorded above). The work is widening SELECT → entity → DTO → UI.
+>
+> Note the asymmetry that makes this obvious: `dto.NotificationDelivery` **does** carry
+> `failure_reason`, but it only rides the **send** response (`SendNotificationResult.deliveries[]`),
+> which is why `send_notification_modal.tsx:595` can explain a skip and the notifications **list**
+> cannot. The same `muted` row is self-explanatory right after you send it and opaque forever after.
+
+**Console state today:**
+- Routes are flat: `routes/projects/$id/{home,notifications,recipients,preferences,api-keys,billing,settings}.tsx`.
+  **No detail route for anything** — recipients, notifications, and broadcasts are all list-only.
+- `features/home/home.tsx` is four lifetime scalars (Recipients / Notifications / Direct /
+  Broadcast). There is **no stats endpoint**: it calls `useGetProjects()`, fetches every project,
+  and `.find()`s the current one (`home.tsx:41`). No time dimension, no date range, no grouping.
+- `email_delivery_overview.tsx` (Phase 5) is the only other analytics — per-status counts,
+  project-wide, lifetime, self-hiding until ≥1 email is attempted.
+- `recipient_list.tsx:203-205` renders the recipient ID as a plain `<span className="select-text!">`.
+  Nothing links anywhere because there's nowhere to link to.
+- `dto.ListNotificationsFilters` (`dto/notification.go:439`) is `{ProjectID, Pagination, Kind}` —
+  `kind` is the **only** filter. No status, target, medium, date, or recipient.
+
+**What already exists to build on (reuse — do NOT re-derive):**
+- `Notification.ListForRecipient` — service method, already powers the Dev API's
+  `GET /recipients/{id}/notifications`. The console needs a route, not a query.
+- `repository.ListPreferencesForRecipient(ctx, projectID, recipientExtID)` — already exists,
+  used at `service/preference.go:171`.
+- `handler.GetRecipient` — exists on the Dev API (API-key auth). The console surface has **no**
+  single-recipient GET (list/create/patch/delete only).
+- Console recipient **contacts** CRUD endpoints already exist and are wired
+  (`recipient_contacts_modal.tsx`).
+- `UpsertRecipientPreferences` — console `PUT /recipients/{id}/preferences` already exists.
+  Recipient prefs are **writable** from the console but only **readable** project-wide.
+- `EmailDeliveryOverviewForProject` (per-status `count(*) FILTER`) — the aggregate pattern to
+  copy for Phase 9.5.
+
+**UI lib (`netra`) — confirmed available:**
+- **Charts ship with netra**: `ChartContainer`, `ChartTooltipContent`, `ChartLegendContent`,
+  `tooltipCursor`, `axisDefaults` are re-exported from the root barrel (`components/chart/chart`),
+  wrapping **recharts ^2.15.4** (a netra *dependency*, so it installs transitively). **Do not add a
+  charting library.** If you import recharts primitives (`<LineChart>`, `<Bar>`) directly rather
+  than through netra's wrapper, add `recharts` to `console/package.json` explicitly instead of
+  relying on the transitive install.
+- Also available: `tabs`, `dialog`, `date_picker`, `calendar`, `data_table`/`DataTableSmart`,
+  `popover`, `scroll_area`, `tag`.
+- **No drawer/sheet component exists** — use `dialog` for the delivery detail, matching the
+  existing modal-driven console UX.
+
+### Sequencing rationale
+
+9.1 first: it's the cheapest, needs no new endpoint, and answers the single most common support
+question ("why didn't my email send?"). 9.2 is the keystone — it unblocks 9.3, which was already
+deferred once. 9.4 is independent. 9.5 is last: it's the only sub-phase needing genuinely new
+aggregate queries.
+
+---
+
+### Phase 9.1 — Delivery detail
+
+- **Goal:** every value `notification_delivery` already stores is inspectable from the
+  notifications list. A `muted` or `failed` email explains itself **in the list**, not only in the
+  post-send modal.
+- **In scope:** widen the email-delivery projection (`pg/notification.go` batch query → entity →
+  `dto.NotificationEmailDelivery`) to carry `failure_reason`, `attempt`, `provider_message_id`,
+  `address_snapshot`, and the `bounced_at`/`complained_at`/`opened_at`/`clicked_at` timestamps;
+  surface `failure_reason` inline on the list's `MediumStatusLine` (`notifications_list.tsx:282`)
+  — at minimum distinguishing `not_cataloged` from `preference_disabled`, the distinction Phase 4
+  created this field for; a **delivery detail dialog** (netra `dialog`) per notification row showing
+  the full delivery lifecycle — every timestamp, attempt count, provider message id, and the raw
+  `provider_response` event history rendered readably (it's a JSONB **array**, appended per webhook
+  — see Phase 5 deviations).
+- **Out of scope:** new endpoints (widen the existing list response); the recipient page (9.2);
+  filters (9.4).
+- **Depends on:** nothing.
+- **Done when:** a `muted` email row states *why* without leaving the list; the detail dialog shows
+  the full webhook history for a delivered/bounced email; no migration was needed.
+- **Watch for:** `provider_response` can be large — consider whether it belongs in the list payload
+  at all, or behind a per-notification fetch. If the list response gets heavy, prefer a dedicated
+  `GET /console/projects/{project_id}/notifications/{notification_id}/deliveries` and keep the list
+  lean (decide this deliberately and record it).
+
+```
+Read agent-docs/overview.md in full first, esp. "Phase 9 — Console" (the shape of the problem),
+the Phase 4 deviations (the final `notification_delivery` schema + the DeliveryStatus enum) and
+Phase 5 deviations (the webhook → status mapping, the `provider_response` JSONB append, and the
+opened-is-a-soft-signal rule). Implement Phase 9.1 (Delivery detail).
+
+The premise, already verified — do NOT re-derive: `notification_delivery` stores failure_reason,
+attempt, provider, provider_message_id, provider_response (JSONB array of raw webhook events),
+address_snapshot, and sent/delivered/bounced/complained/opened/clicked timestamps. The console
+shows status + one elapsed time. NO MIGRATION IS NEEDED — every column exists. The bottleneck is
+the projection: the batch query in `pg/notification.go` (~L356, inside `List`) selects only
+`notification_id, status, sent_at, delivered_at`; `entity.Notification` (entity/notification.go:30-32)
+carries only EmailStatus/EmailSentAt/EmailDeliveredAt; `dto.NotificationEmailDelivery`
+(dto/notification.go:34) exposes only those three. Widen SELECT → entity → DTO → UI.
+
+Then:
+1. Surface `failure_reason` inline in the list's status column (`MediumStatusLine`,
+   notifications_list.tsx:282). Phase 4 set failure_reason specifically to distinguish
+   `not_cataloged` (target has no project-level (target,email) catalog row) from
+   `preference_disabled` (recipient opted out) — both share status `muted`. That distinction is
+   the whole point; make it readable, not a raw slug dumped on screen.
+2. Add a delivery detail dialog (netra `dialog` — netra has NO drawer/sheet) opened from the
+   notification row: full lifecycle timestamps, attempt count, provider + provider_message_id,
+   address_snapshot, and the provider_response event history. provider_response is an ARRAY
+   appended once per webhook (Phase 5) — render it as a readable timeline, not raw JSON dump.
+3. Keep the soft-signal framing: `opened` is directional (Apple MPP inflates it), unlike in-app
+   `read`. Phase 5 already has a tooltip for this in email_delivery_overview.tsx — reuse its copy.
+
+DECIDE DELIBERATELY and record it: provider_response can be large. Either widen the list response
+or add `GET /console/projects/{project_id}/notifications/{notification_id}/deliveries` and keep the
+list lean. Do not bloat every list row with full webhook history by reflex.
+
+Console-only + the projection widening. Do NOT touch the send path, the worker, the broadcast
+pipeline, or any gating logic. No migration. Follow the layered handler→service→pg pattern. Add
+new endpoint URLs to `API_ROUTES` in lib/api.ts, never hardcoded. Update Phase 9.1 status to DONE
+and add a "Phase 9.1 — deviations (as built)" section recording the list-vs-endpoint decision.
+```
+
+### Phase 9.2 — Recipient detail page (the keystone)
+
+- **Goal:** a real answer to "who is this recipient, what have we sent them, and what did they
+  actually get?" — the page two earlier phases were deferred for.
+- **In scope:** route `routes/projects/$id/recipients/$recipientId.tsx` (TanStack file-based;
+  `routeTree.gen.ts` is generated — never hand-edit); **two console endpoints**: a single-recipient
+  GET (the Dev API's `handler.GetRecipient` exists but is API-key auth'd — wrong surface) and a
+  recipient-scoped notifications list (reuse the existing `Notification.ListForRecipient` service
+  method — it already powers the Dev API; this is routing/DTO plumbing, **not** new query logic);
+  the page itself as netra `tabs` — Overview (identity, created_at, direct/broadcast counts),
+  Notifications (their feed with per-medium status, reusing 9.1's status cell + detail dialog),
+  Preferences (read-only here — editing is 9.3, via the existing
+  `ListPreferencesForRecipient(ctx, projectID, recipientExtID)` repo method at
+  `service/preference.go:171`), and Contacts (**fold `recipient_contacts_modal.tsx` in** — the
+  console endpoints already exist; Phase 1 only made it a modal because this page didn't exist);
+  **make recipient IDs clickable** in `recipient_list.tsx:203-205` (currently a plain
+  `<span className="select-text!">`) and in the notifications list's recipient column.
+- **Out of scope:** preference *editing* (9.3); analytics (9.5); notification filters (9.4) beyond
+  what this page's own feed needs.
+- **Depends on:** 9.1 (reuses its status cell + dialog; sequence after, though not a hard block).
+- **Done when:** clicking a recipient ID anywhere lands on their page; the page shows their
+  identity, their notification feed with per-medium outcomes, their current preferences, and their
+  contacts; the standalone contacts modal is gone (or is now just this page's tab).
+- **Watch for:** recipients are addressed by customer-chosen `external_id` **strings**, not the
+  serial `id` — they can contain URL-hostile characters. The existing contacts routes already
+  `encodeURIComponent` them (`lib/api.ts:51`); the route param must do the same. Keep the internal
+  serial `id` internal.
+
+```
+Read agent-docs/overview.md in full first, esp. "Phase 9 — Console" and the Phase 1 + Phase 2
+deviations — BOTH explicitly deferred work "because the console has no recipient detail page
+today" (overview.md:522 → contacts became a modal; overview.md:618-621 → the per-medium preference
+grid was skipped). This phase builds that page. It is the keystone of the console arc.
+
+What already exists — reuse, do NOT re-derive:
+- `Notification.ListForRecipient` (service) already powers the Dev API's
+  GET /recipients/{id}/notifications. The console needs a ROUTE, not a query.
+- `repository.ListPreferencesForRecipient(ctx, projectID, recipientExtID)` exists
+  (service/preference.go:171).
+- Console recipient CONTACTS CRUD endpoints already exist and are wired
+  (features/recipient/list/recipient_contacts_modal.tsx).
+- `handler.GetRecipient` exists but on the DEV API (API-key auth) — the console surface has NO
+  single-recipient GET (list/create/patch/delete only). Add one, console-side, gated by the
+  existing VerifyUserOwnsThisProject like every other console project route.
+
+Build:
+1. Two console endpoints: single-recipient GET, and a recipient-scoped notifications list (wrap
+   ListForRecipient). Follow the layered handler→service→pg pattern; add both to `API_ROUTES` in
+   lib/api.ts (never hardcode URLs).
+2. Route `console/src/routes/projects/$id/recipients/$recipientId.tsx` (TanStack file-based —
+   routeTree.gen.ts is GENERATED, never hand-edit). Page = netra `tabs`:
+   - Overview: identity, created_at, direct/broadcast counts (RecipientListItem already carries
+     direct_notifications_count / broadcast_notifications_count).
+   - Notifications: their feed, reusing 9.1's per-medium status cell + delivery detail dialog.
+   - Preferences: READ-ONLY this phase (editing is 9.3).
+   - Contacts: FOLD IN recipient_contacts_modal.tsx — endpoints already exist. Phase 1 only made
+     it a modal because this page didn't exist. Remove the row-action modal once folded.
+3. Make recipient IDs CLICKABLE → this page: recipient_list.tsx:203-205 (currently a plain
+   `<span className="select-text!">`) and the notifications list's recipient column.
+
+CRITICAL: recipients are addressed by the customer-chosen `external_id` STRING, not the serial id.
+It can contain URL-hostile characters — encodeURIComponent it in the route exactly as the existing
+contacts routes do (lib/api.ts:51). The internal serial `id` stays internal (a long-standing repo
+convention — see "Conventions worth remembering").
+
+Console + two read endpoints only. No migration. Do NOT touch the send path, worker, gating, or
+broadcast pipeline. Do NOT build preference editing (9.3) or analytics (9.5). Update Phase 9.2
+status to DONE and add a "Phase 9.2 — deviations (as built)" section.
+```
+
+### Phase 9.3 — Recipient preference editing (the deferred grid)
+
+- **Goal:** finish what Phase 2 deferred — per-medium (In-App / Email) preference toggles per
+  target, on the recipient page 9.2 built.
+- **In scope:** turn 9.2's read-only Preferences tab into an editable per-`(target, medium)` grid,
+  writing through the **existing** console `PUT /recipients/{recipient_external_id}/preferences`
+  (`UpsertRecipientPreferences` — already exists); show each target's **catalog** state, since a
+  medium can only fire if the project cataloged `(target, medium)` (Phase 2's gate); make the
+  resolved outcome legible — the cascade is recipient-exact → recipient-fallback (`topic='any'`) →
+  project-exact → project-fallback → default, and the default is **medium-dependent** (`in_app`
+  defaults to deliver; every other medium defaults to NOT deliver unless cataloged/enabled).
+- **Out of scope:** new preference endpoints (the write path exists); changing any gating semantics.
+- **Depends on:** **9.2** (hard — this is a tab on that page).
+- **Done when:** an operator can flip a recipient's email preference for a target from the console
+  and a subsequent send reflects it (`muted` / `failure_reason=preference_disabled`); an uncataloged
+  `(target, medium)` is visibly unavailable rather than silently off.
+- **Watch for:** do **not** add a parallel write path. Phase 6 established that the authenticated
+  toggle, the SDK, and the one-click unsubscribe all converge on
+  `PreferenceService.UpdateRecipientPreferenceTarget` — that convergence is *why* an unsubscribe
+  and the app's settings toggle stay in sync. Breaking it desyncs unsubscribes.
+
+```
+Read agent-docs/overview.md in full first, esp. the Phase 2 deviations (per-medium preferences +
+catalog gating, and the note at overview.md:618-621 that the recipient-facing per-target toggle
+GRID was explicitly NOT built for want of a recipient detail page), Phase 6 deviations (the
+unsubscribe flip reuses the SAME write path — no parallel disable), and Phase 9.2 (which built the
+page this lands on). Implement Phase 9.3.
+
+Build the editable per-(target, medium) preference grid on the recipient detail page's Preferences
+tab (9.2 left it read-only).
+
+REUSE, do NOT re-derive:
+- Write path: the console `PUT /console/projects/{project_id}/recipients/{recipient_external_id}/
+  preferences` (`UpsertRecipientPreferences`) ALREADY EXISTS. Underneath, everything funnels to
+  `PreferenceService.UpdateRecipientPreferenceTarget`. Do NOT add a parallel disable/enable path —
+  Phase 6 made the authenticated toggle, the SDK, and the email one-click unsubscribe all converge
+  on that one path, which is exactly why unsubscribing and the app's settings toggle stay in sync.
+  A second write path silently desyncs unsubscribes.
+- Read path: `ListPreferencesForRecipient(ctx, projectID, recipientExtID)` (service/preference.go:171).
+
+Semantics you must render honestly (from Phase 2 — do not re-invent):
+- A medium fires only if the project CATALOGED (target, medium) via a project-level preference.
+  An uncataloged (target, email) must read as UNAVAILABLE, not as "off" — those are different
+  states and conflating them is the confusion this grid exists to end.
+- Resolution cascade: recipient-exact → recipient-fallback (topic='any') → project-exact →
+  project-fallback → default. The DEFAULT IS MEDIUM-DEPENDENT: in_app defaults to DELIVER (legacy
+  "deliver unless muted"); every other medium defaults to NOT deliver unless cataloged/enabled.
+  Show the RESOLVED outcome, not just the stored row — a recipient with no stored row is not
+  "unset", it's "in_app: on, email: off".
+- Only in_app + email are Active() mediums; web_push/sms/mobile_push are scaffolding — don't
+  render toggles for mediums that cannot fire.
+
+VERIFY END-TO-END (do not just typecheck): flip a recipient's email preference off in the console,
+send a direct notification with an email block to that target, and confirm the delivery row records
+`muted` with failure_reason=preference_disabled. That round trip is the "done when".
+
+Console-only. No migration, no new endpoints, no gating-semantics changes. Update Phase 9.3 status
+to DONE and add a "Phase 9.3 — deviations (as built)" section.
+```
+
+### Phase 9.4 — Notification list filters
+
+- **Goal:** the notifications list is usable on a project with real volume.
+- **In scope:** extend `dto.ListNotificationsFilters` (`dto/notification.go:439` — today just
+  `{ProjectID, Pagination, Kind}`) and the `pg` query with filters for status, target
+  (channel/topic/event), medium + delivery status, date range, and recipient search; matching
+  console filter UI (netra `date_picker`/`select`/`toggle_group`); URL-synced filter state via
+  TanStack Router search params so a filtered view is shareable/bookmarkable.
+- **Out of scope:** analytics aggregates (9.5); saved views.
+- **Depends on:** nothing hard (9.1 makes the medium/delivery-status filter more useful).
+- **Done when:** an operator can answer "show me every bounced email on `digest/none/sent` last
+  week" from the list; filter state survives a page reload and is shareable as a URL.
+- **Watch for:** filtering on the email medium means filtering on a **joined** `notification_delivery`
+  row, not a `notification` column — check the query plan and index coverage (`ix_nd_email_status_time`
+  is a partial index `WHERE medium='email'`, from Phase 4). Don't turn the list into a seq scan.
+
+```
+Read agent-docs/overview.md in full first, esp. "Phase 9 — Console" and the Phase 4 deviations
+(the notification_delivery schema + its indexes). Implement Phase 9.4 (Notification list filters).
+
+Today `dto.ListNotificationsFilters` (internal/model/dto/notification.go:439) is
+`{ProjectID, query.Pagination, Kind}` — `kind` (direct|broadcast) is the ONLY filter. On a project
+with real volume the list is unusable.
+
+Add filters: status, target (channel/topic/event), medium + delivery status, date range, and
+recipient search. Extend the DTO + the pg query + the console UI (netra has date_picker, select,
+toggle_group). Sync filter state to the URL via TanStack Router search params so a filtered view is
+shareable and survives reload.
+
+PERFORMANCE — this is the actual risk: filtering by email/delivery status means filtering on a
+JOINED notification_delivery row, not a notification column. Phase 4 shipped `ix_nd_email_status_time`
+as a PARTIAL index (WHERE medium='email'); `ix_nd_notification` and `ix_nd_project_recipient` also
+exist. EXPLAIN your query — do not turn the list into a seq scan, and do not add an index without
+first checking whether an existing partial one covers the predicate. If you need a new index, that
+IS a migration (Goose, applied manually) — the only sub-phase of Phase 9 that might need one.
+
+Note the existing list already attaches email deliveries via a SECOND batch query keyed by
+notification ids (pg/notification.go ~L356), not a join in the main query. Filtering by delivery
+status may force that into the main query — if so, do it deliberately and record the tradeoff
+(the batch-query design exists so a notification with no email simply has no row; a naive INNER
+JOIN would silently drop every in-app-only notification).
+
+Follow the layered handler→service→pg pattern. Update Phase 9.4 status to DONE and add a
+"Phase 9.4 — deviations (as built)" section recording the final filter set + any index work.
+```
+
+### Phase 9.5 — Analytics
+
+- **Goal:** replace lifetime scalars with something that shows **trend and breakdown** — the only
+  sub-phase needing genuinely new aggregate queries.
+- **In scope:** new console aggregate endpoint(s) over `notification` + `notification_delivery`
+  grouped by day/status/medium/target with a **date range** (copy the shape of
+  `EmailDeliveryOverviewForProject` — per-status `count(*) FILTER (...)` — from Phase 5); rebuild
+  `features/home/home.tsx` on real stats (today it is four lifetime scalars sourced by fetching
+  **every project** and `.find()`ing the current one at `home.tsx:41` — there is no stats endpoint
+  at all); time-series charts (send volume, delivery outcomes over time), per-medium in-app vs email
+  comparison, per-target breakdown (which targets actually fire), and delivery-health signals
+  (bounce/complaint rate — the numbers that predict a sender-reputation problem, which is the exact
+  risk BYO-first exists to manage).
+- **Out of scope:** a metrics pipeline/rollup tables (aggregate live first; only add rollups if
+  measurements justify it); billing/usage analytics (`BillingService` already meters separately).
+- **Depends on:** nothing hard, but sequence last (most backend work; benefits from 9.1's widened
+  projection).
+- **Done when:** the Home page shows send volume over a selectable range with per-medium and
+  per-status breakdowns, and a project with zero email still renders sensibly.
+- **Watch for:** the existing `email_delivery_overview.tsx` deliberately **self-hides** until the
+  project has attempted ≥1 email — in-app-only projects (still the common case) must not be shown a
+  wall of empty email charts. Preserve that instinct. Also: **email `opened` is a soft signal**
+  (Apple MPP inflates it, blocked images deflate it) — it is directional only, and in-app `read` is
+  the trustworthy number. Never chart them as if they were the same kind of fact.
+
+```
+Read agent-docs/overview.md in full first, esp. "Phase 9 — Console", the Phase 4 deviations
+(notification_delivery schema/indexes), and the Phase 5 deviations (EmailDeliveryOverview —
+per-status count(*) FILTER; and the opened-is-a-soft-signal rule). Implement Phase 9.5 (Analytics).
+This is the only console sub-phase needing genuinely new aggregate queries.
+
+Today there is NO stats endpoint. `features/home/home.tsx` renders four LIFETIME scalars and gets
+them by calling `useGetProjects()` — fetching every project and `.find()`ing the current one
+(home.tsx:41). The only other analytics is Phase 5's `email_delivery_overview.tsx`: per-status
+counts, project-wide, lifetime. Nothing has a time dimension.
+
+Build:
+1. Console aggregate endpoint(s) over notification + notification_delivery grouped by
+   day/status/medium/target, with a DATE RANGE. Copy the shape of
+   `EmailDeliveryOverviewForProject` (per-status `count(*) FILTER (...)`, Phase 5) — it's the
+   established pattern. Aggregate LIVE; do NOT build rollup tables or a metrics pipeline unless you
+   measure a reason to (record the measurement if you do).
+2. Rebuild home.tsx on it: send volume over a selectable range, in-app vs email per-medium
+   comparison, per-target breakdown (which targets actually fire), and delivery-health
+   (bounce/complaint rate — the numbers that predict a sender-reputation problem, the exact risk
+   BYO-first exists to manage; see the decision log).
+
+CHARTS — netra ALREADY SHIPS CHARTING. `ChartContainer`, `ChartTooltipContent`,
+`ChartLegendContent`, `tooltipCursor`, `axisDefaults` are re-exported from netra's root barrel
+(components/chart/chart), wrapping recharts ^2.15.4 (a netra dependency). DO NOT add a charting
+library. If you import recharts primitives directly rather than via netra's wrapper, add `recharts`
+to console/package.json explicitly rather than relying on the transitive install — Cloudflare's
+fresh `npm ci` is where that kind of drift surfaces (see [[project-console-cloudflare-deploy]]).
+Load the `dataviz` skill before writing chart code.
+
+HONESTY RULES (non-negotiable — the data has known biases and the console must not launder them):
+- Email `opened` is a SOFT signal: Apple Mail Privacy Protection pre-fetches pixels (inflates),
+  blocked images deflate. In-app `read` is the trustworthy signal. Never chart them as the same
+  kind of fact; carry the soft-signal caveat into the UI as Phase 5 did.
+- Preserve the self-hiding instinct: email_delivery_overview.tsx deliberately shows NOTHING until
+  the project has attempted ≥1 email. In-app-only projects are still the common case — they must
+  not get a wall of empty email charts. A project with zero email must render sensibly.
+
+Follow the layered handler→service→pg pattern; add endpoints to `API_ROUTES` in lib/api.ts. EXPLAIN
+your aggregates against realistic volume before shipping. Update Phase 9.5 status to DONE and add a
+"Phase 9.5 — deviations (as built)" section recording the endpoint shape, whether live aggregation
+held up, and the final chart set.
 ```
