@@ -56,6 +56,7 @@ type repositories struct {
 	Preference           repository.PreferenceRepository
 	Project              repository.ProjectRepository
 	ProjectEmail         repository.ProjectEmailSettingsRepository
+	WebhookEvent         repository.WebhookEventRepository
 	Recipient            repository.RecipientRepository
 	RecipientContact     repository.RecipientContactRepository
 	UsageLog             repository.UsageLogRepository
@@ -101,6 +102,7 @@ func Init() {
 	preferenceRepository := pg.NewPreferenceRepo(db)
 	projectRepository := pg.NewProjectRepo(db)
 	projectEmailSettingsRepository := pg.NewProjectEmailSettingsRepo(db)
+	webhookEventRepository := pg.NewWebhookEventRepo(db)
 	recipientRepository := pg.NewRecipientRepo(db)
 	recipientContactRepository := pg.NewRecipientContactRepo(db)
 	usageLogRepository := pg.NewUsageLogRepo(db)
@@ -123,7 +125,7 @@ func Init() {
 		recipientContactRepository, projectEmailSettingsRepository, billingService, recipientService, ASYNQCLIENT)
 	projectService := service.NewProjectService(projectRepository, notificationService, recipientService, ASYNQCLIENT)
 	projectEmailSettingsService := service.NewProjectEmailSettingsService(projectEmailSettingsRepository)
-	emailWebhookService := service.NewEmailWebhookService(projectEmailSettingsRepository, notificationDeliveryRepository, preferenceService)
+	emailWebhookService := service.NewEmailWebhookService(projectEmailSettingsRepository, notificationDeliveryRepository, webhookEventRepository, preferenceService)
 	unsubscribeService := service.NewUnsubscribeService(preferenceService)
 	userIdentityService := user_identity.NewService(userIdentityRepository, userProfileRepository)
 	userProfileService := user_profile.NewService(userProfileRepository)
@@ -154,6 +156,7 @@ func Init() {
 		Preference:           preferenceRepository,
 		Project:              projectRepository,
 		ProjectEmail:         projectEmailSettingsRepository,
+		WebhookEvent:         webhookEventRepository,
 		Recipient:            recipientRepository,
 		RecipientContact:     recipientContactRepository,
 		UsageLog:             usageLogRepository,

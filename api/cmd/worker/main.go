@@ -1,16 +1,29 @@
 package main
 
 import (
+	"context"
 	"os"
 	"os/signal"
 	"syscall"
+	"time"
 
 	"github.com/hibiken/asynq"
 	"github.com/mudgallabs/bodhveda/internal/app"
 	"github.com/mudgallabs/bodhveda/internal/job"
 	"github.com/mudgallabs/bodhveda/internal/job/processor"
 	"github.com/mudgallabs/bodhveda/internal/job/task"
+	"github.com/mudgallabs/bodhveda/internal/model/repository"
 	"github.com/mudgallabs/tantra/logger"
+)
+
+const (
+	// webhookEventRetention is how long processed-webhook idempotency rows are kept
+	// before the cleanup job prunes them. Only needs to exceed the provider's retry
+	// horizon (Svix retries span ~a day) for dedup correctness; the rest is audit
+	// headroom.
+	webhookEventRetention = 30 * 24 * time.Hour
+	// webhookEventCleanupInterval is how often the cleanup job runs.
+	webhookEventCleanupInterval = 24 * time.Hour
 )
 
 func main() {
@@ -53,9 +66,47 @@ func main() {
 		app.APP.Repository.Recipient,
 	))
 
+	// Retention cleanup for the webhook idempotency ledger (#8). A lightweight
+	// ticker is enough here — a single worker, and DELETE is idempotent — so we
+	// avoid standing up an Asynq scheduler for one periodic job. Cancelled when run()
+	// returns (graceful shutdown).
+	cleanupCtx, cancelCleanup := context.WithCancel(context.Background())
+	defer cancelCleanup()
+	go runWebhookEventCleanup(cleanupCtx, app.APP.Repository.WebhookEvent)
+
 	err = run(asynqServer, asynqMux)
 	if err != nil {
 		panic(err)
+	}
+}
+
+// runWebhookEventCleanup prunes webhook_event rows older than the retention window,
+// once on start and then on a daily tick, until ctx is cancelled.
+func runWebhookEventCleanup(ctx context.Context, repo repository.WebhookEventRepository) {
+	l := logger.Get()
+
+	cleanup := func() {
+		deleted, err := repo.DeleteOlderThan(ctx, time.Now().Add(-webhookEventRetention))
+		if err != nil {
+			l.Errorf("webhook_event cleanup: %v", err)
+			return
+		}
+		if deleted > 0 {
+			l.Infof("webhook_event cleanup: pruned %d rows older than %s", deleted, webhookEventRetention)
+		}
+	}
+
+	cleanup()
+
+	ticker := time.NewTicker(webhookEventCleanupInterval)
+	defer ticker.Stop()
+	for {
+		select {
+		case <-ctx.Done():
+			return
+		case <-ticker.C:
+			cleanup()
+		}
 	}
 }
 

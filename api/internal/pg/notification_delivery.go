@@ -183,9 +183,10 @@ func (r *NotificationDeliveryRepo) ApplyWebhookStatus(ctx context.Context, u rep
 	}
 
 	// $1 provider_message_id, $2 new status (nullable), $3 event kind, $4 event
-	// time, $5 raw event JSON. The status only advances when $2 outranks the
-	// current status; each *_at column is first-write-wins (COALESCE); the raw
-	// event is appended to the provider_response JSONB array.
+	// time, $5 raw event JSON, $6 project_id. The match is scoped to the project so
+	// one project's webhook can't touch another's row. The status only advances when
+	// $2 outranks the current status; each *_at column is first-write-wins
+	// (COALESCE); the raw event is appended to the provider_response JSONB array.
 	sql := fmt.Sprintf(`
 		UPDATE notification_delivery SET
 			status = CASE
@@ -199,10 +200,10 @@ func (r *NotificationDeliveryRepo) ApplyWebhookStatus(ctx context.Context, u rep
 			clicked_at    = CASE WHEN $3 = 'clicked'    THEN COALESCE(clicked_at,    $4) ELSE clicked_at    END,
 			provider_response = COALESCE(provider_response, '[]'::jsonb) || $5::jsonb,
 			updated_at = now()
-		WHERE provider_message_id = $1
+		WHERE provider_message_id = $1 AND project_id = $6
 	`, fmt.Sprintf(deliveryStatusRank, "$2::text"), fmt.Sprintf(deliveryStatusRank, "status"))
 
-	res, err := r.db.Exec(ctx, sql, u.ProviderMessageID, newStatus, u.Kind, u.At, string(u.RawEvent))
+	res, err := r.db.Exec(ctx, sql, u.ProviderMessageID, newStatus, u.Kind, u.At, string(u.RawEvent), u.ProjectID)
 	if err != nil {
 		return err
 	}
@@ -213,15 +214,15 @@ func (r *NotificationDeliveryRepo) ApplyWebhookStatus(ctx context.Context, u rep
 	return nil
 }
 
-func (r *NotificationDeliveryRepo) GetTargetByProviderMessageID(ctx context.Context, providerMessageID string) (*repository.DeliveryTarget, error) {
+func (r *NotificationDeliveryRepo) GetTargetByProviderMessageID(ctx context.Context, projectID int, providerMessageID string) (*repository.DeliveryTarget, error) {
 	sql := `
 		SELECT nd.project_id, nd.recipient_external_id, n.channel, n.topic, n.event
 		FROM notification_delivery nd
 		JOIN notification n ON n.id = nd.notification_id
-		WHERE nd.provider_message_id = $1
+		WHERE nd.provider_message_id = $1 AND nd.project_id = $2
 	`
 	var t repository.DeliveryTarget
-	err := r.db.QueryRow(ctx, sql, providerMessageID).Scan(
+	err := r.db.QueryRow(ctx, sql, providerMessageID, projectID).Scan(
 		&t.ProjectID, &t.RecipientExtID, &t.Channel, &t.Topic, &t.Event,
 	)
 	if err != nil {

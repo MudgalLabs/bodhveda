@@ -22,6 +22,15 @@ import (
 	"github.com/mudgallabs/tantra/logger"
 )
 
+// currentAttempt returns the 1-based attempt number for the task being processed
+// (Asynq reports the 0-based retry count).
+func currentAttempt(ctx context.Context) int {
+	if count, ok := asynq.GetRetryCount(ctx); ok {
+		return count + 1
+	}
+	return 1
+}
+
 type NotificationDeliveryProcessor struct {
 	db               *pgxpool.Pool
 	notificationRepo repository.NotificationRepository
@@ -124,10 +133,7 @@ func (processor *EmailDeliveryProcessor) ProcessTask(ctx context.Context, t *asy
 		return err
 	}
 
-	attempt := 1
-	if count, ok := asynq.GetRetryCount(ctx); ok {
-		attempt = count + 1
-	}
+	attempt := currentAttempt(ctx)
 
 	// fail records a terminal failed outcome on the delivery row. Returning the
 	// original error lets Asynq retry (up to MaxRetry); the row reflects the
@@ -178,6 +184,8 @@ func (processor *EmailDeliveryProcessor) ProcessTask(ctx context.Context, t *asy
 		HTML:        payload.HTML,
 		Text:        payload.Text,
 		Headers:     headers,
+		// Stable per-delivery key so an Asynq retry can't send a duplicate email.
+		IdempotencyKey: fmt.Sprintf("bodhveda-delivery-%d", payload.DeliveryID),
 	})
 	if err != nil {
 		return fail("provider_send_error", fmt.Errorf("send email: %w", err))
@@ -382,11 +390,7 @@ func (processor *BroadcastDeliveryProcessor) ProcessTask(ctx context.Context, t 
 		status = enum.BroadcastBatchStatusSuccess
 	}
 
-	attempt := 1
-	count, ok := asynq.GetRetryCount(ctx)
-	if ok {
-		attempt = count + 1
-	}
+	attempt := currentAttempt(ctx)
 
 	err = processor.broadcastBatchRepo.Update(ctx, payload.BatchID, entity.NewBroadcastBatchUpdatePayload(
 		status, attempt, int(duration.Milliseconds()),

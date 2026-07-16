@@ -289,6 +289,7 @@ func (s *NotificationService) markDeliveryFailed(ctx context.Context, deliveryID
 	err := s.deliveryRepo.UpdateResult(ctx, deliveryID, repository.NotificationDeliveryResult{
 		Status:        enum.DeliveryFailed,
 		FailureReason: &reason,
+		Attempt:       1,
 	})
 	if err != nil {
 		logger.Get().Errorf("mark email delivery %d failed: %v", deliveryID, err)

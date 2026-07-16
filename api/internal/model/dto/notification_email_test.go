@@ -74,6 +74,14 @@ func TestSendNotificationPayload_Validate_EmailBlock(t *testing.T) {
 			t.Fatalf("expected no error, got %v", err)
 		}
 	})
+
+	t.Run("broadcast with no target reports target error (no panic)", func(t *testing.T) {
+		p := SendNotificationPayload{ProjectID: 1} // broadcast, Target nil
+		err := p.Validate()
+		if err == nil || !hasErrorFor(err, "target") {
+			t.Fatalf("expected a 'target' validation error, got %v", err)
+		}
+	})
 }
 
 func TestEmailContent_ResolvedText(t *testing.T) {
@@ -92,6 +100,23 @@ func TestEmailContent_ResolvedText(t *testing.T) {
 		}
 		if strings.Contains(got, "<") {
 			t.Errorf("derived text %q still contains tags", got)
+		}
+		// Entities are decoded, not passed through raw.
+		if !strings.Contains(got, "World & more") {
+			t.Errorf("derived text %q did not decode &amp;", got)
+		}
+	})
+
+	t.Run("drops style/script/head content", func(t *testing.T) {
+		e := &EmailContent{HTML: `<head><style>.x{color:red}</style></head><body><script>alert(1)</script><p>Visible</p></body>`}
+		got := e.ResolvedText()
+		if !strings.Contains(got, "Visible") {
+			t.Errorf("derived text %q missing body text", got)
+		}
+		for _, leak := range []string{"color:red", ".x{", "alert(1)"} {
+			if strings.Contains(got, leak) {
+				t.Errorf("derived text %q leaked non-body content %q", got, leak)
+			}
 		}
 	})
 }

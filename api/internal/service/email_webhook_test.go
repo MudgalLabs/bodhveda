@@ -46,9 +46,14 @@ func TestEmailWebhookService_Ingest(t *testing.T) {
 
 	settingsRepo := pg.NewProjectEmailSettingsRepo(pool)
 	deliveryRepo := pg.NewNotificationDeliveryRepo(pool)
+	webhookEventRepo := pg.NewWebhookEventRepo(pool)
 	preferenceRepo := pg.NewPreferenceRepo(pool)
 	preferenceService := NewProjectPreferenceService(preferenceRepo, pg.NewRecipientRepo(pool))
-	svc := NewEmailWebhookService(settingsRepo, deliveryRepo, preferenceService)
+	svc := NewEmailWebhookService(settingsRepo, deliveryRepo, webhookEventRepo, preferenceService)
+
+	t.Cleanup(func() {
+		_, _ = pool.Exec(ctx, "DELETE FROM webhook_event WHERE project_id = $1", projectID)
+	})
 
 	secret := "whsec_" + base64.StdEncoding.EncodeToString([]byte("webhook-signing-key-material"))
 
@@ -126,6 +131,20 @@ func TestEmailWebhookService_Ingest(t *testing.T) {
 	}
 	if respLen != 1 {
 		t.Errorf("provider_response length = %d, want 1", respLen)
+	}
+
+	// --- Idempotency (#8): re-delivering the SAME event (same svix-id) is a no-op.
+	// It must ack without re-appending to provider_response.
+	if errKind, err := svc.Ingest(ctx, projectID, goodHeaders, body); errKind != tantraService.ErrNone || err != nil {
+		t.Fatalf("duplicate webhook: errKind=%v err=%v, want acked no-op", errKind, err)
+	}
+	var respLenAfterDup int
+	_ = pool.QueryRow(ctx, `
+		SELECT jsonb_array_length(COALESCE(provider_response, '[]'::jsonb))
+		FROM notification_delivery WHERE id = $1
+	`, deliveryID).Scan(&respLenAfterDup)
+	if respLenAfterDup != 1 {
+		t.Errorf("after duplicate: provider_response length = %d, want still 1 (deduped)", respLenAfterDup)
 	}
 
 	// --- Non-regression: a late "sent" event must NOT overwrite delivered.

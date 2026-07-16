@@ -45,19 +45,28 @@ func initRouter() http.Handler {
 	// the developer API-key auth/CORS/rate-limit group and the console session
 	// group — because it is called by the email provider (Resend via Svix), not by
 	// a customer: authentication IS the webhook signature, verified in the service
-	// against the project's stored signing secret. It is deliberately NOT rate
-	// limited by the per-IP dev-API limiter (a provider can burst many events from
-	// a small IP pool).
-	r.Post("/webhooks/email/{project_id}", handler.EmailWebhook(app.APP.Service.EmailWebhook))
+	// against the project's stored signing secret. It is NOT covered by the per-IP
+	// dev-API limiter; instead it gets its own loose limiter keyed by PROJECT (not
+	// IP) — provider webhooks come from a small shared egress IP pool, so a per-IP
+	// limit would throttle every project together. This is a coarse abuse ceiling,
+	// well above real per-project event volume; dropped events are retried by Svix.
+	r.With(httprate.Limit(
+		3000, time.Minute,
+		httprate.WithKeyFuncs(webhookRateKey),
+	)).Post("/webhooks/email/{project_id}", handler.EmailWebhook(app.APP.Service.EmailWebhook))
 
 	// Public one-click email unsubscribe (Phase 6). Mounted at the root — like the
 	// webhook above, OUTSIDE the developer API-key auth/CORS/rate-limit group and the
 	// console session group — because it is hit from the recipient's mail client with
 	// no session/API key: the signed token in `?t=` IS the auth (it identifies
 	// project + recipient + target). POST = RFC 8058 one-click; GET = confirmation
-	// page. Both flip the recipient's email preference for that target off.
-	r.Get("/unsubscribe/email", handler.UnsubscribeEmail(app.APP.Service.Unsubscribe))
-	r.Post("/unsubscribe/email", handler.UnsubscribeEmail(app.APP.Service.Unsubscribe))
+	// page. GET is side-effect-free; the POST flips the recipient's email preference
+	// for that target off. Loose per-IP limiter to blunt token-guessing floods
+	// (verification is cheap, so the ceiling can be generous); GET + POST share it.
+	r.With(httprate.LimitByIP(120, time.Minute)).Group(func(r chi.Router) {
+		r.Get("/unsubscribe/email", handler.UnsubscribeEmail(app.APP.Service.Unsubscribe))
+		r.Post("/unsubscribe/email", handler.UnsubscribeEmail(app.APP.Service.Unsubscribe))
+	})
 
 	// These are the Bodhveda Developer API routes.
 	r.Route("/", func(r chi.Router) {
@@ -228,4 +237,15 @@ func initRouter() http.Handler {
 	})
 
 	return r
+}
+
+// webhookRateKey keys the public provider-webhook limiter by project id (from the
+// URL path) rather than by IP. Provider webhooks (Resend via Svix) originate from a
+// small, shared egress IP pool, so a per-IP limit would lump every project's
+// webhooks into one bucket. Falls back to IP if the path param is somehow absent.
+func webhookRateKey(r *http.Request) (string, error) {
+	if pid := chi.URLParam(r, "project_id"); pid != "" {
+		return "webhook:project:" + pid, nil
+	}
+	return httprate.KeyByIP(r)
 }

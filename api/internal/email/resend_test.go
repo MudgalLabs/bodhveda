@@ -20,9 +20,10 @@ func newTestResend(apiKey, baseURL string) *ResendAdapter {
 }
 
 func TestResendAdapter_Send_Success(t *testing.T) {
-	var gotAuth, gotBody string
+	var gotAuth, gotBody, gotIdempotency string
 	srv := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 		gotAuth = r.Header.Get("Authorization")
+		gotIdempotency = r.Header.Get("Idempotency-Key")
 		b, _ := io.ReadAll(r.Body)
 		gotBody = string(b)
 		w.Header().Set("Content-Type", "application/json")
@@ -34,12 +35,13 @@ func TestResendAdapter_Send_Success(t *testing.T) {
 	adapter := newTestResend("re_test_key", srv.URL)
 
 	res, err := adapter.Send(context.Background(), Message{
-		FromName:    "Resurface",
-		FromAddress: "hey@resurface.to",
-		To:          "user@example.com",
-		Subject:     "Your digest",
-		HTML:        "<p>hi</p>",
-		Text:        "hi",
+		FromName:       "Resurface",
+		FromAddress:    "hey@resurface.to",
+		To:             "user@example.com",
+		Subject:        "Your digest",
+		HTML:           "<p>hi</p>",
+		Text:           "hi",
+		IdempotencyKey: "bodhveda-delivery-42",
 	})
 	if err != nil {
 		t.Fatalf("Send returned error: %v", err)
@@ -53,6 +55,9 @@ func TestResendAdapter_Send_Success(t *testing.T) {
 	}
 	if gotAuth != "Bearer re_test_key" {
 		t.Errorf("Authorization = %q, want Bearer re_test_key", gotAuth)
+	}
+	if gotIdempotency != "bodhveda-delivery-42" {
+		t.Errorf("Idempotency-Key = %q, want bodhveda-delivery-42", gotIdempotency)
 	}
 
 	// from-identity must be formatted "Name <address>".
@@ -70,9 +75,11 @@ func TestResendAdapter_Send_Success(t *testing.T) {
 
 func TestResendAdapter_Send_FromAddressOnly(t *testing.T) {
 	var gotBody string
+	var idempotencySet bool
 	srv := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 		b, _ := io.ReadAll(r.Body)
 		gotBody = string(b)
+		_, idempotencySet = r.Header["Idempotency-Key"]
 		_, _ = w.Write([]byte(`{"id":"re_1"}`))
 	}))
 	defer srv.Close()
@@ -92,6 +99,10 @@ func TestResendAdapter_Send_FromAddressOnly(t *testing.T) {
 	_ = json.Unmarshal([]byte(gotBody), &sent)
 	if sent.From != "bare@example.com" {
 		t.Errorf("from = %q, want bare@example.com (no name)", sent.From)
+	}
+	// No idempotency key supplied ⇒ no header sent.
+	if idempotencySet {
+		t.Error("Idempotency-Key header set despite empty key")
 	}
 }
 

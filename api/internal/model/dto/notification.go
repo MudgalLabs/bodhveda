@@ -2,6 +2,7 @@ package dto
 
 import (
 	"encoding/json"
+	"html"
 	"strings"
 	"time"
 
@@ -135,22 +136,71 @@ func (e *EmailContent) ResolvedText() string {
 	return htmlToText(e.HTML)
 }
 
-// htmlToText strips tags for a rough text/plain alternative. Not a full renderer.
-func htmlToText(html string) string {
+// nonRenderedTags hold content that is not visible body text — their inner text
+// (CSS rules, scripts, head metadata) must be dropped, not just their tags, or it
+// would leak into the text/plain alternative.
+var nonRenderedTags = map[string]bool{"style": true, "script": true, "head": true}
+
+// htmlToText produces a rough text/plain alternative from HTML. Not a full renderer
+// — it strips tags, skips the inner content of style/script/head, decodes HTML
+// entities, and collapses whitespace. Real callers (e.g. @react-email's render())
+// supply their own text; this is only a fallback when `text` is omitted.
+func htmlToText(input string) string {
 	var b strings.Builder
-	inTag := false
-	for _, r := range html {
-		switch {
-		case r == '<':
-			inTag = true
-		case r == '>':
-			inTag = false
-			b.WriteByte(' ')
-		case !inTag:
-			b.WriteRune(r)
+	i, n := 0, len(input)
+	for i < n {
+		if input[i] != '<' {
+			b.WriteByte(input[i])
+			i++
+			continue
+		}
+		// At a '<': find the tag's closing '>'.
+		close := strings.IndexByte(input[i:], '>')
+		if close == -1 {
+			break // unterminated tag — drop the rest
+		}
+		name := tagName(input[i+1 : i+close])
+		i += close + 1
+		if nonRenderedTags[name] {
+			// Skip everything up to and including the matching close tag.
+			if end := indexCloseTag(input[i:], name); end == -1 {
+				i = n
+			} else {
+				i += end
+			}
+			continue
+		}
+		b.WriteByte(' ') // tag boundary becomes a space
+	}
+	text := html.UnescapeString(b.String())
+	return strings.TrimSpace(strings.Join(strings.Fields(text), " "))
+}
+
+// tagName extracts the lowercased element name from a tag's inner text (between
+// '<' and '>'), ignoring a leading '/', attributes, and a trailing '/'.
+func tagName(inner string) string {
+	inner = strings.TrimSpace(strings.TrimPrefix(strings.TrimSpace(inner), "/"))
+	for i := 0; i < len(inner); i++ {
+		switch inner[i] {
+		case ' ', '\t', '\n', '\r', '/', '>':
+			return strings.ToLower(inner[:i])
 		}
 	}
-	return strings.TrimSpace(strings.Join(strings.Fields(b.String()), " "))
+	return strings.ToLower(inner)
+}
+
+// indexCloseTag returns the byte offset just past the matching `</name ... >` in s
+// (case-insensitive), or -1 if there is none.
+func indexCloseTag(s, name string) int {
+	idx := strings.Index(strings.ToLower(s), "</"+name)
+	if idx == -1 {
+		return -1
+	}
+	gt := strings.IndexByte(s[idx:], '>')
+	if gt == -1 {
+		return -1
+	}
+	return idx + gt + 1
 }
 
 type SendNotificationPayload struct {
@@ -196,19 +246,25 @@ func (p *SendNotificationPayload) Validate() error {
 	// We need to ensure that valid channel, topic, and event are provided, if this is a broadcast notification
 	// OR even if it's a direct notification, but a value was provided for channel/topic/event.
 	if p.RecipientExtID == nil || (p.Target != nil && (p.Target.Channel != "" || p.Target.Topic != "" || p.Target.Event != "")) {
-		if p.Target.Channel == "" {
-			errs.Add(apires.NewApiError("Channel is required", "Channel cannot be empty", "channel", p.Target.Channel))
-		}
+		if p.Target == nil {
+			// A broadcast with no target at all — guard the nil deref and report the
+			// missing target as a validation error rather than panicking.
+			errs.Add(apires.NewApiError("Target is required", "A target (channel, topic, and event) is required for a broadcast notification.", "target", nil))
+		} else {
+			if p.Target.Channel == "" {
+				errs.Add(apires.NewApiError("Channel is required", "Channel cannot be empty", "channel", p.Target.Channel))
+			}
 
-		switch p.Target.Topic {
-		case "":
-			errs.Add(apires.NewApiError("Topic is required", "Topic cannot be empty", "topic", p.Target.Topic))
-		case "any":
-			errs.Add(apires.NewApiError("Invalid topic", "Topic cannot be 'any'. It's reserved for creating project preferences.", "topic", p.Target.Topic))
-		}
+			switch p.Target.Topic {
+			case "":
+				errs.Add(apires.NewApiError("Topic is required", "Topic cannot be empty", "topic", p.Target.Topic))
+			case "any":
+				errs.Add(apires.NewApiError("Invalid topic", "Topic cannot be 'any'. It's reserved for creating project preferences.", "topic", p.Target.Topic))
+			}
 
-		if p.Target.Event == "" {
-			errs.Add(apires.NewApiError("Event is required", "Event cannot be empty", "event", p.Target.Event))
+			if p.Target.Event == "" {
+				errs.Add(apires.NewApiError("Event is required", "Event cannot be empty", "event", p.Target.Event))
+			}
 		}
 	}
 

@@ -33,6 +33,25 @@ func NewUnsubscribeService(preferenceService *PreferenceService) *UnsubscribeSer
 	}
 }
 
+// PreviewEmailUnsubscribe verifies the token WITHOUT mutating anything and returns
+// its target, for rendering the GET confirmation page. Keeping GET side-effect-free
+// is deliberate: mail scanners, link prefetchers, and List-Unsubscribe header
+// fetchers issue GET requests, so flipping the preference on GET would silently
+// unsubscribe recipients who never clicked. The actual flip happens on POST
+// (UnsubscribeEmail), which is also the RFC 8058 one-click method. Same error
+// mapping as UnsubscribeEmail: tampered → ErrInvalidInput (400), expired →
+// ErrUnauthorized (401).
+func (s *UnsubscribeService) PreviewEmailUnsubscribe(token string) (dto.Target, service.Error, error) {
+	claims, err := email.ParseUnsubscribeToken(token, s.hashKey)
+	if err != nil {
+		if errors.Is(err, email.ErrUnsubscribeTokenExpired) {
+			return dto.Target{}, service.ErrUnauthorized, err
+		}
+		return dto.Target{}, service.ErrInvalidInput, err
+	}
+	return dto.Target{Channel: claims.Channel, Topic: claims.Topic, Event: claims.Event}, service.ErrNone, nil
+}
+
 // UnsubscribeEmail verifies the token and disables the email medium for its
 // (project, recipient, target). It returns the target (for the confirmation page).
 // A malformed/tampered token maps to ErrInvalidInput (→ 400); an expired token to

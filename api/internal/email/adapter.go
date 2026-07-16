@@ -42,6 +42,11 @@ const (
 // which delivery row it belongs to (ProviderMessageID), what happened (Kind),
 // when (At), and the raw event JSON (appended to provider_response for audit).
 type NormalizedEvent struct {
+	// ProviderEventID is the provider's stable per-event id (Resend/Svix's
+	// `svix-id`), identical across retries of the same event. Used as the
+	// idempotency key to dedup replays (#8). May be empty if the provider does not
+	// supply one, in which case dedup is skipped.
+	ProviderEventID   string
 	ProviderMessageID string
 	Kind              WebhookEventKind
 	At                time.Time
@@ -63,6 +68,12 @@ type Message struct {
 	// List-Unsubscribe-Post — Phase 6). The adapter passes them through to the
 	// provider's headers map.
 	Headers map[string]string
+	// IdempotencyKey, when non-empty, makes the send idempotent at the provider:
+	// a retry (Asynq re-runs the email:delivery task on transient failure) that
+	// carries the same key will not deliver a duplicate email even if the first
+	// attempt actually reached the provider before erroring. Callers pass a stable
+	// per-delivery key (the notification_delivery row id).
+	IdempotencyKey string
 }
 
 // SendResult is the normalized outcome of a provider send. ProviderMessageID is

@@ -82,6 +82,12 @@ func (a *ResendAdapter) Send(ctx context.Context, msg Message) (SendResult, erro
 	}
 	req.Header.Set("Authorization", "Bearer "+a.apiKey)
 	req.Header.Set("Content-Type", "application/json")
+	// Resend dedupes sends that carry the same Idempotency-Key (24h window), so a
+	// task retry after an ambiguous failure (e.g. a response timeout) never sends a
+	// duplicate email.
+	if msg.IdempotencyKey != "" {
+		req.Header.Set("Idempotency-Key", msg.IdempotencyKey)
+	}
 
 	resp, err := a.client.Do(req)
 	if err != nil {
@@ -191,15 +197,18 @@ type resendEventData struct {
 	CreatedAt string `json:"created_at"`
 }
 
-func (a *ResendAdapter) NormalizeWebhookEvent(_ http.Header, body []byte) (NormalizedEvent, error) {
+func (a *ResendAdapter) NormalizeWebhookEvent(headers http.Header, body []byte) (NormalizedEvent, error) {
 	var ev resendWebhookEvent
 	if err := json.Unmarshal(body, &ev); err != nil {
 		return NormalizedEvent{}, fmt.Errorf("decode resend webhook: %w", err)
 	}
 
+	// svix-id is the stable per-event idempotency key (constant across retries).
+	eventID := headers.Get("svix-id")
+
 	kind := resendEventKind(ev.Type)
 	if kind == WebhookEventUnknown {
-		return NormalizedEvent{Kind: WebhookEventUnknown, Raw: json.RawMessage(body)}, nil
+		return NormalizedEvent{ProviderEventID: eventID, Kind: WebhookEventUnknown, Raw: json.RawMessage(body)}, nil
 	}
 
 	// Prefer the event timestamp; fall back to now if absent/unparseable.
@@ -215,6 +224,7 @@ func (a *ResendAdapter) NormalizeWebhookEvent(_ http.Header, body []byte) (Norma
 	}
 
 	return NormalizedEvent{
+		ProviderEventID:   eventID,
 		ProviderMessageID: ev.Data.EmailID,
 		Kind:              kind,
 		At:                at,

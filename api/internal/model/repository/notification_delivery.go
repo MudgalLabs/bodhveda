@@ -24,10 +24,11 @@ type NotificationDeliveryReader interface {
 	// per-status counts for the console analytics view (Phase 5).
 	EmailDeliveryOverviewForProject(ctx context.Context, projectID int) (*dto.EmailDeliveryOverview, error)
 	// GetTargetByProviderMessageID returns the recipient + target for the delivery
-	// row matched by provider_message_id (joined to its notification). Used to wire
-	// a spam `complained` webhook to a per-target email preference flip (Phase 6).
-	// Returns ErrNotFound when no row matches.
-	GetTargetByProviderMessageID(ctx context.Context, providerMessageID string) (*DeliveryTarget, error)
+	// row matched by (projectID, provider_message_id), joined to its notification.
+	// Used to wire a spam `complained` webhook to a per-target email preference flip
+	// (Phase 6). Scoping by projectID keeps one project's webhook from resolving
+	// another project's delivery row. Returns ErrNotFound when no row matches.
+	GetTargetByProviderMessageID(ctx context.Context, projectID int, providerMessageID string) (*DeliveryTarget, error)
 }
 
 // DeliveryTarget is the recipient + target a delivery row belongs to, resolved
@@ -47,10 +48,12 @@ type NotificationDeliveryWriter interface {
 	// (status + provider message id + failure reason + attempt + sent_at).
 	UpdateResult(ctx context.Context, id int64, result NotificationDeliveryResult) error
 	// ApplyWebhookStatus transitions the delivery row matched by
-	// provider_message_id in response to an inbound provider webhook (Phase 5).
-	// It is order-tolerant, idempotent, and non-regressing: a terminal status
-	// (bounced/complained/failed) is sticky and a later `delivered` must not
-	// overwrite it. Returns ErrNotFound when no row matches the message id.
+	// (ProjectID, ProviderMessageID) in response to an inbound provider webhook
+	// (Phase 5). Scoping by ProjectID keeps one project's (signature-authenticated)
+	// webhook from mutating another project's delivery row. It is order-tolerant,
+	// idempotent, and non-regressing: a terminal status (bounced/complained/failed)
+	// is sticky and a later `delivered` must not overwrite it. Returns ErrNotFound
+	// when no row matches.
 	ApplyWebhookStatus(ctx context.Context, update DeliveryWebhookUpdate) error
 }
 
@@ -63,6 +66,7 @@ type NotificationDeliveryWriter interface {
 //     opened/clicked). The stamp is first-write-wins (idempotent).
 //   - RawEvent is appended to provider_response for audit.
 type DeliveryWebhookUpdate struct {
+	ProjectID         int
 	ProviderMessageID string
 	Status            *enum.DeliveryStatus
 	Kind              string
