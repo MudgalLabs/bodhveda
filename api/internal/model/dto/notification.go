@@ -553,6 +553,11 @@ type ListNotificationsFilters struct {
 
 	query.Pagination
 	Kind enum.NotificationKind `schema:"kind"`
+	// RecipientExtID narrows the list to one recipient. Unlike the recipient's
+	// own inbox feed (ListForRecipient), this keeps `muted`/`quota_exceeded`
+	// rows and their email delivery outcome — an operator debugging "why didn't
+	// they get it" is looking for exactly those.
+	RecipientExtID *string `schema:"recipient_id"`
 }
 
 type ListNotificationsResult struct {

@@ -47,3 +47,27 @@ export interface RecipientPreference {
     created_at: string;
     updated_at: string;
 }
+
+/**
+ * One recipient's RESOLVED state for a cataloged (target, medium).
+ *
+ * The backend walks the project catalog and overlays the recipient's own rows,
+ * so this is the effective answer — not the stored row. `inherited` is the
+ * difference: true means the recipient has no row of their own and is following
+ * the project default.
+ */
+export interface RecipientPreferenceTargetState {
+    target: Target & {
+        medium: PreferenceMedium;
+        /** The catalog entry's label. Omitted by the API when unset. */
+        label?: string;
+    };
+    state: {
+        enabled: boolean;
+        inherited: boolean;
+    };
+}
+
+export interface RecipientPreferenceTargetStatesResult {
+    preferences: RecipientPreferenceTargetState[];
+}

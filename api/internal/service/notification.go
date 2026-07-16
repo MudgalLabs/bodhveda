@@ -6,6 +6,7 @@ import (
 	"errors"
 	"fmt"
 	"net/http"
+	"strings"
 
 	"github.com/hibiken/asynq"
 	"github.com/mudgallabs/bodhveda/internal/email"
@@ -514,7 +515,13 @@ func (s *NotificationService) DeleteForRecipient(ctx context.Context, projectID 
 func (s *NotificationService) ListNotifications(ctx context.Context, payload *dto.ListNotificationsFilters) (*dto.ListNotificationsResult, service.Error, error) {
 	payload.Pagination.ApplyDefaults()
 
-	notifications, total, err := s.repo.ListNotifications(ctx, payload.ProjectID, payload.Kind, payload.Pagination)
+	// External IDs are stored lowercase, so an exact-match filter must be too.
+	if payload.RecipientExtID != nil {
+		normalized := strings.ToLower(*payload.RecipientExtID)
+		payload.RecipientExtID = &normalized
+	}
+
+	notifications, total, err := s.repo.ListNotifications(ctx, payload)
 	if err != nil {
 		return nil, service.ErrInternalServerError, err
 	}

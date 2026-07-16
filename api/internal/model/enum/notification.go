@@ -7,6 +7,10 @@ type NotificationKind string
 const (
 	NotificationKindDirect    NotificationKind = "direct"
 	NotificationKindBroadcast NotificationKind = "broadcast"
+	// NotificationKindAll matches both kinds. An omitted kind still means
+	// `direct` (the project Notifications list depends on that default), so
+	// wanting both must be asked for explicitly.
+	NotificationKindAll NotificationKind = "all"
 )
 
 func ParseNotificationKind(s string) NotificationKind {
@@ -15,6 +19,8 @@ func ParseNotificationKind(s string) NotificationKind {
 		return NotificationKindDirect
 	case string(NotificationKindBroadcast):
 		return NotificationKindBroadcast
+	case string(NotificationKindAll):
+		return NotificationKindAll
 	default:
 		return NotificationKindDirect
 	}

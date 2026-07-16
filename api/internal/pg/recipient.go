@@ -120,6 +120,30 @@ func (r *RecipientRepo) Get(ctx context.Context, projectID int, externalID strin
 	return &recipients[0].Recipient, err
 }
 
+// GetListItem is Get plus the notification counts. It is separate from Get
+// because Get sits on the send hot path (CreateIfNotExists) and must not pay for
+// the aggregate.
+func (r *RecipientRepo) GetListItem(ctx context.Context, projectID int, externalID string) (*entity.RecipientListItem, error) {
+	payload := repository.SearchRecipientPayload{
+		Filters: repository.RecipientSearchFilter{
+			ProjectID:  &projectID,
+			ExternalID: &externalID,
+		},
+		Pagination: query.Pagination{Limit: 1},
+	}
+
+	recipients, _, err := r.findRecipients(ctx, payload, true)
+	if err != nil {
+		return nil, err
+	}
+
+	if len(recipients) == 0 {
+		return nil, tantraRepo.ErrNotFound
+	}
+
+	return recipients[0], nil
+}
+
 func (r *RecipientRepo) Update(ctx context.Context, projectID int, externalID string, payload *dto.UpdateRecipientPayload) (*entity.Recipient, error) {
 	sql := `
 		UPDATE recipient
@@ -177,7 +201,11 @@ func (r *RecipientRepo) findRecipients(ctx context.Context, payload repository.S
 		COALESCE(SUM(CASE WHEN n.id IS NOT NULL AND n.broadcast_id IS NULL THEN 1 ELSE 0 END), 0) AS direct_count,
 		COALESCE(SUM(CASE WHEN n.id IS NOT NULL AND n.broadcast_id IS NOT NULL THEN 1 ELSE 0 END), 0) AS broadcast_count
 		FROM recipient r
-		LEFT JOIN notification n ON n.recipient_external_id = r.external_id
+		-- external_id is unique only WITHIN a project (ux: project_id, external_id),
+		-- so the join must be scoped by project too. Without it, two projects that
+		-- both have a recipient "user_1" count each other's notifications.
+		LEFT JOIN notification n
+		  ON n.recipient_external_id = r.external_id AND n.project_id = r.project_id
 	`, baseFields)
 	} else {
 		baseSQL = fmt.Sprintf(`

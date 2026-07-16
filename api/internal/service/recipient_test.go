@@ -54,6 +54,9 @@ func (f *fakeRecipientRepo) Get(_ context.Context, projectID int, externalID str
 func (f *fakeRecipientRepo) List(context.Context, int, query.Pagination) ([]*entity.RecipientListItem, int, error) {
 	panic("not implemented")
 }
+func (f *fakeRecipientRepo) GetListItem(context.Context, int, string) (*entity.RecipientListItem, error) {
+	panic("not implemented")
+}
 func (f *fakeRecipientRepo) Exists(context.Context, int, string) (bool, error) {
 	panic("not implemented")
 }

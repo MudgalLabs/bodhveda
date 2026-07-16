@@ -296,7 +296,7 @@ func (r *NotificationRepo) DeleteForProject(ctx context.Context, projectID int) 
 	return int(res.RowsAffected()), nil
 }
 
-func (r *NotificationRepo) ListNotifications(ctx context.Context, projectID int, kind enum.NotificationKind, pagination query.Pagination) ([]*entity.Notification, int, error) {
+func (r *NotificationRepo) ListNotifications(ctx context.Context, filters *dto.ListNotificationsFilters) ([]*entity.Notification, int, error) {
 	sql := `
 		SELECT id, project_id, recipient_external_id, payload, broadcast_id, channel, topic, event, read_at, opened_at, created_at, updated_at, completed_at, status
 		FROM notification
@@ -304,16 +304,23 @@ func (r *NotificationRepo) ListNotifications(ctx context.Context, projectID int,
 
 	b := dbx.NewSQLBuilder(sql)
 
-	b.AddCompareFilter("project_id", dbx.OperatorEQ, projectID)
+	b.AddCompareFilter("project_id", dbx.OperatorEQ, filters.ProjectID)
 
-	if kind == enum.NotificationKindBroadcast {
+	switch filters.Kind {
+	case enum.NotificationKindBroadcast:
 		b.AppendWhere("broadcast_id IS NOT NULL")
-	} else {
+	case enum.NotificationKindAll:
+		// No predicate — both kinds.
+	default:
 		b.AppendWhere("broadcast_id IS NULL")
 	}
 
+	if filters.RecipientExtID != nil {
+		b.AddCompareFilter("recipient_external_id", dbx.OperatorEQ, *filters.RecipientExtID)
+	}
+
 	b.AddSorting("id", "DESC")
-	b.AddPagination(pagination.Limit, pagination.Offset())
+	b.AddPagination(filters.Pagination.Limit, filters.Pagination.Offset())
 
 	sql, args := b.Build()
 

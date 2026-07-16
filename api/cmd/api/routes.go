@@ -209,8 +209,10 @@ func initRouter() http.Handler {
 					r.Post("/", handler.CreateRecipientConsole(app.APP.Service.Recipient))
 
 					r.Route("/{recipient_external_id}", func(r chi.Router) {
+						r.Get("/", handler.GetRecipientConsole(app.APP.Service.Recipient))
 						r.Patch("/", handler.UpdateRecipientConsole(app.APP.Service.Recipient))
 						r.Delete("/", handler.DeleteRecipientConsole(app.APP.Service.Recipient))
+						r.Get("/preferences", handler.GetRecipientPreferencesConsole(app.APP.Service.Preference))
 						r.Put("/preferences", handler.UpsertRecipientPreferences(app.APP.Service.Preference))
 
 						r.Route("/contacts", func(r chi.Router) {

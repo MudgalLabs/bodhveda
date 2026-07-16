@@ -66,6 +66,36 @@ func ListRecipients(s *service.RecipientService) http.HandlerFunc {
 	}
 }
 
+// GetRecipientConsole is the console's single-recipient read (the Developer API's
+// GetRecipient is API-key auth'd — the wrong surface). Ownership is already
+// proven by VerifyUserOwnsThisProject on the route, exactly like every other
+// console project route. It returns the notification counts too, which the
+// Developer API's Get does not.
+func GetRecipientConsole(s *service.RecipientService) http.HandlerFunc {
+	return func(w http.ResponseWriter, r *http.Request) {
+		ctx := r.Context()
+		projectID, err := httpx.ParamInt(r, "project_id")
+		if err != nil {
+			httpx.BadRequestResponse(w, r, errors.New("Invalid project ID"))
+			return
+		}
+
+		recipientExtID := strings.ToLower(httpx.ParamStr(r, "recipient_external_id"))
+		if recipientExtID == "" {
+			httpx.BadRequestResponse(w, r, errors.New("recipient_external_id required"))
+			return
+		}
+
+		result, errKind, err := s.GetWithCounts(ctx, projectID, recipientExtID)
+		if err != nil {
+			httpx.ServiceErrResponse(w, r, errKind, err)
+			return
+		}
+
+		httpx.SuccessResponse(w, r, http.StatusOK, "", result)
+	}
+}
+
 func CreateRecipient(s *service.RecipientService) http.HandlerFunc {
 	return func(w http.ResponseWriter, r *http.Request) {
 		ctx := r.Context()

@@ -15,12 +15,13 @@ import { Route as ProjectsIndexRouteImport } from './routes/projects/index'
 import { Route as ProjectsIdRouteImport } from './routes/projects/$id'
 import { Route as AuthSignInRouteImport } from './routes/auth/sign-in'
 import { Route as ProjectsIdSettingsRouteImport } from './routes/projects/$id/settings'
-import { Route as ProjectsIdRecipientsRouteImport } from './routes/projects/$id/recipients'
 import { Route as ProjectsIdPreferencesRouteImport } from './routes/projects/$id/preferences'
 import { Route as ProjectsIdNotificationsRouteImport } from './routes/projects/$id/notifications'
 import { Route as ProjectsIdHomeRouteImport } from './routes/projects/$id/home'
 import { Route as ProjectsIdBillingRouteImport } from './routes/projects/$id/billing'
 import { Route as ProjectsIdApiKeysRouteImport } from './routes/projects/$id/api-keys'
+import { Route as ProjectsIdRecipientsIndexRouteImport } from './routes/projects/$id/recipients/index'
+import { Route as ProjectsIdRecipientsRecipientIdRouteImport } from './routes/projects/$id/recipients/$recipientId'
 
 const ProjectsRoute = ProjectsRouteImport.update({
   id: '/projects',
@@ -52,11 +53,6 @@ const ProjectsIdSettingsRoute = ProjectsIdSettingsRouteImport.update({
   path: '/settings',
   getParentRoute: () => ProjectsIdRoute,
 } as any)
-const ProjectsIdRecipientsRoute = ProjectsIdRecipientsRouteImport.update({
-  id: '/recipients',
-  path: '/recipients',
-  getParentRoute: () => ProjectsIdRoute,
-} as any)
 const ProjectsIdPreferencesRoute = ProjectsIdPreferencesRouteImport.update({
   id: '/preferences',
   path: '/preferences',
@@ -82,6 +78,18 @@ const ProjectsIdApiKeysRoute = ProjectsIdApiKeysRouteImport.update({
   path: '/api-keys',
   getParentRoute: () => ProjectsIdRoute,
 } as any)
+const ProjectsIdRecipientsIndexRoute =
+  ProjectsIdRecipientsIndexRouteImport.update({
+    id: '/recipients/',
+    path: '/recipients/',
+    getParentRoute: () => ProjectsIdRoute,
+  } as any)
+const ProjectsIdRecipientsRecipientIdRoute =
+  ProjectsIdRecipientsRecipientIdRouteImport.update({
+    id: '/recipients/$recipientId',
+    path: '/recipients/$recipientId',
+    getParentRoute: () => ProjectsIdRoute,
+  } as any)
 
 export interface FileRoutesByFullPath {
   '/': typeof IndexRoute
@@ -94,8 +102,9 @@ export interface FileRoutesByFullPath {
   '/projects/$id/home': typeof ProjectsIdHomeRoute
   '/projects/$id/notifications': typeof ProjectsIdNotificationsRoute
   '/projects/$id/preferences': typeof ProjectsIdPreferencesRoute
-  '/projects/$id/recipients': typeof ProjectsIdRecipientsRoute
   '/projects/$id/settings': typeof ProjectsIdSettingsRoute
+  '/projects/$id/recipients/$recipientId': typeof ProjectsIdRecipientsRecipientIdRoute
+  '/projects/$id/recipients/': typeof ProjectsIdRecipientsIndexRoute
 }
 export interface FileRoutesByTo {
   '/': typeof IndexRoute
@@ -107,8 +116,9 @@ export interface FileRoutesByTo {
   '/projects/$id/home': typeof ProjectsIdHomeRoute
   '/projects/$id/notifications': typeof ProjectsIdNotificationsRoute
   '/projects/$id/preferences': typeof ProjectsIdPreferencesRoute
-  '/projects/$id/recipients': typeof ProjectsIdRecipientsRoute
   '/projects/$id/settings': typeof ProjectsIdSettingsRoute
+  '/projects/$id/recipients/$recipientId': typeof ProjectsIdRecipientsRecipientIdRoute
+  '/projects/$id/recipients': typeof ProjectsIdRecipientsIndexRoute
 }
 export interface FileRoutesById {
   __root__: typeof rootRouteImport
@@ -122,8 +132,9 @@ export interface FileRoutesById {
   '/projects/$id/home': typeof ProjectsIdHomeRoute
   '/projects/$id/notifications': typeof ProjectsIdNotificationsRoute
   '/projects/$id/preferences': typeof ProjectsIdPreferencesRoute
-  '/projects/$id/recipients': typeof ProjectsIdRecipientsRoute
   '/projects/$id/settings': typeof ProjectsIdSettingsRoute
+  '/projects/$id/recipients/$recipientId': typeof ProjectsIdRecipientsRecipientIdRoute
+  '/projects/$id/recipients/': typeof ProjectsIdRecipientsIndexRoute
 }
 export interface FileRouteTypes {
   fileRoutesByFullPath: FileRoutesByFullPath
@@ -138,8 +149,9 @@ export interface FileRouteTypes {
     | '/projects/$id/home'
     | '/projects/$id/notifications'
     | '/projects/$id/preferences'
-    | '/projects/$id/recipients'
     | '/projects/$id/settings'
+    | '/projects/$id/recipients/$recipientId'
+    | '/projects/$id/recipients/'
   fileRoutesByTo: FileRoutesByTo
   to:
     | '/'
@@ -151,8 +163,9 @@ export interface FileRouteTypes {
     | '/projects/$id/home'
     | '/projects/$id/notifications'
     | '/projects/$id/preferences'
-    | '/projects/$id/recipients'
     | '/projects/$id/settings'
+    | '/projects/$id/recipients/$recipientId'
+    | '/projects/$id/recipients'
   id:
     | '__root__'
     | '/'
@@ -165,8 +178,9 @@ export interface FileRouteTypes {
     | '/projects/$id/home'
     | '/projects/$id/notifications'
     | '/projects/$id/preferences'
-    | '/projects/$id/recipients'
     | '/projects/$id/settings'
+    | '/projects/$id/recipients/$recipientId'
+    | '/projects/$id/recipients/'
   fileRoutesById: FileRoutesById
 }
 export interface RootRouteChildren {
@@ -219,13 +233,6 @@ declare module '@tanstack/react-router' {
       preLoaderRoute: typeof ProjectsIdSettingsRouteImport
       parentRoute: typeof ProjectsIdRoute
     }
-    '/projects/$id/recipients': {
-      id: '/projects/$id/recipients'
-      path: '/recipients'
-      fullPath: '/projects/$id/recipients'
-      preLoaderRoute: typeof ProjectsIdRecipientsRouteImport
-      parentRoute: typeof ProjectsIdRoute
-    }
     '/projects/$id/preferences': {
       id: '/projects/$id/preferences'
       path: '/preferences'
@@ -261,6 +268,20 @@ declare module '@tanstack/react-router' {
       preLoaderRoute: typeof ProjectsIdApiKeysRouteImport
       parentRoute: typeof ProjectsIdRoute
     }
+    '/projects/$id/recipients/': {
+      id: '/projects/$id/recipients/'
+      path: '/recipients'
+      fullPath: '/projects/$id/recipients/'
+      preLoaderRoute: typeof ProjectsIdRecipientsIndexRouteImport
+      parentRoute: typeof ProjectsIdRoute
+    }
+    '/projects/$id/recipients/$recipientId': {
+      id: '/projects/$id/recipients/$recipientId'
+      path: '/recipients/$recipientId'
+      fullPath: '/projects/$id/recipients/$recipientId'
+      preLoaderRoute: typeof ProjectsIdRecipientsRecipientIdRouteImport
+      parentRoute: typeof ProjectsIdRoute
+    }
   }
 }
 
@@ -270,8 +291,9 @@ interface ProjectsIdRouteChildren {
   ProjectsIdHomeRoute: typeof ProjectsIdHomeRoute
   ProjectsIdNotificationsRoute: typeof ProjectsIdNotificationsRoute
   ProjectsIdPreferencesRoute: typeof ProjectsIdPreferencesRoute
-  ProjectsIdRecipientsRoute: typeof ProjectsIdRecipientsRoute
   ProjectsIdSettingsRoute: typeof ProjectsIdSettingsRoute
+  ProjectsIdRecipientsRecipientIdRoute: typeof ProjectsIdRecipientsRecipientIdRoute
+  ProjectsIdRecipientsIndexRoute: typeof ProjectsIdRecipientsIndexRoute
 }
 
 const ProjectsIdRouteChildren: ProjectsIdRouteChildren = {
@@ -280,8 +302,9 @@ const ProjectsIdRouteChildren: ProjectsIdRouteChildren = {
   ProjectsIdHomeRoute: ProjectsIdHomeRoute,
   ProjectsIdNotificationsRoute: ProjectsIdNotificationsRoute,
   ProjectsIdPreferencesRoute: ProjectsIdPreferencesRoute,
-  ProjectsIdRecipientsRoute: ProjectsIdRecipientsRoute,
   ProjectsIdSettingsRoute: ProjectsIdSettingsRoute,
+  ProjectsIdRecipientsRecipientIdRoute: ProjectsIdRecipientsRecipientIdRoute,
+  ProjectsIdRecipientsIndexRoute: ProjectsIdRecipientsIndexRoute,
 }
 
 const ProjectsIdRouteWithChildren = ProjectsIdRoute._addFileChildren(

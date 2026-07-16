@@ -173,6 +173,13 @@ delivery outcome. A multi-medium world needs per-medium delivery records instead
   `GET /console/projects/{id}/notifications/{id}/deliveries` (the history is
   unbounded, so it never rides the list — see Phase 9.1 deviations).
   Recipient preferences (recipient tab) paginate + default-sort by `updated_at`.
+- **Recipient detail page** (Phase 9.2): `routes/projects/$id/recipients/$recipientId.tsx` —
+  netra `tabs` over Overview (identity + project-scoped direct/broadcast counts), Notifications
+  (that recipient's feed, reusing 9.1's per-medium status cell + delivery dialog), Preferences
+  (read-only; the *resolved* catalog+override view with an `inherited` marker — editing is 9.3),
+  and Contacts. Recipient ids link here from the recipient list and the notifications list.
+  Its feed is the **operator's** view (`ListNotifications` + `recipient_id`), deliberately not the
+  recipient's inbox (`ListForRecipient`), which hides muted rows and has no email data.
 
 ## Conventions worth remembering
 
@@ -479,7 +486,7 @@ a modal; Phase 2 deviations → the per-medium preference grid was not built). P
 down. Sub-phases are ordered by dependency and each is one session.
 
 - Phase 9.1 — Delivery detail (widen the delivery projection + a detail dialog) — **DONE** (see "Phase 9.1 — deviations (as built)" below)
-- Phase 9.2 — Recipient detail page (`/projects/$id/recipients/$recipientId`) — **TODO**
+- Phase 9.2 — Recipient detail page (`/projects/$id/recipients/$recipientId`) — **DONE** (see "Phase 9.2 — deviations (as built)" below)
 - Phase 9.3 — Recipient preference editing (the per-medium grid deferred in Phase 2) — **TODO**
 - Phase 9.4 — Notification list filters — **TODO**
 - Phase 9.5 — Analytics (time-series + per-target/medium breakdowns) — **TODO**
@@ -1630,29 +1637,40 @@ The console shows **status + one elapsed time**.
 > cannot. The same `muted` row is self-explanatory right after you send it and opaque forever after.
 
 **Console state today:**
-- Routes are flat: `routes/projects/$id/{home,notifications,recipients,preferences,api-keys,billing,settings}.tsx`.
-  **No detail route for anything** — recipients, notifications, and broadcasts are all list-only.
+- Routes are flat: `routes/projects/$id/{home,notifications,recipients/,preferences,api-keys,billing,settings}.tsx`.
+  ~~**No detail route for anything**~~ — **since 9.2** there is one: `recipients/$recipientId.tsx`
+  (and `recipients.tsx` became `recipients/index.tsx` so it is not treated as a layout route).
+  Notifications and broadcasts remain list-only (a notification's detail is 9.1's dialog).
 - `features/home/home.tsx` is four lifetime scalars (Recipients / Notifications / Direct /
   Broadcast). There is **no stats endpoint**: it calls `useGetProjects()`, fetches every project,
   and `.find()`s the current one (`home.tsx:41`). No time dimension, no date range, no grouping.
 - `email_delivery_overview.tsx` (Phase 5) is the only other analytics — per-status counts,
   project-wide, lifetime, self-hiding until ≥1 email is attempted.
-- `recipient_list.tsx:203-205` renders the recipient ID as a plain `<span className="select-text!">`.
-  Nothing links anywhere because there's nowhere to link to.
-- `dto.ListNotificationsFilters` (`dto/notification.go:439`) is `{ProjectID, Pagination, Kind}` —
-  `kind` is the **only** filter. No status, target, medium, date, or recipient.
+- ~~`recipient_list.tsx:203-205` renders the recipient ID as a plain span; nothing links anywhere.~~
+  **Fixed in 9.2:** recipient ids link to the detail page from both the recipient list and the
+  notifications list, via the shared `features/recipient/recipient_link.tsx`.
+- `dto.ListNotificationsFilters` is `{ProjectID, Pagination, Kind}` + (**9.2**) `RecipientExtID` —
+  still no status, target, medium, or date filter. **9.2 also switched the repo method to take the
+  filters DTO**, so 9.4 adds filters by extending that struct, not by growing a parameter list.
 
 **What already exists to build on (reuse — do NOT re-derive):**
-- `Notification.ListForRecipient` — service method, already powers the Dev API's
-  `GET /recipients/{id}/notifications`. The console needs a route, not a query.
-- `repository.ListPreferencesForRecipient(ctx, projectID, recipientExtID)` — already exists,
-  used at `service/preference.go:171`.
-- `handler.GetRecipient` — exists on the Dev API (API-key auth). The console surface has **no**
-  single-recipient GET (list/create/patch/delete only).
-- Console recipient **contacts** CRUD endpoints already exist and are wired
-  (`recipient_contacts_modal.tsx`).
+- ⚠️ `Notification.ListForRecipient` — powers the Dev API's `GET /recipients/{id}/notifications`.
+  **It is the RECIPIENT'S INBOX, not an operator view, and 9.2 deliberately did NOT use it:** it
+  filters out `muted`/`quota_exceeded` and carries no email delivery data. The console's
+  recipient feed is `ListNotifications` + a `recipient_id` filter instead. Don't re-propose
+  `ListForRecipient` for console work — see the 9.2 deviations.
+- `repository.ListPreferencesForRecipient(ctx, projectID, recipientExtID)` — exists, but prefer the
+  service's **`GetRecipientProjectPreferences`**, which resolves catalog + overrides + `inherited`
+  (what 9.2's read-only tab and 9.3's grid actually need).
+- ~~`handler.GetRecipient` is Dev-API only; the console has no single-recipient GET~~ — **9.2 added
+  `GET /console/projects/{id}/recipients/{ext_id}`** (`GetRecipientConsole` → `GetWithCounts`,
+  counts included; the Dev API's stays lean because `repo.Get` is on the send hot path).
+- Console recipient **contacts** CRUD endpoints already exist and are wired — since 9.2 the UI is
+  the detail page's Contacts tab (`recipient_contacts_panel.tsx`; the modal is deleted).
 - `UpsertRecipientPreferences` — console `PUT /recipients/{id}/preferences` already exists.
-  Recipient prefs are **writable** from the console but only **readable** project-wide.
+  **9.2 added the matching read** (`GET .../preferences`), so 9.3 has both halves.
+- 9.1's status cell + dialog trigger are shared components in
+  `features/notification/components/notification_cells.tsx` (extracted in 9.2).
 - `EmailDeliveryOverviewForProject` (per-status `count(*) FILTER`) — the aggregate pattern to
   copy for Phase 9.5.
 
@@ -1942,6 +1960,109 @@ Console + two read endpoints only. No migration. Do NOT touch the send path, wor
 broadcast pipeline. Do NOT build preference editing (9.3) or analytics (9.5). Update Phase 9.2
 status to DONE and add a "Phase 9.2 — deviations (as built)" section.
 ```
+
+#### Phase 9.2 — deviations (as built)
+
+**No migration**, as scoped. Backend follows the layered `handler → service → pg` split. The send
+path, worker, gating logic, and broadcast pipeline are untouched. `go build`/`go vet`/the whole
+test suite pass; the console typechecks, lints, and builds; the page was driven **live** in a real
+browser against the running API + Postgres (all four tabs, both entry points, the 9.1 dialog).
+
+- ⚠️ **THE BIG ONE — the feed is NOT `ListForRecipient`, and the brief's two instructions were
+  mutually exclusive.** The brief said to wrap `Notification.ListForRecipient` ("routing/DTO
+  plumbing, not new query logic") *and* to reuse 9.1's per-medium status cell + delivery dialog.
+  You cannot do both. `ListForRecipient` is the **recipient-facing inbox**:
+  - It filters `status NOT IN ('muted','quota_exceeded')` (`pg/notification.go:132`) — by design,
+    since the recipient never received those. But a `muted` row is *exactly* what an operator
+    asking "why didn't they get it?" came for.
+  - It attaches **no email delivery data**, so 9.1's status cell and dialog would render nothing —
+    the reuse the same brief mandated.
+  
+  So the feed instead reuses the **console list path** (`ListNotifications`), which 9.1 already
+  widened with the email-delivery batch query, scoped to one recipient. Verified live: the
+  recipient's feed shows a row that is **in-app `delivered` but email `muted` /
+  `not_cataloged`** — under `ListForRecipient` that entire email line would not exist.
+  `ListForRecipient` is left **completely untouched**; it still powers the Dev API inbox, where
+  its filtering is correct.
+- **That means NO new notifications endpoint — a `recipient_id` FILTER on the existing list.**
+  `dto.ListNotificationsFilters` gained `RecipientExtID *string` (`schema:"recipient_id"`), and
+  `enum.NotificationKindAll` ("all") was added so the feed can show direct **and** broadcast in one
+  table. This is sanctioned by the brief's own scope line ("filters (9.4) **beyond what this page's
+  own feed needs**" are out of scope) and is the seam 9.4 extends. An **omitted** kind still means
+  `direct` — the project Notifications list depends on that default, and there is a test pinning it.
+  - `repository.NotificationRepository.ListNotifications` now takes the **filters DTO** instead of
+    `(projectID, kind, pagination)`. 9.4 adds filters by extending the struct, with no signature
+    churn. The service lowercases `RecipientExtID` (external ids are stored lowercase).
+- **Endpoint count: two, but NOT the two the brief named.** The brief said "single-recipient GET +
+  a recipient-scoped notifications list". Actual:
+  1. `GET /console/projects/{project_id}/recipients/{recipient_external_id}` — new (the Dev API's
+     `handler.GetRecipient` is API-key auth'd, the wrong surface).
+  2. `GET /console/projects/{project_id}/recipients/{recipient_external_id}/preferences` — new, and
+     **the brief missed it**: the console could already `PUT` a recipient's preferences but could
+     only read them **project-wide**, so the Preferences tab had no read path at all.
+  Both are gated by the existing `VerifyUserOwnsThisProject`, like every other console project route.
+- **The Preferences tab reads the RESOLVED view, not `ListPreferencesForRecipient`.** The brief
+  pointed at that repo method, but it returns only the recipient's *stored* rows. The console GET
+  instead reuses the service's existing `GetRecipientProjectPreferences`, which overlays the project
+  catalog with the recipient's overrides and marks each row `inherited` — because a recipient with
+  no stored row is not "unset", they are following the project default. That distinction is the
+  whole point of 9.3's grid, so 9.3 inherits the right read path for free. (`ListPreferencesForRecipient`
+  is still used *inside* that service method — the reuse the brief intended, one layer up.)
+- 🐛 **Fixed a real cross-project count bug in the query the Overview tab reuses.**
+  `pg/recipient.go`'s `findRecipients` joined `notification n ON n.recipient_external_id =
+  r.external_id` with **no project predicate**, while only the `WHERE` scoped `r.project_id`.
+  `external_id` is unique only **within** a project (`ux: project_id, external_id`), so two projects
+  that both have a customer-chosen `"user_1"` counted each other's notifications. Proven against
+  Postgres before fixing: project A's recipient reported **3** direct notifications when the truth
+  was 0 (all 3 were project B's), and the new test reports **7 vs 2** with the old join. It was
+  invisible in dev only because the dev DB had one recipient. Fixed by scoping the join
+  (`AND n.project_id = r.project_id`). It leaked a *count*, never content — but the Overview tab
+  renders exactly that number, so shipping it knowingly wrong was not an option. Also affected the
+  recipient **list**, which has always shown these counts.
+- **`repo.Get` was deliberately NOT given the counts.** A new `GetListItem` + service
+  `GetWithCounts` was added instead: `repo.Get` sits on the **send hot path** (via
+  `CreateIfNotExists` in `sendDirectNotification`), and hanging a `GROUP BY` aggregate off it would
+  tax every send to feed one console page. The Dev API's `GetRecipient` stays lean and unchanged.
+- **Console structure.** `routes/projects/$id/recipients.tsx` was **moved to
+  `recipients/index.tsx`** — TanStack treats `X.tsx` + an `X/` directory as a *layout* route needing
+  an `<Outlet/>`, so leaving it would have silently prevented the detail route from rendering. This
+  matches the repo's existing convention (`projects.tsx` + `projects/index.tsx`; `projects/$id.tsx`
+  is likewise a layout). `routeTree.gen.ts` is regenerated by the **Vite plugin** (`npx vite build`)
+  — `npx tsr generate` is not wired up here and fails.
+- **9.1's status cell + dialog trigger were EXTRACTED, not duplicated.**
+  `NotificationStatusCell`, `MediumStatusLine`, and `DeliveryDetailCell` moved out of
+  `notifications_list.tsx` (where they were module-private) into
+  `features/notification/components/notification_cells.tsx`, now shared by the project list, its
+  broadcast table, and the recipient feed — so a notification reads identically wherever it appears.
+- **Contacts modal folded in and DELETED.** `recipient_contacts_modal.tsx` is gone; its body is
+  `features/recipient/detail/recipient_contacts_panel.tsx` (the Contacts tab). The row action
+  "Contacts" became "View details" (verified live: the dropdown now reads Edit / View details /
+  Delete). Phase 1's deviation note — "the console has no recipient *detail page* today, so a
+  modal" — is now discharged.
+- **Recipient ids link from both places** (`recipient_list.tsx` and the notifications list's
+  recipient column) via a shared `features/recipient/recipient_link.tsx`.
+- ⚠️ **URL-hostile `external_id`: solved except a literal `/`, which is PRE-EXISTING.** `API_ROUTES`
+  `encodeURIComponent`s the id (and `recipients.edit`/`delete` were missing it entirely — added,
+  same latent bug); TanStack Router encodes route params on the way out and decodes on read, so the
+  id is never string-interpolated into a path. Probed every hostile character against a real chi
+  router: `+`, spaces, `#`, `?`, `%`, `@` **all round-trip correctly**. A literal **`/` does not** —
+  chi routes on the raw path (so no 404 from mis-segmenting) but `chi.URLParam` hands back the
+  still-encoded `a%2Fb`, which then misses the DB lookup. This affects **every** recipient-scoped
+  route equally, including the contacts routes the brief cites as the reference implementation, and
+  the Dev API. It **fails safe** (a 404, never a wrong-recipient read), so it is recorded, not
+  fixed here — fixing it means `url.PathUnescape` on every recipient route, a Dev-API behavior
+  change that does not belong in a console phase.
+- **Tests (real-Postgres, gated on `TEST_DB_URL`, self-cleaning — the established pattern):**
+  `internal/service/recipient_detail_test.go` seeds the **same external id in two projects** (the
+  collision the schema permits) and asserts counts + feed are project-scoped, that the feed keeps
+  `muted` rows *with* their email delivery, that an unknown/other-project recipient is `ErrNotFound`,
+  and that an omitted kind still means direct. `internal/handler/recipient_detail_test.go` drives the
+  new endpoint over real HTTP through a chi **v1** router mounted as `routes.go` mounts it (see 9.1's
+  chi-version gotcha), including an email-shaped id surviving the URL round trip. The count test was
+  confirmed to **fail** (7 vs 2) against the old join before the fix.
+- **Untouched (as scoped):** preference *editing* (9.3), analytics (9.5), broader filters (9.4), the
+  send path, the worker, all gating logic, the broadcast pipeline, the SDKs, and `docs/`.
+  `ListForRecipient` and the Dev API's recipient surface are byte-for-byte unchanged.
 
 ### Phase 9.3 — Recipient preference editing (the deferred grid)
 

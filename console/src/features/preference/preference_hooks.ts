@@ -10,6 +10,7 @@ import {
     CreateProjectPreferencePayload,
     PreferenceKind,
     RecipientPreference,
+    RecipientPreferenceTargetStatesResult,
 } from "@/features/preference/preference_type";
 
 export function useGetPreferences(projectID: string, kind: PreferenceKind) {
@@ -27,6 +28,35 @@ export function useGetPreferences(projectID: string, kind: PreferenceKind) {
             }
         },
     });
+}
+
+// useGetRecipientPreferences reads ONE recipient's resolved preferences: the
+// project catalog overlaid with that recipient's own overrides. Read-only in
+// 9.2 — Phase 9.3 turns this into the editable per-(target, medium) grid.
+export function useGetRecipientPreferences(
+    projectID: string,
+    recipientID: string
+) {
+    return useQuery({
+        queryKey: getRecipientPreferencesKey(projectID, recipientID),
+        queryFn: () =>
+            client.get(
+                API_ROUTES.project.recipients.preferences(projectID, recipientID)
+            ),
+        select: (res) =>
+            res.data as APIRes<RecipientPreferenceTargetStatesResult>,
+        enabled: !!projectID && !!recipientID,
+    });
+}
+
+export function getRecipientPreferencesKey(
+    projectID?: string,
+    recipientID?: string
+) {
+    if (projectID && recipientID) {
+        return ["useGetRecipientPreferences", projectID, recipientID];
+    }
+    return ["useGetRecipientPreferences"];
 }
 
 export function useCreateProjectPreference(

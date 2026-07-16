@@ -106,6 +106,26 @@ func (s *RecipientService) Get(ctx context.Context, projectID int, externalID st
 	return dto.FromRecipient(recipient), service.ErrNone, nil
 }
 
+// GetWithCounts is Get plus the recipient's direct/broadcast notification
+// counts — what the console's recipient detail page shows. The Developer API's
+// Get stays lean (no aggregate).
+func (s *RecipientService) GetWithCounts(ctx context.Context, projectID int, externalID string) (*dto.RecipientListItem, service.Error, error) {
+	if projectID <= 0 || externalID == "" {
+		return nil, service.ErrInvalidInput, fmt.Errorf("projectID and externalID required")
+	}
+
+	recipient, err := s.repo.GetListItem(ctx, projectID, externalID)
+	if err != nil {
+		if err == tantraRepo.ErrNotFound {
+			return nil, service.ErrNotFound, fmt.Errorf("Recipient not found")
+		}
+
+		return nil, service.ErrInternalServerError, fmt.Errorf("recipient repo get list item: %w", err)
+	}
+
+	return dto.FromRecipientListItem(recipient), service.ErrNone, nil
+}
+
 func (s *RecipientService) Update(ctx context.Context, projectID int, externalID string, payload *dto.UpdateRecipientPayload) (*dto.Recipient, service.Error, error) {
 	if externalID == "" {
 		return nil, service.ErrInvalidInput, fmt.Errorf("recipient id required")

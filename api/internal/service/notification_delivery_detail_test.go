@@ -7,6 +7,7 @@ import (
 	"testing"
 
 	"github.com/jackc/pgx/v5/pgxpool"
+	"github.com/mudgallabs/bodhveda/internal/model/dto"
 	"github.com/mudgallabs/bodhveda/internal/model/enum"
 	"github.com/mudgallabs/bodhveda/internal/pg"
 	"github.com/mudgallabs/tantra/query"
@@ -99,8 +100,11 @@ func TestNotificationDeliveryDetail(t *testing.T) {
 	// This is the Phase 9.1 bottleneck: before, it selected only status/sent_at/
 	// delivered_at, so a `muted` row could not explain itself.
 	t.Run("list projection carries the bounded delivery columns", func(t *testing.T) {
-		notifications, _, err := notificationRepo.ListNotifications(ctx, projectID,
-			enum.NotificationKindDirect, query.Pagination{Limit: 100, Page: 1})
+		notifications, _, err := notificationRepo.ListNotifications(ctx, &dto.ListNotificationsFilters{
+			ProjectID:  projectID,
+			Kind:       enum.NotificationKindDirect,
+			Pagination: query.Pagination{Limit: 100, Page: 1},
+		})
 		if err != nil {
 			t.Fatalf("list notifications: %v", err)
 		}

@@ -15,7 +15,7 @@ import {
     ListNotificationDeliveriesResult,
     ListNotificationsPayload,
     ListNotificationsResult,
-    NotificationKind,
+    NotificationKindFilter,
     SendNotificationPayload,
     SendNotificationResult,
 } from "@/features/notification/notification_types";
@@ -61,19 +61,35 @@ export function useSendNotification(
     });
 }
 
+// useNotifications lists a project's notifications. `recipientID` narrows it to
+// one recipient — the recipient detail page's feed (Phase 9.2).
+//
+// This is the OPERATOR's view, deliberately not the recipient's inbox feed
+// (`ListForRecipient` on the Developer API): it keeps `muted`/`quota_exceeded`
+// rows and carries each row's email delivery outcome, which is precisely what
+// someone asking "why didn't they get it?" needs to see.
 export function useNotifications(
     projectID: string,
-    kind: NotificationKind,
+    kind: NotificationKindFilter,
     page: number,
-    limit: number
+    limit: number,
+    recipientID?: string
 ) {
     return useQuery({
-        queryKey: ["useGetNotification", projectID, kind, page, limit],
+        queryKey: [
+            "useGetNotification",
+            projectID,
+            kind,
+            page,
+            limit,
+            recipientID ?? null,
+        ],
         queryFn: () => {
             const params: ListNotificationsPayload = {
                 kind,
                 page,
                 limit,
+                ...(recipientID ? { recipient_id: recipientID } : {}),
             };
 
             return client.get(

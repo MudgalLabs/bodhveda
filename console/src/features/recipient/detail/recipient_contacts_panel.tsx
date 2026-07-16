@@ -1,10 +1,6 @@
-import { FC, useState } from "react";
+import { useState } from "react";
 import {
     Button,
-    Dialog,
-    DialogContent,
-    DialogHeader,
-    DialogTitle,
     ErrorMessage,
     IconBadgeCheck,
     IconPlus,
@@ -19,17 +15,13 @@ import {
     Tooltip,
     WithLabel,
 } from "netra";
-import { useGetProjectIDFromParams } from "@/features/project/project_hooks";
 import {
     useCreateRecipientContact,
     useDeleteRecipientContact,
     useGetRecipientContacts,
     useUpdateRecipientContact,
 } from "@/features/recipient/contact_hooks";
-import {
-    Medium,
-    RecipientContact,
-} from "@/features/recipient/contact_types";
+import { Medium, RecipientContact } from "@/features/recipient/contact_types";
 import { apiErrorHandler } from "@/lib/api";
 
 const MEDIUM_OPTIONS: { label: string; value: Medium }[] = [
@@ -46,77 +38,65 @@ const MEDIUM_LABEL: Record<Medium, string> = {
     mobile_push: "Mobile Push",
 };
 
-interface RecipientContactsModalProps {
+interface RecipientContactsPanelProps {
+    projectID: string;
     recipientID: string;
-    open: boolean;
-    setOpen: (open: boolean) => void;
 }
 
-export const RecipientContactsModal: FC<RecipientContactsModalProps> = ({
+/**
+ * The recipient's contact addresses.
+ *
+ * This was a modal hung off the recipient list's row actions (Phase 1) purely
+ * because no recipient detail page existed to host it. It does now, so this is
+ * a plain panel.
+ */
+export function RecipientContactsPanel({
+    projectID,
     recipientID,
-    open,
-    setOpen,
-}) => {
-    const projectID = useGetProjectIDFromParams();
-
-    const { data, isLoading, isError, isFetching } = useGetRecipientContacts(
+}: RecipientContactsPanelProps) {
+    const { data, isLoading, isError } = useGetRecipientContacts(
         projectID,
-        recipientID,
-        open
+        recipientID
     );
 
     const contacts = data?.data?.contacts ?? [];
 
     return (
-        <Dialog open={open} onOpenChange={setOpen}>
-            <DialogContent>
-                <DialogHeader>
-                    <DialogTitle className="flex-x">
-                        Contacts
-                        {isFetching && <Loading />}
-                    </DialogTitle>
-                </DialogHeader>
+        <div className="space-y-4 max-w-2xl">
+            <p className="text-foreground-muted text-sm">
+                Where this recipient can be reached. Email delivery requires a{" "}
+                <strong>primary</strong> email contact — without one, an email
+                send records a <code>no_contact</code> outcome. Other mediums are
+                reserved for future delivery transports.
+            </p>
 
-                <p className="text-foreground-muted text-sm">
-                    Contact addresses for{" "}
-                    <span className="select-text!">{recipientID}</span>. Only
-                    email is used today; other mediums are reserved for future
-                    delivery transports.
-                </p>
+            <div className="space-y-3">
+                {isError && <ErrorMessage errorMsg="Error loading contacts" />}
 
-                <div className="space-y-3">
-                    {isError && (
-                        <ErrorMessage errorMsg="Error loading contacts" />
-                    )}
+                {isLoading && <Loading />}
 
-                    {isLoading && <Loading />}
+                {!isLoading && !isError && contacts.length === 0 && (
+                    <p className="text-foreground-muted text-sm">
+                        No contacts yet.
+                    </p>
+                )}
 
-                    {!isLoading && !isError && contacts.length === 0 && (
-                        <p className="text-foreground-muted text-sm">
-                            No contacts yet.
-                        </p>
-                    )}
+                {contacts.map((contact) => (
+                    <ContactRow
+                        key={contact.id}
+                        projectID={projectID}
+                        recipientID={recipientID}
+                        contact={contact}
+                    />
+                ))}
+            </div>
 
-                    {contacts.map((contact) => (
-                        <ContactRow
-                            key={contact.id}
-                            projectID={projectID}
-                            recipientID={recipientID}
-                            contact={contact}
-                        />
-                    ))}
-                </div>
+            <Separator />
 
-                <Separator />
-
-                <AddContactForm
-                    projectID={projectID}
-                    recipientID={recipientID}
-                />
-            </DialogContent>
-        </Dialog>
+            <AddContactForm projectID={projectID} recipientID={recipientID} />
+        </div>
     );
-};
+}
 
 interface ContactRowProps {
     projectID: string;

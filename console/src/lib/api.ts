@@ -49,10 +49,24 @@ export const API_ROUTES = {
                 `/console/projects/${projectId}/recipients`,
             create: (projectId: string | number) =>
                 `/console/projects/${projectId}/recipients`,
+            get: (projectId: string | number, recipientId: string) =>
+                `/console/projects/${projectId}/recipients/${encodeURIComponent(
+                    recipientId
+                )}`,
             edit: (projectId: string | number, recipientId: string) =>
-                `/console/projects/${projectId}/recipients/${recipientId}`,
+                `/console/projects/${projectId}/recipients/${encodeURIComponent(
+                    recipientId
+                )}`,
             delete: (projectId: string | number, recipientId: string) =>
-                `/console/projects/${projectId}/recipients/${recipientId}`,
+                `/console/projects/${projectId}/recipients/${encodeURIComponent(
+                    recipientId
+                )}`,
+
+            // Read-only here; the write path (PUT) is Phase 9.3's grid.
+            preferences: (projectId: string | number, recipientId: string) =>
+                `/console/projects/${projectId}/recipients/${encodeURIComponent(
+                    recipientId
+                )}/preferences`,
 
             contacts: {
                 list: (projectId: string | number, recipientId: string) =>

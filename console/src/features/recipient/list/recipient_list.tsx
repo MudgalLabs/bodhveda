@@ -1,4 +1,5 @@
 import { ColumnDef } from "@tanstack/react-table";
+import { useNavigate } from "@tanstack/react-router";
 import { useMemo, useState } from "react";
 import {
     Button,
@@ -37,7 +38,7 @@ import {
 import { CreateRecipientModal } from "@/features/recipient/list/create_recipient_modal";
 import { RecipientListItem } from "@/features/recipient/recipient_types";
 import { EditRecipientModal } from "@/features/recipient/list/edit_recipient_modal";
-import { RecipientContactsModal } from "@/features/recipient/list/recipient_contacts_modal";
+import { RecipientLink } from "@/features/recipient/recipient_link";
 
 export function RecipientList() {
     useDocumentTitle("Recipients  • Bodhveda");
@@ -110,19 +111,14 @@ export function RecipientList() {
 function ActionCell({ recipient }: { recipient: RecipientListItem }) {
     const [dropdownOpen, setDropdownOpen] = useState(false);
     const [editOpen, setEditOpen] = useState(false);
-    const [contactsOpen, setContactsOpen] = useState(false);
 
     const handleEditOpen = () => {
         setDropdownOpen(false);
         setEditOpen(true);
     };
 
-    const handleContactsOpen = () => {
-        setDropdownOpen(false);
-        setContactsOpen(true);
-    };
-
     const projectID = useGetProjectIDFromParams();
+    const navigate = useNavigate();
 
     const { mutate: deleteRecipient, isPending: isDeleting } =
         useDeleteRecipient(projectID, {
@@ -156,10 +152,18 @@ function ActionCell({ recipient }: { recipient: RecipientListItem }) {
                         <Button
                             variant="ghost"
                             className="w-full!"
-                            onClick={handleContactsOpen}
+                            onClick={() =>
+                                navigate({
+                                    to: "/projects/$id/recipients/$recipientId",
+                                    params: {
+                                        id: projectID,
+                                        recipientId: recipient.id,
+                                    },
+                                })
+                            }
                         >
                             <IconUsers size={16} />
-                            Contacts
+                            View details
                         </Button>
                     </DropdownMenuItem>
 
@@ -186,12 +190,6 @@ function ActionCell({ recipient }: { recipient: RecipientListItem }) {
                 open={editOpen}
                 setOpen={setEditOpen}
             />
-
-            <RecipientContactsModal
-                recipientID={recipient.id}
-                open={contactsOpen}
-                setOpen={setContactsOpen}
-            />
         </>
     );
 }
@@ -200,9 +198,7 @@ const columns: ColumnDef<RecipientListItem>[] = [
     {
         accessorKey: "id",
         header: () => <DataTableColumnHeader title="Recipient ID" />,
-        cell: ({ row }) => (
-            <span className="select-text!">{row.original.id}</span>
-        ),
+        cell: ({ row }) => <RecipientLink recipientID={row.original.id} />,
     },
     {
         accessorKey: "name",

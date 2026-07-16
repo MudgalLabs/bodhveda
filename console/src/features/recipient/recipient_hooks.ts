@@ -11,6 +11,7 @@ import {
     CreateRecipientPayload,
     EditRecipientPayload,
     ListRecipientsResult,
+    RecipientListItem,
 } from "@/features/recipient/recipient_types";
 
 export function useGetRecipients(
@@ -27,6 +28,23 @@ export function useGetRecipients(
         select: (res) => res.data as APIRes<ListRecipientsResult>,
         placeholderData: keepPreviousData,
     });
+}
+
+export function useGetRecipient(projectID: string, recipientID: string) {
+    return useQuery({
+        queryKey: getRecipientKey(projectID, recipientID),
+        queryFn: () =>
+            client.get(API_ROUTES.project.recipients.get(projectID, recipientID)),
+        select: (res) => res.data as APIRes<RecipientListItem>,
+        enabled: !!projectID && !!recipientID,
+    });
+}
+
+export function getRecipientKey(projectID?: string, recipientID?: string) {
+    if (projectID && recipientID) {
+        return ["useGetRecipient", projectID, recipientID];
+    }
+    return ["useGetRecipient"];
 }
 
 export function useCreateRecipient(
@@ -104,6 +122,9 @@ export function useEditRecipient(
         onSuccess: (...args) => {
             queryClient.invalidateQueries({
                 queryKey: getRecipientsKey(projectID),
+            });
+            queryClient.invalidateQueries({
+                queryKey: getRecipientKey(projectID, recipientID),
             });
             onSuccess?.(...args);
         },

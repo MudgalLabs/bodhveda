@@ -2,6 +2,11 @@ import { PaginationMeta } from "@/lib/types";
 
 export type NotificationKind = "direct" | "broadcast";
 
+// The list endpoint also accepts "all" (both kinds), which the recipient detail
+// feed uses. The kind TOGGLE deliberately still offers only direct|broadcast —
+// those tables have different columns and cannot be merged.
+export type NotificationKindFilter = NotificationKind | "all";
+
 export type NotificationStatus =
     | "enqueued"
     | "muted"
@@ -175,9 +180,11 @@ export interface SendNotificationResult {
 }
 
 export interface ListNotificationsPayload {
-    kind: NotificationKind;
+    kind: NotificationKindFilter;
     page?: number;
     limit?: number;
+    /** Exact recipient external id. Omit for the whole project. */
+    recipient_id?: string;
 }
 
 export interface ListNotificationsResult {

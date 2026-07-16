@@ -124,6 +124,18 @@ type RecipientListItem struct {
 	BroadcastNotificationsCount int `json:"broadcast_notifications_count"`
 }
 
+func FromRecipientListItem(r *entity.RecipientListItem) *RecipientListItem {
+	if r == nil {
+		return nil
+	}
+
+	return &RecipientListItem{
+		Recipient:                   *FromRecipient(&r.Recipient),
+		DirectNotificationsCount:    r.DirectNotificationsCount,
+		BroadcastNotificationsCount: r.BroadcastNotificationsCount,
+	}
+}
+
 func FromRecipientList(r []*entity.RecipientListItem) []*RecipientListItem {
 	if r == nil {
 		return nil
@@ -131,13 +143,7 @@ func FromRecipientList(r []*entity.RecipientListItem) []*RecipientListItem {
 
 	DTOs := make([]*RecipientListItem, len(r))
 	for i, recipient := range r {
-		recipientDTO := FromRecipient(&recipient.Recipient)
-		recipientListItem := &RecipientListItem{
-			Recipient:                   *recipientDTO,
-			DirectNotificationsCount:    recipient.DirectNotificationsCount,
-			BroadcastNotificationsCount: recipient.BroadcastNotificationsCount,
-		}
-		DTOs[i] = recipientListItem
+		DTOs[i] = FromRecipientListItem(recipient)
 	}
 
 	return DTOs

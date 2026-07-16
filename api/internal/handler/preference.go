@@ -142,6 +142,40 @@ func GetRecipientProjectPreferences(s *service.PreferenceService) http.HandlerFu
 	}
 }
 
+// GetRecipientPreferencesConsole is the console's per-recipient preference read.
+// The console could already WRITE a recipient's preferences (PUT .../preferences)
+// but could only read them project-wide — so the recipient detail page had no
+// read path.
+//
+// It reuses the Developer API's service method, which resolves the project
+// catalog against the recipient's overrides and marks each row `inherited`. That
+// resolved view (not the raw stored rows) is what makes a preference legible,
+// and it is the shape Phase 9.3's editable grid needs.
+func GetRecipientPreferencesConsole(s *service.PreferenceService) http.HandlerFunc {
+	return func(w http.ResponseWriter, r *http.Request) {
+		ctx := r.Context()
+		projectID, err := httpx.ParamInt(r, "project_id")
+		if err != nil {
+			httpx.BadRequestResponse(w, r, errors.New("Invalid project ID"))
+			return
+		}
+
+		recipientExtID := strings.ToLower(httpx.ParamStr(r, "recipient_external_id"))
+		if recipientExtID == "" {
+			httpx.BadRequestResponse(w, r, errors.New("recipient_external_id required"))
+			return
+		}
+
+		result, errKind, err := s.GetRecipientProjectPreferences(ctx, projectID, recipientExtID)
+		if err != nil {
+			httpx.ServiceErrResponse(w, r, errKind, err)
+			return
+		}
+
+		httpx.SuccessResponse(w, r, http.StatusOK, "", result)
+	}
+}
+
 func UpdateRecipientPreferenceForTarget(s *service.PreferenceService) http.HandlerFunc {
 	return func(w http.ResponseWriter, r *http.Request) {
 		ctx := r.Context()
