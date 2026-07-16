@@ -23,6 +23,7 @@ import {
     NotificationKind,
     Notification,
     NotificationStatus,
+    BroadcastStatus,
     DeliveryStatus,
     BroadcastListItem,
 } from "@/features/notification/notification_types";
@@ -234,7 +235,7 @@ const columns: ColumnDef<Notification>[] = [
 
             const inAppLine = (
                 <MediumStatusLine
-                    label={email ? "In-app" : undefined}
+                    label="In-app"
                     status={n.status}
                     elapsed={
                         n.completed_at
@@ -284,18 +285,16 @@ function MediumStatusLine({
     elapsed,
     pending,
 }: {
-    label?: string;
-    status: NotificationStatus | DeliveryStatus;
+    label: string;
+    status: NotificationStatus | BroadcastStatus | DeliveryStatus;
     elapsed: string | null;
     pending?: boolean;
 }) {
     return (
         <span className="flex-x gap-x-2">
-            {label && (
-                <span className="text-xs text-text-muted w-14 shrink-0">
-                    {label}
-                </span>
-            )}
+            <span className="text-xs text-text-muted w-14 shrink-0">
+                {label}
+            </span>
             <StatusTag status={status} />
             {elapsed ? (
                 <span className="text-xs text-text-muted">{elapsed}</span>
@@ -385,18 +384,17 @@ const broadcastColumns: ColumnDef<BroadcastListItem>[] = [
                 : null;
             const createdAt = new Date(row.original.created_at);
 
-            return completedAt ? (
-                <span className="flex-x">
-                    <StatusTag status={row.original.status} />
-                    <span className="text-xs text-text-muted">
-                        {formatDuration(createdAt, completedAt)}
-                    </span>
-                </span>
-            ) : (
-                <span className="flex-x gap-x-4">
-                    <StatusTag status={row.original.status} />
-                    <Loading size={18} />
-                </span>
+            return (
+                <MediumStatusLine
+                    label="In-app"
+                    status={row.original.status}
+                    elapsed={
+                        completedAt
+                            ? formatDuration(createdAt, completedAt)
+                            : null
+                    }
+                    pending={!completedAt}
+                />
             );
         },
     },
