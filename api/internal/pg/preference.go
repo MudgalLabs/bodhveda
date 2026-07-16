@@ -266,6 +266,149 @@ func (r *PreferenceRepo) ShouldDirectNotificationBeDelivered(ctx context.Context
 	return shouldDeliver, err
 }
 
+// ResolveRecipientPreferences answers, for one recipient, what EVERY known
+// (target, medium) actually resolves to — the same decision
+// ShouldDirectNotificationBeDelivered would return, for every cell, in one
+// round trip.
+//
+// It exists because a catalog-shaped read lies. The catalog is a DEFAULT, not a
+// gate: an explicit recipient row wins the cascade before the catalog is
+// consulted, so an uncataloged (target, email) with a recipient row set to true
+// DELIVERS — while a read that only walks project preferences cannot see that
+// row at all. Hence the target universe below is the catalog UNION the
+// recipient's own rows.
+//
+// This is the second SQL resolver of the same cascade (the first being
+// ShouldDirectNotificationBeDelivered, which answers one cell for the send
+// path and must stay a single cheap query on the hot path). They are kept in
+// step by a test that asserts they agree cell-for-cell —
+// TestResolveRecipientPreferencesAgreesWithGating. Change one, change both.
+//
+// The cascade, per cell, is identical to the gating one: recipient-exact →
+// recipient-fallback (topic='any', only when the cell's topic isn't 'none') →
+// project-exact → project-fallback → medium-dependent default (in_app delivers,
+// everything else does not). The partial unique indexes on preference guarantee
+// at most one row per (project, recipient, channel, topic, event, medium), so
+// these LEFT JOINs resolve one row each and cannot fan out — the structural
+// reason the gating query's LIMIT 1 has no counterpart here.
+func (r *PreferenceRepo) ResolveRecipientPreferences(ctx context.Context, projectID int, recipientExtID string, mediums []enum.Medium) ([]*entity.ResolvedPreference, error) {
+	mediumStrs := make([]string, len(mediums))
+	for i, m := range mediums {
+		mediumStrs[i] = string(m)
+	}
+
+	sql := `
+		-- INPUTS:
+		-- $1 = project_id
+		-- $2 = recipient_external_id
+		-- $3 = mediums to resolve (text[])
+
+		WITH
+		medium AS (
+		    SELECT unnest($3::text[]) AS medium
+		),
+
+		-- Every target anything is known about: the project catalog PLUS any
+		-- target this recipient has a row for. That union is the point — a
+		-- recipient row on an uncataloged target still delivers, so omitting it
+		-- would hide a live preference.
+		target AS (
+		    SELECT DISTINCT channel, topic, event
+		    FROM preference
+		    WHERE project_id = $1
+		      AND (recipient_external_id IS NULL OR recipient_external_id = $2)
+		),
+
+		cell AS (
+		    SELECT t.channel, t.topic, t.event, m.medium
+		    FROM target t CROSS JOIN medium m
+		)
+
+		SELECT
+		    c.channel,
+		    c.topic,
+		    c.event,
+		    c.medium,
+		    pe.label,
+		    -- Cataloged = a project-level row for this EXACT (target, medium).
+		    -- Context for the UI; it deliberately does not gate the enabled value.
+		    (pe.id IS NOT NULL) AS cataloged,
+		    -- The cascade. Mirrors ShouldDirectNotificationBeDelivered's COALESCE
+		    -- exactly, including the medium-dependent default.
+		    COALESCE(
+		        re.enabled,
+		        rf.enabled,
+		        pe.enabled,
+		        pf.enabled,
+		        c.medium = 'in_app'
+		    ) AS enabled,
+		    CASE
+		        WHEN re.id IS NOT NULL THEN 'recipient_exact'
+		        WHEN rf.id IS NOT NULL THEN 'recipient_any'
+		        WHEN pe.id IS NOT NULL THEN 'project_exact'
+		        WHEN pf.id IS NOT NULL THEN 'project_any'
+		        ELSE 'default'
+		    END AS source
+		FROM cell c
+		-- 1. recipient, exact topic
+		LEFT JOIN preference re
+		    ON re.project_id = $1
+		   AND re.recipient_external_id = $2
+		   AND re.channel = c.channel
+		   AND re.topic = c.topic
+		   AND re.event = c.event
+		   AND re.medium = c.medium
+		-- 2. recipient, topic='any' fallback (never for a 'none'-topic cell)
+		LEFT JOIN preference rf
+		    ON rf.project_id = $1
+		   AND rf.recipient_external_id = $2
+		   AND rf.channel = c.channel
+		   AND rf.topic = 'any'
+		   AND rf.event = c.event
+		   AND rf.medium = c.medium
+		   AND c.topic != 'none'
+		-- 3. project, exact topic
+		LEFT JOIN preference pe
+		    ON pe.project_id = $1
+		   AND pe.recipient_external_id IS NULL
+		   AND pe.channel = c.channel
+		   AND pe.topic = c.topic
+		   AND pe.event = c.event
+		   AND pe.medium = c.medium
+		-- 4. project, topic='any' fallback (never for a 'none'-topic cell)
+		LEFT JOIN preference pf
+		    ON pf.project_id = $1
+		   AND pf.recipient_external_id IS NULL
+		   AND pf.channel = c.channel
+		   AND pf.topic = 'any'
+		   AND pf.event = c.event
+		   AND pf.medium = c.medium
+		   AND c.topic != 'none'
+		ORDER BY c.channel, c.topic, c.event, c.medium;
+	`
+
+	rows, err := r.db.Query(ctx, sql, projectID, recipientExtID, mediumStrs)
+	if err != nil {
+		return nil, fmt.Errorf("query: %w", err)
+	}
+	defer rows.Close()
+
+	resolved := []*entity.ResolvedPreference{}
+	for rows.Next() {
+		var p entity.ResolvedPreference
+		if err := rows.Scan(&p.Channel, &p.Topic, &p.Event, &p.Medium, &p.Label, &p.Cataloged, &p.Enabled, &p.Source); err != nil {
+			return nil, fmt.Errorf("scan error: %w", err)
+		}
+		resolved = append(resolved, &p)
+	}
+
+	if err := rows.Err(); err != nil {
+		return nil, fmt.Errorf("rows error: %w", err)
+	}
+
+	return resolved, nil
+}
+
 // ListEligibleRecipientExtIDsForBroadcast returns recipients opted in to a
 // (target, medium) for broadcast fan-out. Broadcasts are in-app only in v1 (email
 // is direct-only — see the HARD RULE in agent-docs/overview.md), so callers pass

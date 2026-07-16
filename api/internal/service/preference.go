@@ -215,6 +215,50 @@ func (s *PreferenceService) GetRecipientProjectPreferences(ctx context.Context, 
 	}, service.ErrNone, nil
 }
 
+// ResolveRecipientPreferences answers every known (target, medium) for one
+// recipient with the resolution the SEND PATH would perform, resolved in the
+// database by the same cascade.
+//
+// It is the honest counterpart to GetRecipientProjectPreferences, which is a Go
+// exact-match merge over the project catalog and therefore:
+//   - misses the topic='any' fallbacks entirely,
+//   - assumes every medium defaults to the catalog's value, ignoring that the
+//     default is medium-dependent (in_app delivers with no catalog row at all),
+//   - and cannot see a recipient's row on an UNCATALOGED (target, medium) —
+//     it only iterates project prefs, so such a row vanishes from the response
+//     while still delivering.
+//
+// The two are NOT merged: GetRecipientProjectPreferences also serves the
+// Developer API's documented GET /recipients/{id}/preferences, whose response
+// shape and row set are a public, SDK-consumed surface. Changing it belongs
+// with the openapi/SDK work, not a console phase. See the Phase 9.3 deviations
+// in agent-docs/overview.md.
+//
+// Only Active mediums are resolved — a toggle for a transport that cannot fire
+// would be a lie of a different kind.
+func (s *PreferenceService) ResolveRecipientPreferences(ctx context.Context, projectID int, recipientExtID string) (*dto.ResolvedPreferencesResultDTO, service.Error, error) {
+	exists, err := s.recipientRepo.Exists(ctx, projectID, recipientExtID)
+	if err != nil {
+		return nil, service.ErrInternalServerError, fmt.Errorf("repo check recipient exists: %w", err)
+	}
+
+	if !exists {
+		return nil, service.ErrNotFound, errors.New("Recipient not found")
+	}
+
+	resolved, err := s.repo.ResolveRecipientPreferences(ctx, projectID, recipientExtID, enum.ActiveMediums())
+	if err != nil {
+		return nil, service.ErrInternalServerError, fmt.Errorf("repo resolve recipient preferences: %w", err)
+	}
+
+	dtos := []*dto.ResolvedPreferenceDTO{}
+	for _, p := range resolved {
+		dtos = append(dtos, dto.FromResolvedPreference(p))
+	}
+
+	return &dto.ResolvedPreferencesResultDTO{Preferences: dtos}, service.ErrNone, nil
+}
+
 func (s *PreferenceService) CheckRecipientTargetSubscription(ctx context.Context, projectID int, recipientExtID string, payload dto.CheckRecipientTargetPayload) (*dto.PreferenceTargetStateDTO, service.Error, error) {
 	if err := payload.Validate(); err != nil {
 		return nil, service.ErrInvalidInput, err

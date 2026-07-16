@@ -11,6 +11,7 @@ import {
     PreferenceKind,
     RecipientPreference,
     RecipientPreferenceTargetStatesResult,
+    UpsertRecipientPreferencePayload,
 } from "@/features/preference/preference_type";
 
 export function useGetPreferences(projectID: string, kind: PreferenceKind) {
@@ -30,9 +31,9 @@ export function useGetPreferences(projectID: string, kind: PreferenceKind) {
     });
 }
 
-// useGetRecipientPreferences reads ONE recipient's resolved preferences: the
-// project catalog overlaid with that recipient's own overrides. Read-only in
-// 9.2 — Phase 9.3 turns this into the editable per-(target, medium) grid.
+// useGetRecipientPreferences reads ONE recipient's RESOLVED preferences: every
+// (target, active medium) answered by the same cascade the send path uses, so
+// each cell states what a send would actually do.
 export function useGetRecipientPreferences(
     projectID: string,
     recipientID: string
@@ -57,6 +58,48 @@ export function getRecipientPreferencesKey(
         return ["useGetRecipientPreferences", projectID, recipientID];
     }
     return ["useGetRecipientPreferences"];
+}
+
+/**
+ * Toggles ONE (target, medium) for one recipient through the existing console
+ * PUT. One cell = one call; the endpoint upserts.
+ *
+ * On success it invalidates that recipient's resolved read rather than patching
+ * the cache: a write can move cells it did not target (a topic='any' rule
+ * decides every exact-topic cell in its channel/event that has no row of its
+ * own), and only the server resolves the cascade. Re-reading is the honest move.
+ */
+export function useUpsertRecipientPreference(
+    projectID: string,
+    recipientID: string,
+    options: AnyUseMutationOptions = {}
+) {
+    const { onSuccess, ...rest } = options;
+    const queryClient = useQueryClient();
+
+    return useMutation<
+        APIRes<RecipientPreference>,
+        unknown,
+        UpsertRecipientPreferencePayload
+    >({
+        mutationFn: (payload) =>
+            client.put(
+                API_ROUTES.project.recipients.preferences(
+                    projectID,
+                    recipientID
+                ),
+                payload
+            ),
+        // Awaited so the refetched read is in cache before callers run. A caller
+        // dropping its optimistic state any earlier would flash the stale value.
+        onSuccess: async (...args) => {
+            await queryClient.invalidateQueries({
+                queryKey: getRecipientPreferencesKey(projectID, recipientID),
+            });
+            onSuccess?.(...args);
+        },
+        ...rest,
+    });
 }
 
 export function useCreateProjectPreference(

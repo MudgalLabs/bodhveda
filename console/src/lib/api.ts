@@ -62,7 +62,8 @@ export const API_ROUTES = {
                     recipientId
                 )}`,
 
-            // Read-only here; the write path (PUT) is Phase 9.3's grid.
+            // GET resolves every (target, active medium) the way the send path
+            // would; PUT upserts ONE (target, medium). Same URL, both verbs.
             preferences: (projectId: string | number, recipientId: string) =>
                 `/console/projects/${projectId}/recipients/${encodeURIComponent(
                     recipientId

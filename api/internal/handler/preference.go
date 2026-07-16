@@ -142,15 +142,17 @@ func GetRecipientProjectPreferences(s *service.PreferenceService) http.HandlerFu
 	}
 }
 
-// GetRecipientPreferencesConsole is the console's per-recipient preference read.
-// The console could already WRITE a recipient's preferences (PUT .../preferences)
-// but could only read them project-wide — so the recipient detail page had no
-// read path.
+// GetRecipientPreferencesConsole is the console's per-recipient preference read:
+// every (target, Active medium) resolved by the SAME cascade the send path uses.
 //
-// It reuses the Developer API's service method, which resolves the project
-// catalog against the recipient's overrides and marks each row `inherited`. That
-// resolved view (not the raw stored rows) is what makes a preference legible,
-// and it is the shape Phase 9.3's editable grid needs.
+// It deliberately does NOT reuse the Developer API's
+// GetRecipientProjectPreferences. That method is a Go exact-match merge over the
+// project catalog which disagrees with delivery in three ways (topic='any'
+// fallbacks, the medium-dependent default, and recipient rows on uncataloged
+// targets being invisible while still delivering). A tab labelled "resolved"
+// that disagrees with what a send does is worse than no tab. The Developer API
+// keeps the old method because its response is a documented, SDK-consumed
+// surface — see the Phase 9.3 deviations in agent-docs/overview.md.
 func GetRecipientPreferencesConsole(s *service.PreferenceService) http.HandlerFunc {
 	return func(w http.ResponseWriter, r *http.Request) {
 		ctx := r.Context()
@@ -166,7 +168,7 @@ func GetRecipientPreferencesConsole(s *service.PreferenceService) http.HandlerFu
 			return
 		}
 
-		result, errKind, err := s.GetRecipientProjectPreferences(ctx, projectID, recipientExtID)
+		result, errKind, err := s.ResolveRecipientPreferences(ctx, projectID, recipientExtID)
 		if err != nil {
 			httpx.ServiceErrResponse(w, r, errKind, err)
 			return

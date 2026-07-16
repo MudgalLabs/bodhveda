@@ -20,6 +20,10 @@ type PreferenceReader interface {
 	ShouldDirectNotificationBeDelivered(ctx context.Context, projectID int, recipientExtID string, target dto.Target, medium enum.Medium) (bool, error)
 	ListEligibleRecipientExtIDsForBroadcast(ctx context.Context, projectID int, target dto.Target, medium enum.Medium) ([]string, error)
 	ListPreferencesForRecipient(ctx context.Context, projectID int, recipientExtID string) ([]*entity.Preference, error)
+	// ResolveRecipientPreferences answers every known (target, medium) for one
+	// recipient with the SAME cascade ShouldDirectNotificationBeDelivered uses,
+	// in one query. Callers pass the mediums to resolve (see enum.ActiveMediums).
+	ResolveRecipientPreferences(ctx context.Context, projectID int, recipientExtID string, mediums []enum.Medium) ([]*entity.ResolvedPreference, error)
 }
 
 type PreferenceWriter interface {

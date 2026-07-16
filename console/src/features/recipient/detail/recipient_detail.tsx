@@ -1,15 +1,10 @@
-import { useMemo, useState } from "react";
+import { useMemo } from "react";
 import { Link } from "@tanstack/react-router";
 import {
     buttonVariants,
-    DataTable,
-    DataTablePagination,
-    DataTableSmart,
-    DataTableState,
     ErrorMessage,
     formatDate,
     IconArrowLeft,
-    IconInfo,
     IconMegaphone,
     IconTarget,
     IconUsers,
@@ -21,20 +16,16 @@ import {
     TabsContent,
     TabsList,
     TabsTrigger,
-    Tag,
     Tooltip,
     useDocumentTitle,
 } from "netra";
 
 import { useGetProjectIDFromParams } from "@/features/project/project_hooks";
 import { useGetRecipient } from "@/features/recipient/recipient_hooks";
-import { useGetRecipientPreferences } from "@/features/preference/preference_hooks";
-import { mediumLabel } from "@/features/preference/preference_type";
 import { RecipientContactsPanel } from "@/features/recipient/detail/recipient_contacts_panel";
 import { RecipientNotificationsPanel } from "@/features/recipient/detail/recipient_notifications_panel";
+import { RecipientPreferencesPanel } from "@/features/recipient/detail/recipient_preferences_panel";
 import { RecipientListItem } from "@/features/recipient/recipient_types";
-import { targetToString } from "@/lib/utils";
-import { TargetInfoTooltip } from "@/components/target_info_tooltip";
 
 interface RecipientDetailProps {
     recipientID: string;
@@ -89,7 +80,7 @@ export function RecipientDetail({ recipientID }: RecipientDetailProps) {
                 </TabsContent>
 
                 <TabsContent value="preferences" className="pt-4">
-                    <PreferencesTab
+                    <RecipientPreferencesPanel
                         projectID={projectID}
                         recipientID={recipientID}
                     />
@@ -191,135 +182,3 @@ function Field({
     );
 }
 
-// PreferencesTab is READ-ONLY in Phase 9.2 — the editable per-(target, medium)
-// grid is 9.3. It shows the RESOLVED state (the project catalog overlaid with
-// this recipient's overrides), because a recipient with no stored row is not
-// "unset": they are following the project default, which `inherited` says.
-function PreferencesTab({
-    projectID,
-    recipientID,
-}: {
-    projectID: string;
-    recipientID: string;
-}) {
-    const { data, isLoading, isError } = useGetRecipientPreferences(
-        projectID,
-        recipientID
-    );
-
-    const preferences = data?.data?.preferences ?? [];
-
-    const [tableState, setTableState] = useState<DataTableState>({
-        columnVisibility: {},
-        pagination: { pageIndex: 0, pageSize: 10 },
-        sorting: [],
-    });
-
-    if (isError) {
-        return <ErrorMessage errorMsg="Error loading preferences" />;
-    }
-
-    if (isLoading) {
-        return <Loading />;
-    }
-
-    if (preferences.length === 0) {
-        return (
-            <p className="text-foreground-muted text-sm">
-                This project has no preference catalog yet, so there is nothing
-                for this recipient to opt in or out of. Create a project
-                preference to define what can be subscribed to.
-            </p>
-        );
-    }
-
-    return (
-        <div className="space-y-4">
-            <p className="text-foreground-muted text-sm">
-                What this recipient currently receives, per target and medium.
-                <strong> Inherited</strong> means they have no preference of
-                their own and follow the project default. Read-only for now.
-            </p>
-
-            <DataTableSmart
-                columns={preferenceColumns}
-                data={preferences}
-                total={preferences.length}
-                state={tableState}
-                onStateChange={setTableState}
-            >
-                {(table) => (
-                    <div className="space-y-4">
-                        <DataTable table={table} />
-                        {preferences.length > tableState.pagination.pageSize && (
-                            <DataTablePagination
-                                table={table}
-                                total={preferences.length}
-                            />
-                        )}
-                    </div>
-                )}
-            </DataTableSmart>
-        </div>
-    );
-}
-
-const preferenceColumns = [
-    {
-        id: "target",
-        header: () => (
-            <TargetInfoTooltip>
-                <span className="flex-x w-fit">
-                    Target <IconInfo />
-                </span>
-            </TargetInfoTooltip>
-        ),
-        cell: ({ row }: { row: { original: PreferenceRow } }) =>
-            targetToString(row.original.target),
-    },
-    {
-        id: "label",
-        header: () => <span>Label</span>,
-        cell: ({ row }: { row: { original: PreferenceRow } }) =>
-            row.original.target.label ?? (
-                <span className="text-foreground-muted">—</span>
-            ),
-    },
-    {
-        id: "medium",
-        header: () => <span>Medium</span>,
-        cell: ({ row }: { row: { original: PreferenceRow } }) =>
-            mediumLabel(row.original.target.medium),
-    },
-    {
-        id: "state",
-        header: () => <span>Receives</span>,
-        cell: ({ row }: { row: { original: PreferenceRow } }) => (
-            <div className="flex-x">
-                <Tag
-                    variant={row.original.state.enabled ? "success" : "default"}
-                >
-                    {row.original.state.enabled ? "Yes" : "No"}
-                </Tag>
-                {row.original.state.inherited && (
-                    <Tooltip content="No preference of their own — following the project default.">
-                        <Tag variant="muted" size="small">
-                            Inherited
-                        </Tag>
-                    </Tooltip>
-                )}
-            </div>
-        ),
-    },
-];
-
-type PreferenceRow = {
-    target: {
-        channel: string;
-        topic: string;
-        event: string;
-        medium: string;
-        label?: string;
-    };
-    state: { enabled: boolean; inherited: boolean };
-};

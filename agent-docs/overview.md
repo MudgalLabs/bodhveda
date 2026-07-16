@@ -176,7 +176,9 @@ delivery outcome. A multi-medium world needs per-medium delivery records instead
 - **Recipient detail page** (Phase 9.2): `routes/projects/$id/recipients/$recipientId.tsx` —
   netra `tabs` over Overview (identity + project-scoped direct/broadcast counts), Notifications
   (that recipient's feed, reusing 9.1's per-medium status cell + delivery dialog), Preferences
-  (read-only; the *resolved* catalog+override view with an `inherited` marker — editing is 9.3),
+  (since **9.3** an editable per-`(target, medium)` grid of netra `Switch`es — each cell shows the
+  *resolved* decision, i.e. what a send would actually do, computed by the same cascade the send
+  path gates on, with `inherited`/`cataloged`/`source` as context),
   and Contacts. Recipient ids link here from the recipient list and the notifications list.
   Its feed is the **operator's** view (`ListNotifications` + `recipient_id`), deliberately not the
   recipient's inbox (`ListForRecipient`), which hides muted rows and has no email data.
@@ -487,7 +489,7 @@ down. Sub-phases are ordered by dependency and each is one session.
 
 - Phase 9.1 — Delivery detail (widen the delivery projection + a detail dialog) — **DONE** (see "Phase 9.1 — deviations (as built)" below)
 - Phase 9.2 — Recipient detail page (`/projects/$id/recipients/$recipientId`) — **DONE** (see "Phase 9.2 — deviations (as built)" below)
-- Phase 9.3 — Recipient preference editing (the per-medium grid deferred in Phase 2) — **TODO**
+- Phase 9.3 — Recipient preference editing (the per-medium grid deferred in Phase 2) — **DONE** (see "Phase 9.3 — deviations (as built)" below)
 - Phase 9.4 — Notification list filters — **TODO**
 - Phase 9.5 — Analytics (time-series + per-target/medium breakdowns) — **TODO**
 
@@ -1659,9 +1661,16 @@ The console shows **status + one elapsed time**.
   filters out `muted`/`quota_exceeded` and carries no email delivery data. The console's
   recipient feed is `ListNotifications` + a `recipient_id` filter instead. Don't re-propose
   `ListForRecipient` for console work — see the 9.2 deviations.
-- `repository.ListPreferencesForRecipient(ctx, projectID, recipientExtID)` — exists, but prefer the
-  service's **`GetRecipientProjectPreferences`**, which resolves catalog + overrides + `inherited`
-  (what 9.2's read-only tab and 9.3's grid actually need).
+- ⚠️ `repository.ListPreferencesForRecipient` / service `GetRecipientProjectPreferences` — **do NOT
+  reach for either for console work.** `GetRecipientProjectPreferences` is a Go exact-match merge
+  over the project catalog that **disagrees with what a send actually does** (no `topic='any'`
+  fallbacks, no medium-dependent default, and a recipient row on an uncataloged pair is invisible
+  to it while still delivering). Since 9.3 the console resolves preferences with
+  **`PreferenceRepo.ResolveRecipientPreferences`** (one set-based query, the same cascade as
+  `ShouldDirectNotificationBeDelivered`, held in step by a test).
+  `GetRecipientProjectPreferences` survives **only** because the Developer API's documented
+  `GET /recipients/{id}/preferences` still uses it — **and it is still wrong there**; see the
+  Phase 9.3 deviations, which recommend fixing that public surface as its own phase.
 - ~~`handler.GetRecipient` is Dev-API only; the console has no single-recipient GET~~ — **9.2 added
   `GET /console/projects/{id}/recipients/{ext_id}`** (`GetRecipientConsole` → `GetWithCounts`,
   counts included; the Dev API's stays lean because `repo.Get` is on the send hot path).
@@ -2075,6 +2084,9 @@ browser against the running API + Postgres (all four tabs, both entry points, th
   default, and the default is **medium-dependent** (`in_app` defaults to deliver; every other
   medium defaults to NOT deliver unless cataloged/enabled). Fixing the READ so it resolves the way
   the send path does is very likely part of this (see the ⚠️ notes in the prompt below).
+  - **As built:** the read fix *was* the phase. It landed as a new set-based resolver wired to the
+    console read **only** — the old read turned out to be shared with the Developer API, so it
+    could not be fixed from a console phase. See the deviations below.
 - **Out of scope:** changing any gating semantics (the send path's cascade is correct — it is the
   READ that disagrees with it). New preference *write* endpoints (that path exists); a read-side
   change is expected.
@@ -2179,6 +2191,137 @@ send a direct notification with an email block to that target, and confirm the d
 Console-only. No migration, no new endpoints, no gating-semantics changes. Update Phase 9.3 status
 to DONE and add a "Phase 9.3 — deviations (as built)" section.
 ```
+
+#### Phase 9.3 — deviations (as built)
+
+**No migration**, no new endpoints, no gating-semantics change — as scoped. The send path, worker,
+broadcast pipeline, and `ShouldDirectNotificationBeDelivered` itself are byte-for-byte untouched:
+this phase changed the READ that disagreed with them. `go build`/`go vet`/the whole suite pass; the
+console typechecks, lints (2 pre-existing unrelated warnings), and builds; the grid was driven
+**live** in a real browser against the running API + Postgres.
+
+- ⚠️ **THE BIG ONE — "fix the read" could not mean "fix `GetRecipientProjectPreferences`": it is
+  SHARED WITH THE DEVELOPER API.** The brief scoped 9.3 console-only and named that service method
+  as the broken read. It is also the handler for the Dev API's
+  `GET /recipients/{id}/preferences` (`routes.go:118`, API-key auth) — a **documented, SDK-consumed,
+  openapi'd** surface, and the one Resurface's settings UI reads via `usePreferences()`. Fixing it
+  in place would have changed the row SET and the resolved values a public API returns, from inside
+  a console phase. So:
+  - **New repo method + new service method + the console handler re-pointed at it.**
+    `PreferenceRepo.ResolveRecipientPreferences` → `PreferenceService.ResolveRecipientPreferences`
+    → `GetRecipientPreferencesConsole`. The Dev API keeps the old method, unchanged.
+  - This follows the repo's own precedent for exactly this situation: 9.2 added `GetListItem`/
+    `GetWithCounts` rather than hanging aggregates off `repo.Get` (send hot path), and 9.1
+    project-scoped `ListForNotification` rather than duplicating it.
+  - 🐛 **The Dev API read is therefore STILL WRONG, on purpose, and recorded here rather than
+    quietly fixed.** It has all three defects the brief measured (no `topic='any'` fallbacks, no
+    medium-dependent default, uncataloged recipient rows invisible). **This is a real bug with real
+    consequences** — it is what a customer's own settings UI renders, so a recipient can be shown a
+    toggle state that contradicts what they actually receive. Fixing it is a **public-surface
+    change** (the response gains rows and changes values) and belongs with `openapi.json` + an SDK
+    bump — i.e. its own phase, sequenced with a version. **Recommend picking this up next**; it is
+    the same class of lie 9.3 just killed, one surface over.
+  - A characterization test pins the divergence (`the Dev API read still disagrees (why the console
+    does not reuse it)`) so nobody re-points the console at it believing they are equivalent. It is
+    labelled: **when the Dev API read is fixed, that test's failure is the signal — delete it.**
+- **THE DECISION (how to resolve): ONE set-based SQL resolver in the preference repo — the brief's
+  recommended option, taken.** `ResolveRecipientPreferences(ctx, projectID, recipientExtID, mediums)`
+  answers every `(target × Active medium)` in **one round trip**, with `enabled` + `inherited` +
+  `cataloged` (+ `source`, below). Not a per-cell loop (40 round trips), not a React
+  re-implementation — the 9.1 argument that backend semantics stay server-side.
+  - **Cost paid as promised: a second SQL resolver of one cascade.** The gating query stays
+    single-cell because it is on the send hot path. The two are held in step by
+    **`TestResolveRecipientPreferencesAgreesWithGating`** (real-Postgres), which seeds a matrix
+    hitting every rung and asserts, **cell-for-cell, that the grid equals
+    `ShouldDirectNotificationBeDelivered`**. Change one resolver and not the other and it fails —
+    that is the whole point, and it is called out in both functions' doc comments.
+  - Agreement alone is not enough (both could be wrong the same way), so the test **also pins the
+    measured table's literal values** plus `cataloged`/`source` attribution.
+  - The LEFT JOINs are safe to write set-based **because** the partial unique indexes
+    (`recipient_pref_unique`, `project_pref_unique`, both `medium`-appended since Phase 2) mean each
+    cascade rung matches ≤1 row — the structural reason the gating query's `LIMIT 1` needs no
+    counterpart. A `no duplicate cells` test guards it if an index is ever dropped.
+- **The target universe is the catalog UNION the recipient's own rows** — this is what actually
+  fixes "a recipient row on an uncataloged pair is invisible while still delivering". The old read
+  iterated project prefs only, so such a row could not appear no matter how the merge was written.
+  Verified live (below).
+- **Added `source` beyond the brief's `enabled`/`inherited`/`cataloged`** (`recipient_exact` |
+  `recipient_any` | `project_exact` | `project_any` | `default`). It is free in the same query and
+  it is what makes the cascade *legible* — the phase's own goal. Each cell's tooltip renders it as
+  prose ("Following the project's `posts/any/new_comment` default, which covers every topic in
+  posts"), so an operator can see the difference between "we set this" and "this is just the
+  default". `inherited` is then derived, not stored twice: `source != "recipient_exact"`.
+- **`cataloged` is rendered as CONTEXT, never as a gate.** The grid never says "unavailable". An
+  uncataloged cell shows a **"Not cataloged"** tag whose tooltip states the honest thing: in-app
+  *still delivers* (the catalog is a default), and email is off by default *but an explicit
+  preference here overrides that and sends*.
+- **New DTO type rather than widening `PreferenceState`.** `dto.ResolvedPreferenceState` is separate
+  because `PreferenceState` rides the Dev API's preference responses — adding `cataloged`/`source`
+  there would have leaked console fields onto that public surface (the same boundary as the big one
+  above). `PreferenceTarget` *is* reused (it already carries `medium` + `label`).
+- **`enum.ActiveMediums()` added** (list form of the existing `Active()`), so the resolver
+  enumerates mediums from the enum rather than hardcoding the in_app/email pair — when web_push
+  becomes active, the grid follows. Only Active mediums get toggles, as scoped.
+- **The write path was reused exactly as-is — no third entry point, no re-routing.** A grid toggle
+  is one `PUT` (flat `{channel, topic, event, medium, enabled}`). Per the brief's own ⚠️ correction,
+  `UpsertRecipientPreference` and `UpdateRecipientPreferenceTarget` were both left alone; they
+  converge at `repo.Create`, which is what keeps the settings toggle and the one-click unsubscribe
+  writing the same row (Phase 6). Verified live: the console toggle wrote the same
+  `(project, recipient, digest/none/sent, email, enabled=f)` row the unsubscribe flips.
+  - **No "revert to inherited"**, per 9.2. A cell is enabled/disabled; toggling an inherited cell
+    writes an explicit row and its tag flips `Inherited` → `Set`.
+- **The console read now 404s for an unknown recipient** (it checks `recipientRepo.Exists`, matching
+  the `PUT`'s existing behavior). Previously it returned the bare catalog for a recipient that does
+  not exist. Minor, console-only, and symmetric with the write.
+- **A write invalidates and re-reads the WHOLE grid rather than patching the toggled cell.** A
+  `topic='any'` row decides every exact-topic cell in its channel/event that has no row of its own,
+  so one write legitimately moves cells it did not target. Only the server resolves the cascade, so
+  re-reading is the honest move. The mutation's `invalidateQueries` is **awaited** in the hook so
+  the optimistic switch position is held until the fresh read lands (dropping it any earlier flashes
+  the stale value).
+- **Console UI.** New `features/recipient/detail/recipient_preferences_panel.tsx` (sibling of 9.2's
+  contacts/notifications panels); the read-only `PreferencesTab` in `recipient_detail.tsx` is
+  deleted. Rows = targets, columns = In-App | Email, each cell a netra **`Switch`** (radix, from the
+  root barrel) + an `Inherited`/`Set` tag + the source tooltip.
+  - **A plain `<table>`, NOT `DataTableSmart`.** The 9.2 tab used it because it was a flat list of
+    (target, medium) rows; a grid is a *pivot* — one row per target, medium as columns — and the
+    cells are interactive, so the sorting/pagination/column machinery buys nothing and fights the
+    layout. Grouping the flat API cells by target is done client-side, but that is **presentation
+    only**: every resolved value is the server's.
+  - No netra `!` override was needed here (nothing fights a netra default class) — the 9.1 gotcha
+    still stands for anyone adding one.
+- **Honest boundary worth knowing: the grid answers the PREFERENCE rung only.** `fanOutEmail` gates
+  preference → provider settings → primary contact, so an email cell that reads ON can still not
+  send (`provider_not_configured` / `no_contact`). That is not a lie in the grid — it agrees with
+  `ShouldDirectNotificationBeDelivered`, which is the stated contract — and those outcomes have
+  their own surfaces (9.1's delivery copy; the Contacts tab already explains `no_contact`). Deciding
+  to widen the cell to "would this actually arrive?" would mean joining contacts + settings into the
+  resolver and breaking the agreement invariant. Left alone deliberately.
+
+**Live verification (project 3, recipient `123`, against the running API + Postgres + real browser):**
+1. The grid's own read immediately exposed the old bug on **real** data: `(digest/none/sent, in_app)`
+   resolves **enabled=true, cataloged=false, source=default** — a cell the old read omitted
+   *entirely* (no in_app catalog row exists, and it only walked project prefs), while in-app was in
+   fact delivering. The old tab showed one row; the honest grid shows two.
+2. Flipped **Email OFF** for `digest/none/sent` in the real UI → row written, tag flipped
+   `Inherited` → `Set`, toast confirmed.
+3. Sent a **direct** notification with an `email` block to that target → response
+   `deliveries: [{medium: email, status: muted, failure_reason: preference_disabled}]`; the
+   `notification_delivery` row reads `muted`/`preference_disabled`; in-app still `delivered`. Because
+   the skip is terminal it never enqueued, so **Resend was never called** (no real email sent).
+4. The notifications list renders it in **9.1's prose**: *Email — Muted — "recipient opted out"*,
+   visibly distinct from an older row's *"target not cataloged for email"*. The distinction Phase 4
+   created `failure_reason` for, end to end.
+5. The **measured table reproduced live**, including the two cases that motivated the phase:
+   `(uncat/none/ping, email)` with an explicit recipient row → **enabled=true, cataloged=false,
+   source=recipient_exact** (uncataloged, invisible before, *delivers*); `(uncat/none/ping, in_app)`
+   → enabled=true by default. "Uncataloged ⇒ unavailable" is dead.
+6. The dev DB was **restored** afterwards (project 3 had no recipient preferences originally); the
+   verification notification remains in history, as sends cannot be unsent.
+
+- **Untouched (as scoped):** the send path, worker, broadcast pipeline, all gating logic, every
+  `enum.MediumInApp` call site, the SDKs, and `docs/`. No migration; `routeTree.gen.ts` untouched
+  (9.2's route already existed). Analytics (9.5) and broader filters (9.4) are still open.
 
 ### Phase 9.4 — Notification list filters
 

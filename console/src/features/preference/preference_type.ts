@@ -49,12 +49,26 @@ export interface RecipientPreference {
 }
 
 /**
- * One recipient's RESOLVED state for a cataloged (target, medium).
+ * Which rung of the resolution cascade decided a cell's value.
  *
- * The backend walks the project catalog and overlays the recipient's own rows,
- * so this is the effective answer — not the stored row. `inherited` is the
- * difference: true means the recipient has no row of their own and is following
- * the project default.
+ * The cascade is: recipient-exact → recipient topic='any' → project-exact →
+ * project topic='any' → the medium-dependent default.
+ */
+export type PreferenceSource =
+    | "recipient_exact"
+    | "recipient_any"
+    | "project_exact"
+    | "project_any"
+    | "default";
+
+/**
+ * One recipient's RESOLVED state for a (target, medium) — what a send would
+ * ACTUALLY do, resolved server-side by the same cascade the send path uses.
+ *
+ * Read `enabled` as the only honest field. In particular `cataloged` is NOT a
+ * gate: the catalog is a default, and an explicit recipient row on an
+ * uncataloged pair still delivers because it wins the cascade first. Rendering
+ * "unavailable" off `cataloged` would be a lie — it was, before Phase 9.3.
  */
 export interface RecipientPreferenceTargetState {
     target: Target & {
@@ -63,11 +77,40 @@ export interface RecipientPreferenceTargetState {
         label?: string;
     };
     state: {
+        /** The resolved decision. Agrees with the send path's gating. */
         enabled: boolean;
+        /**
+         * True when the recipient has no row of their own for this exact
+         * (target, medium) — the value came from elsewhere in the cascade.
+         * Toggling writes exactly that missing row.
+         */
         inherited: boolean;
+        /**
+         * A project-level row exists for this exact (target, medium). Context
+         * for explaining a cell, never a gate on it.
+         */
+        cataloged: boolean;
+        source: PreferenceSource;
     };
 }
 
 export interface RecipientPreferenceTargetStatesResult {
     preferences: RecipientPreferenceTargetState[];
+}
+
+/**
+ * Body of the console's recipient-preference PUT. Deliberately FLAT and
+ * one-(target, medium)-per-call — the existing shape, reused as-is.
+ *
+ * This write converges with the Developer API's PATCH and the email one-click
+ * unsubscribe at the repository layer (all three upsert the same
+ * (project, recipient, target, medium) row). That convergence is why an
+ * unsubscribe and this toggle stay in sync; do not route around it.
+ */
+export interface UpsertRecipientPreferencePayload {
+    channel: string;
+    topic: string;
+    event: string;
+    medium: PreferenceMedium;
+    enabled: boolean;
 }

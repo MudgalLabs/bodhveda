@@ -50,3 +50,58 @@ type ProjectPreferenceListItem struct {
 
 	Subscribers int
 }
+
+// PreferenceSource names which rung of the resolution cascade decided a
+// resolved preference. It exists so the console can explain *why* a cell reads
+// the way it does, rather than only what it reads.
+type PreferenceSource string
+
+const (
+	// PreferenceSourceRecipientExact — the recipient's own row for this exact
+	// (target, medium). The only source a toggle writes directly.
+	PreferenceSourceRecipientExact PreferenceSource = "recipient_exact"
+	// PreferenceSourceRecipientAny — the recipient's own topic='any' rule for
+	// this channel/event.
+	PreferenceSourceRecipientAny PreferenceSource = "recipient_any"
+	// PreferenceSourceProjectExact — the project catalog's row for this exact
+	// (target, medium).
+	PreferenceSourceProjectExact PreferenceSource = "project_exact"
+	// PreferenceSourceProjectAny — the project catalog's topic='any' rule.
+	PreferenceSourceProjectAny PreferenceSource = "project_any"
+	// PreferenceSourceDefault — nothing matched, so the medium-dependent default
+	// decided: in_app delivers, every other medium does not.
+	PreferenceSourceDefault PreferenceSource = "default"
+)
+
+// ResolvedPreference is what a single (target, medium) ACTUALLY resolves to for
+// one recipient — the same answer the send path's gating cascade would give.
+//
+// It is deliberately not a stored row. A recipient with no row of their own is
+// not "unset": they follow the project default, and for in_app that default is
+// DELIVER. Equally, `Cataloged` is not a gate — an explicit recipient row on an
+// uncataloged (target, medium) still delivers, because it wins the cascade
+// before the catalog is ever consulted. Only Enabled is the honest answer;
+// Cataloged and Source are context for explaining it.
+type ResolvedPreference struct {
+	Channel string
+	Topic   string
+	Event   string
+	Medium  string
+	// Label is the catalog entry's label, when this (target, medium) is
+	// cataloged. Nil otherwise.
+	Label *string
+	// Enabled is the resolved delivery decision — what a send would do.
+	Enabled bool
+	// Cataloged reports whether a project-level row exists for this exact
+	// (target, medium). Context only; it does not gate Enabled.
+	Cataloged bool
+	// Source names the cascade rung that decided Enabled.
+	Source PreferenceSource
+}
+
+// Inherited reports whether the recipient has no row of their own for this exact
+// (target, medium) — i.e. the resolved value came from anywhere else in the
+// cascade. Toggling the cell writes exactly that missing row.
+func (r ResolvedPreference) Inherited() bool {
+	return r.Source != PreferenceSourceRecipientExact
+}

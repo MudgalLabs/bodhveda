@@ -235,6 +235,61 @@ type PreferenceTargetStatesResultDTO struct {
 	Preferences []*PreferenceTargetStateDTO `json:"preferences"`
 }
 
+// ResolvedPreferenceState is the console's honest answer for one
+// (target, medium): what a send would ACTUALLY do, plus enough context to
+// explain it.
+//
+// It is deliberately a separate type from PreferenceState (which rides the
+// Developer API's documented preference responses) so the console read can
+// carry `cataloged`/`source` without widening a public, SDK-consumed surface.
+type ResolvedPreferenceState struct {
+	// Enabled is the resolved decision — it agrees with the send path's gating.
+	Enabled bool `json:"enabled"`
+	// Inherited means the recipient has no row of their own for this exact
+	// (target, medium); the value came from elsewhere in the cascade.
+	Inherited bool `json:"inherited"`
+	// Cataloged means a project-level row exists for this exact (target, medium).
+	// It is context, NOT a gate: an explicit recipient row on an uncataloged
+	// pair still delivers.
+	Cataloged bool `json:"cataloged"`
+	// Source names the cascade rung that decided Enabled: recipient_exact,
+	// recipient_any, project_exact, project_any, or default.
+	Source string `json:"source"`
+}
+
+type ResolvedPreferenceDTO struct {
+	Target PreferenceTarget        `json:"target"`
+	State  ResolvedPreferenceState `json:"state"`
+}
+
+type ResolvedPreferencesResultDTO struct {
+	Preferences []*ResolvedPreferenceDTO `json:"preferences"`
+}
+
+func FromResolvedPreference(e *entity.ResolvedPreference) *ResolvedPreferenceDTO {
+	if e == nil {
+		return nil
+	}
+
+	return &ResolvedPreferenceDTO{
+		Target: PreferenceTarget{
+			Target: Target{
+				Channel: e.Channel,
+				Topic:   e.Topic,
+				Event:   e.Event,
+			},
+			Medium: e.Medium,
+			Label:  e.Label,
+		},
+		State: ResolvedPreferenceState{
+			Enabled:   e.Enabled,
+			Inherited: e.Inherited(),
+			Cataloged: e.Cataloged,
+			Source:    string(e.Source),
+		},
+	}
+}
+
 type PatchRecipientPreferenceTargetPayload struct {
 	Target PreferenceTarget `json:"target"`
 	// Medium defaults to in_app when omitted. It sits alongside target so the

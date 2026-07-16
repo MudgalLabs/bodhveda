@@ -55,6 +55,15 @@ func (m Medium) Active() bool {
 	}
 }
 
+// ActiveMediums returns the transports that actually deliver in v1, in the order
+// a UI should present them. It is the list form of Active — callers that must
+// enumerate mediums (e.g. resolving a recipient's preference grid per medium)
+// use this rather than hardcoding the pair, so adding a transport to Active
+// carries them along.
+func ActiveMediums() []Medium {
+	return []Medium{MediumInApp, MediumEmail}
+}
+
 // ValidContactMedium reports whether m is a transport a recipient_contact can be
 // stored for. Only `email` is exercised in v1, but the rest are accepted so the
 // contacts table is future-proof without a re-migration when the next medium
