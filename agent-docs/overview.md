@@ -2081,9 +2081,17 @@ browser against the running API + Postgres (all four tabs, both entry points, th
   and a subsequent send reflects it (`muted` / `failure_reason=preference_disabled`); an uncataloged
   `(target, medium)` is visibly unavailable rather than silently off.
 - **Watch for:** do **not** add a parallel write path. Phase 6 established that the authenticated
-  toggle, the SDK, and the one-click unsubscribe all converge on
-  `PreferenceService.UpdateRecipientPreferenceTarget` — that convergence is *why* an unsubscribe
-  and the app's settings toggle stay in sync. Breaking it desyncs unsubscribes.
+  toggle, the SDK, and the one-click unsubscribe must all end up writing the *same*
+  `(project, recipient, target, medium)` row — that convergence is *why* an unsubscribe and the
+  app's settings toggle stay in sync. Breaking it desyncs unsubscribes.
+  - ⚠️ **Correction (verified in 9.2):** that convergence is at the **repository** layer, not one
+    service method. There are already **two** service entry points, and they are both legitimate:
+    the console `PUT` → `PreferenceService.**UpsertRecipientPreference**` (flat payload, checks the
+    recipient exists, 201), and the Dev API PATCH / unsubscribe / complaint-suppression →
+    `PreferenceService.**UpdateRecipientPreferenceTarget**` (nested `{target, medium, state}`, 200).
+    **Both call `repo.Create`**, which is the recipient-level upsert. So the sync property holds.
+    9.3 should reuse the console `PUT` as-is and **not** re-route it through
+    `UpdateRecipientPreferenceTarget` — that would be churn, not a fix.
 
 ```
 Read agent-docs/overview.md in full first, esp. the Phase 2 deviations (per-medium preferences +
@@ -2095,14 +2103,31 @@ page this lands on). Implement Phase 9.3.
 Build the editable per-(target, medium) preference grid on the recipient detail page's Preferences
 tab (9.2 left it read-only).
 
-REUSE, do NOT re-derive:
-- Write path: the console `PUT /console/projects/{project_id}/recipients/{recipient_external_id}/
-  preferences` (`UpsertRecipientPreferences`) ALREADY EXISTS. Underneath, everything funnels to
-  `PreferenceService.UpdateRecipientPreferenceTarget`. Do NOT add a parallel disable/enable path —
-  Phase 6 made the authenticated toggle, the SDK, and the email one-click unsubscribe all converge
-  on that one path, which is exactly why unsubscribing and the app's settings toggle stay in sync.
-  A second write path silently desyncs unsubscribes.
-- Read path: `ListPreferencesForRecipient(ctx, projectID, recipientExtID)` (service/preference.go:171).
+REUSE, do NOT re-derive (all verified against the code in 9.2):
+- **Write path — the console `PUT /console/projects/{project_id}/recipients/{recipient_external_id}/
+  preferences` ALREADY EXISTS.** Handler `UpsertRecipientPreferences` → service
+  `UpsertRecipientPreference`; body is FLAT `{channel, topic, event, medium, enabled}` (medium
+  omitted ⇒ in_app); it 404s if the recipient doesn't exist and returns 201. **One (target, medium)
+  per call**, so a grid toggle = one PUT. Use it as-is.
+  - Do NOT add a parallel disable/enable path: Phase 6 requires the authenticated toggle, the SDK,
+    and the email one-click unsubscribe to all write the SAME `(project, recipient, target, medium)`
+    row, which is why unsubscribing and the app's settings toggle stay in sync.
+  - ⚠️ The earlier draft of this prompt claimed everything funnels to
+    `UpdateRecipientPreferenceTarget`. **It does not.** That is the sibling entry point used by the
+    Dev API PATCH / unsubscribe / complaint-suppression (nested `{target, medium, state}`, 200).
+    **Both converge on `repo.Create`** (the recipient-level upsert) — the convergence is at the
+    REPOSITORY layer. Both are legitimate; do not "unify" them.
+- **Read path — `GET /console/projects/{project_id}/recipients/{recipient_external_id}/preferences`
+  ALREADY EXISTS** (added in 9.2, `GetRecipientPreferencesConsole` → service
+  `GetRecipientProjectPreferences`). It returns the RESOLVED view you need:
+  `{preferences: [{target: {channel, topic, event, medium, label?}, state: {enabled, inherited}}]}`
+  — the project catalog overlaid with the recipient's overrides. Do NOT drop to
+  `ListPreferencesForRecipient` (raw stored rows, no catalog context); the service method already
+  uses it internally. Console hook: `useGetRecipientPreferences` (`preference_hooks.ts`); types:
+  `RecipientPreferenceTargetState` (`preference_type.ts`).
+- **The tab to replace:** `PreferencesTab` in
+  `console/src/features/recipient/detail/recipient_detail.tsx` — read-only, renders the resolved
+  rows in a `DataTableSmart` with an "Inherited" tag. That is the surface 9.3 makes editable.
 
 Semantics you must render honestly (from Phase 2 — do not re-invent):
 - A medium fires only if the project CATALOGED (target, medium) via a project-level preference.
