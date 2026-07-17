@@ -1,11 +1,12 @@
 {
-    "name": "bodhveda",
+    "name": "@bodhveda/js",
     "description": "JavaScript SDK for Bodhveda",
-    "version": "0.2.0",
+    "version": "0.3.0",
     "license": "MIT",
     "repository": {
         "type": "git",
-        "url": "git+https://github.com/MudgalLabs/bodhveda.git"
+        "url": "git+https://github.com/MudgalLabs/bodhveda.git",
+        "directory": "sdk/js/core"
     },
     "keywords": [
         "bodhveda",
@@ -18,7 +19,7 @@
     "bugs": {
         "url": "https://github.com/MudgalLabs/bodhveda/issues"
     },
-    "homepage": "https://github.com/MudgalLabs/bodhveda#readme",
+    "homepage": "https://github.com/MudgalLabs/bodhveda/tree/main/sdk/js/core#readme",
     "main": "dist/cjs/index.js",
     "module": "dist/esm/index.js",
     "types": "dist/esm/index.d.ts",

@@ -18,13 +18,15 @@ It offers a simpler way to work with Bodhveda APIs in both browser and server en
 ## Installation
 
 ```bash
-npm install bodhveda
+npm install @bodhveda/js
 ```
+
+> Previously published as `bodhveda`. That package is deprecated — install `@bodhveda/js` instead.
 
 ## Quick Start
 
 ```typescript
-import { Bodhveda } from "bodhveda";
+import { Bodhveda } from "@bodhveda/js";
 
 const bodhveda = new Bodhveda("YOUR_API_KEY");
 

@@ -22,7 +22,7 @@ import {
     Target,
     CheckPreferenceResponse,
     ListNotificationsRequest,
-} from "bodhveda";
+} from "@bodhveda/js";
 
 import { BodhvedaContext } from "./context";
 

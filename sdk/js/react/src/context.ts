@@ -1,5 +1,5 @@
 import { createContext } from "react";
-import { Bodhveda } from "bodhveda";
+import { Bodhveda } from "@bodhveda/js";
 
 interface BodhvedaContextType {
     bodhveda: Bodhveda;

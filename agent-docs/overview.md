@@ -543,9 +543,10 @@ testable. When a phase completes, update its status here and record what changed
   docs + SDK release prep, VPS/Cloudflare deploy, and the Resurface cutover that validated it in
   production. Their plans/prompts/deviation notes lived here until 9.4; everything of theirs that
   still matters is folded into the sections above, and `git log` has the rest.
-  - ⚠️ **Unpublished/undeployed:** the 9.3.1 SDK bumps (js core/react `0.2.0`, go `v0.3.0`) —
-    runbook `agent-docs/release-preference-read-fix.md`. The **behavior** change shipped with the
-    API; the SDK bumps are types + docs only.
+  - ⚠️ **Unpublished/undeployed:** the 9.3.1 SDK release — JS core renamed `bodhveda` →
+    `@bodhveda/js`, all three SDKs re-baselined to `0.3.0` (js core/react + go `v0.3.0`), old
+    `bodhveda` deprecated — runbook `agent-docs/release-preference-read-fix.md`. The **behavior**
+    change shipped with the API; the SDK bumps are types + docs only.
 - Phase 9.1 — Delivery detail — **DONE** (see deviations below)
 - Phase 9.2 — Recipient detail page — **DONE** (see deviations below)
 - Phase 9.3 — Recipient preference editing (the per-medium grid) — **DONE** (see deviations below)
@@ -1366,10 +1367,16 @@ including a real send.
   consulted, so an uncataloged email rule sends). Replaced with a "How a preference resolves" section
   stating the five rungs, the medium-dependent default, and **the catalog is a default, not a gate**.
   `openapi.json` was updated FIRST (the MDX renders from it), per the established pattern.
-- **Versioning: minor across the board** (js core/react `0.1.0`→`0.2.0`, go `sdk/go/v0.2.0`→`v0.3.0`),
-  runbook at **`agent-docs/release-preference-read-fix.md`** (a NEW file — `release-email-medium.md`
-  is the record of what shipped in Phase 7.5 and was left alone). **Nothing is published or
-  deployed**; those steps are irreversible/credential-gated and are the human's.
+- **Versioning: re-baselined so all three SDKs share one number, `0.3.0`.** The JS core package was
+  renamed `bodhveda` → **`@bodhveda/js`** at the same time (both JS packages now under the `@bodhveda`
+  scope). A new npm name has no version history, so it starts at `0.3.0` for free — matching Go's
+  `sdk/go/v0.3.0` (Go was already a minor ahead for the email medium, JS was `0.1.0`). The prepared
+  `bodhveda@0.2.0` was **never published** and is skipped; the old `bodhveda` package is deprecated.
+  This release also **starts git-tagging the JS SDKs** (`sdk/js/core/v0.3.0`, `sdk/js/react/v0.3.0`) —
+  they had never been tagged. Publish/tag targets live in the `Makefile` "SDK release" block; the
+  runbook is **`agent-docs/release-preference-read-fix.md`** (`release-email-medium.md` is the record
+  of Phase 7.5 and was left alone). **Nothing is published or deployed**; those steps are
+  irreversible/credential-gated and are the human's.
   - ⚠️ **The SDK bumps are types + docs only. The behavior change ships with the API** — customers
     get it whether or not they upgrade. That asymmetry is why the CHANGELOGs lead with the behavior
     change rather than the type change.

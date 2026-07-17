@@ -1,6 +1,25 @@
 # Changelog
 
-## 0.2.0
+## 0.3.0
+
+**This package is now `@bodhveda/js`.** The npm package was renamed from `bodhveda` to
+`@bodhveda/js`, matching `@bodhveda/react` under one scope. The old `bodhveda` package is deprecated
+and frozen at `0.1.0` — it will receive no further releases. Migrate with:
+
+```bash
+npm uninstall bodhveda && npm install @bodhveda/js
+```
+
+and change your imports:
+
+```diff
+- import { Bodhveda } from "bodhveda";
++ import { Bodhveda } from "@bodhveda/js";
+```
+
+The API is otherwise identical — only the package name changed. Versions are re-baselined so the JS
+core, `@bodhveda/react`, and the Go SDK now share one number: this is `0.3.0` across all three (the
+`bodhveda@0.2.0` prepared for the preference-read fix was never published; that fix ships here).
 
 **Preference reads now tell the truth.** `recipients.preferences.list()` and `.check()` returned a
 state that could contradict what Bodhveda actually delivered. They now resolve with the same

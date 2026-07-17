@@ -1,11 +1,12 @@
 {
     "name": "@bodhveda/react",
-    "version": "0.2.0",
+    "version": "0.3.0",
     "description": "React SDK for Bodhveda",
     "license": "MIT",
     "repository": {
         "type": "git",
-        "url": "git+https://github.com/MudgalLabs/bodhveda.git"
+        "url": "git+https://github.com/MudgalLabs/bodhveda.git",
+        "directory": "sdk/js/react"
     },
     "keywords": [
         "bodhveda",
@@ -19,7 +20,7 @@
     "bugs": {
         "url": "https://github.com/MudgalLabs/bodhveda/issues"
     },
-    "homepage": "https://github.com/MudgalLabs/bodhveda/sdk/js/react/#readme",
+    "homepage": "https://github.com/MudgalLabs/bodhveda/tree/main/sdk/js/react#readme",
     "type": "module",
     "main": "dist/index.js",
     "module": "dist/index.js",
@@ -50,6 +51,6 @@
         "typescript": "^5.9.2"
     },
     "dependencies": {
-        "bodhveda": "^0.2.0"
+        "@bodhveda/js": "^0.3.0"
     }
 }

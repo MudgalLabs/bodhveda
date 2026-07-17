@@ -1,5 +1,5 @@
 import { useMemo } from "react";
-import { Bodhveda } from "bodhveda";
+import { Bodhveda } from "@bodhveda/js";
 
 import { BodhvedaContext } from "./context";
 

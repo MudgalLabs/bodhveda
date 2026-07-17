@@ -1,18 +1,24 @@
 # Changelog
 
-## 0.2.0
+## 0.3.0
 
--   Bumped in lockstep with core `bodhveda@0.2.0` (**preference reads now tell the truth**) — this
-    package re-exports the core types, so `usePreferences()` and `useCheckPreference()` now return
-    a `state` resolved by the same cascade the delivery path uses, plus the new `cataloged` field.
+-   **Core dependency renamed to `@bodhveda/js`** (was `bodhveda`). This package now depends on
+    `@bodhveda/js@^0.3.0` and re-exports from it. If you import core types transitively through this
+    package, nothing changes; if you also install core directly, switch to `@bodhveda/js`. Versions
+    are re-baselined so this package, `@bodhveda/js`, and the Go SDK now share one number (`0.3.0`).
+-   Bumped in lockstep with core `@bodhveda/js@0.3.0` (**preference reads now tell the truth**) —
+    this package re-exports the core types, so `usePreferences()` and `useCheckPreference()` now
+    return a `state` resolved by the same cascade the delivery path uses, plus the new `cataloged`
+    field.
 -   **This changes what a settings screen built on `usePreferences()` renders.** The hook returns
     more entries than before, and some toggle states flip to what Bodhveda actually does. See the
-    core `bodhveda@0.2.0` changelog for the three specific ways the old answers were wrong.
+    core `@bodhveda/js@0.3.0` changelog for the three specific ways the old answers were wrong.
 -   No new hooks, and no API change in this package itself.
 
 ## 0.1.0
 
--   Bumped in lockstep with core `bodhveda@0.1.0` (the email medium release) — this package
+-   Bumped in lockstep with core `bodhveda@0.1.0` (the email medium release, published under the
+    old `bodhveda` package name) — this package
     re-exports the core types, now including the `email` send block, `deliveries[]`, recipient
     contacts, and the per-medium preference `medium`.
 -   No new hooks. The React hooks remain focused on the recipient inbox (in-app notifications and
