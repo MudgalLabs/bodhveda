@@ -29,7 +29,6 @@ import { SendNotificationModal } from "@/features/notification/components/send_n
 import { NotificationKindToggle } from "@/features/notification/components/notification_kind_toggle";
 import { NotificationFilterBar } from "@/features/notification/components/notification_filter_bar";
 import { notificationFiltersToParams } from "@/features/notification/notification_filters";
-import { EmailDeliveryOverview } from "@/features/notification/components/email_delivery_overview";
 import {
     DeliveryDetailCell,
     MediumStatusLine,
@@ -138,13 +137,11 @@ export function NotificationList({
 
             return (
                 <>
-                    {/* Email is DIRECT-only, so its delivery analytics live above
-                        the direct table. The card self-hides when the project has
-                        not attempted any email. It is deliberately NOT filtered —
-                        it is the project's lifetime email picture (Phase 5), and
-                        silently re-scoping it to the current filter would make
-                        two different numbers look like the same one. */}
-                    <EmailDeliveryOverview />
+                    {/* Email delivery analytics moved to the ranged Home dashboard
+                        (Phase 9.5). The lifetime KPI row that used to sit here is
+                        removed — the dashboard's Email panel + Delivery health
+                        supersede it, and keeping a second (lifetime) copy here
+                        read as the same numbers twice. */}
                     <NotificationFilterBar
                         filters={filters}
                         onChange={handleFiltersChange}

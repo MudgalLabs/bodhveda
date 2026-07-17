@@ -101,9 +101,10 @@ export function deliveryOutcomeText(
     return deliveryFailureReasonText(failureReason) ?? deliveryStatusText(status);
 }
 
-// The soft-signal caveat for email opens. Lifted verbatim from Phase 5's
-// email_delivery_overview.tsx so the console tells one consistent story: email
-// "opened" is directional only, while in-app "read" is trustworthy.
+// The soft-signal caveat for email opens — the single source of that wording, so
+// the console tells one consistent story wherever an open count appears (the
+// delivery detail dialog, the Home dashboard's Email panel): email "opened" is
+// directional only, while in-app "read" is trustworthy.
 export const OPEN_SOFT_SIGNAL_COPY =
     "A soft, directional signal only — open tracking is unreliable (e.g. Apple Mail Privacy Protection pre-fetches images). In-app “read” is the trustworthy signal.";
 

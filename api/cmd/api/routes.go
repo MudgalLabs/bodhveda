@@ -139,9 +139,13 @@ func initRouter() http.Handler {
 	// These are the APIs that power the Bodhveda Console.
 	r.Route("/console", func(r chi.Router) {
 		r.Use(cors.Handler(cors.Options{
-			AllowedOrigins:   []string{env.WebURL},
-			AllowedMethods:   []string{"GET", "DELETE", "OPTIONS", "PATCH", "POST", "PUT"},
-			AllowedHeaders:   []string{"Accept", "Authorization", "Content-Type"},
+			AllowedOrigins: []string{env.WebURL},
+			AllowedMethods: []string{"GET", "DELETE", "OPTIONS", "PATCH", "POST", "PUT"},
+			// X-Timezone lets the console send the viewer's IANA timezone so the
+			// analytics endpoint (Phase 9.5) buckets per-day in it. It is a
+			// non-simple header, so without it here the browser's preflight fails
+			// (curl doesn't preflight, which is why only browser-driving caught it).
+			AllowedHeaders:   []string{"Accept", "Authorization", "Content-Type", "X-Timezone"},
 			AllowCredentials: true,
 			ExposedHeaders:   []string{"*"},
 			MaxAge:           300,
@@ -191,9 +195,7 @@ func initRouter() http.Handler {
 					r.Get("/{notification_id}/deliveries", handler.ListNotificationDeliveries(app.APP.Service.Notification))
 				})
 
-				r.Route("/email-deliveries", func(r chi.Router) {
-					r.Get("/overview", handler.EmailDeliveryOverview(app.APP.Service.Notification))
-				})
+				r.Get("/analytics", handler.ProjectAnalytics(app.APP.Service.Notification))
 
 				r.Route("/preferences", func(r chi.Router) {
 					r.Get("/", handler.ListPreferences(app.APP.Service.Preference))

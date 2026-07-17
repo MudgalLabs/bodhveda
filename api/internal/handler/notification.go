@@ -232,9 +232,11 @@ func ListNotificationDeliveries(s *service.NotificationService) http.HandlerFunc
 	}
 }
 
-// EmailDeliveryOverview returns per-status email delivery counts for a project
-// (console analytics, Phase 5).
-func EmailDeliveryOverview(s *service.NotificationService) http.HandlerFunc {
+// ProjectAnalytics returns the console Home page's time-series + breakdown
+// analytics for a project over a date range (Phase 9.5). The per-day buckets are
+// computed in the viewer's timezone, taken from the X-Timezone header via
+// TimezoneMiddleware (this is that middleware's first real use).
+func ProjectAnalytics(s *service.NotificationService) http.HandlerFunc {
 	return func(w http.ResponseWriter, r *http.Request) {
 		ctx := r.Context()
 		projectID, err := httpx.ParamInt(r, "project_id")
@@ -243,7 +245,16 @@ func EmailDeliveryOverview(s *service.NotificationService) http.HandlerFunc {
 			return
 		}
 
-		result, errKind, err := s.EmailDeliveryOverview(ctx, projectID)
+		filters := dto.AnalyticsFilters{}
+		if err := httpx.DecodeQuery(r, &filters); err != nil {
+			httpx.BadRequestResponse(w, r, err)
+			return
+		}
+		filters.ProjectID = projectID
+
+		tz := middleware.GetUserTimezoneFromCtx(ctx).String()
+
+		result, errKind, err := s.ProjectAnalytics(ctx, &filters, tz)
 		if err != nil {
 			httpx.ServiceErrResponse(w, r, errKind, err)
 			return

@@ -21,6 +21,7 @@
         "netra": "^0.1.22",
         "react": "^19.0.0",
         "react-dom": "^19.0.0",
+        "recharts": "^2.15.4",
         "tailwind-merge": "^3.3.1",
         "tailwindcss": "^4.1.11"
     },

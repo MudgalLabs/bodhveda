@@ -17,7 +17,7 @@ import { Route as AuthSignInRouteImport } from './routes/auth/sign-in'
 import { Route as ProjectsIdSettingsRouteImport } from './routes/projects/$id/settings'
 import { Route as ProjectsIdPreferencesRouteImport } from './routes/projects/$id/preferences'
 import { Route as ProjectsIdNotificationsRouteImport } from './routes/projects/$id/notifications'
-import { Route as ProjectsIdHomeRouteImport } from './routes/projects/$id/home'
+import { Route as ProjectsIdDashboardRouteImport } from './routes/projects/$id/dashboard'
 import { Route as ProjectsIdBillingRouteImport } from './routes/projects/$id/billing'
 import { Route as ProjectsIdApiKeysRouteImport } from './routes/projects/$id/api-keys'
 import { Route as ProjectsIdRecipientsIndexRouteImport } from './routes/projects/$id/recipients/index'
@@ -63,9 +63,9 @@ const ProjectsIdNotificationsRoute = ProjectsIdNotificationsRouteImport.update({
   path: '/notifications',
   getParentRoute: () => ProjectsIdRoute,
 } as any)
-const ProjectsIdHomeRoute = ProjectsIdHomeRouteImport.update({
-  id: '/home',
-  path: '/home',
+const ProjectsIdDashboardRoute = ProjectsIdDashboardRouteImport.update({
+  id: '/dashboard',
+  path: '/dashboard',
   getParentRoute: () => ProjectsIdRoute,
 } as any)
 const ProjectsIdBillingRoute = ProjectsIdBillingRouteImport.update({
@@ -99,7 +99,7 @@ export interface FileRoutesByFullPath {
   '/projects/': typeof ProjectsIndexRoute
   '/projects/$id/api-keys': typeof ProjectsIdApiKeysRoute
   '/projects/$id/billing': typeof ProjectsIdBillingRoute
-  '/projects/$id/home': typeof ProjectsIdHomeRoute
+  '/projects/$id/dashboard': typeof ProjectsIdDashboardRoute
   '/projects/$id/notifications': typeof ProjectsIdNotificationsRoute
   '/projects/$id/preferences': typeof ProjectsIdPreferencesRoute
   '/projects/$id/settings': typeof ProjectsIdSettingsRoute
@@ -113,7 +113,7 @@ export interface FileRoutesByTo {
   '/projects': typeof ProjectsIndexRoute
   '/projects/$id/api-keys': typeof ProjectsIdApiKeysRoute
   '/projects/$id/billing': typeof ProjectsIdBillingRoute
-  '/projects/$id/home': typeof ProjectsIdHomeRoute
+  '/projects/$id/dashboard': typeof ProjectsIdDashboardRoute
   '/projects/$id/notifications': typeof ProjectsIdNotificationsRoute
   '/projects/$id/preferences': typeof ProjectsIdPreferencesRoute
   '/projects/$id/settings': typeof ProjectsIdSettingsRoute
@@ -129,7 +129,7 @@ export interface FileRoutesById {
   '/projects/': typeof ProjectsIndexRoute
   '/projects/$id/api-keys': typeof ProjectsIdApiKeysRoute
   '/projects/$id/billing': typeof ProjectsIdBillingRoute
-  '/projects/$id/home': typeof ProjectsIdHomeRoute
+  '/projects/$id/dashboard': typeof ProjectsIdDashboardRoute
   '/projects/$id/notifications': typeof ProjectsIdNotificationsRoute
   '/projects/$id/preferences': typeof ProjectsIdPreferencesRoute
   '/projects/$id/settings': typeof ProjectsIdSettingsRoute
@@ -146,7 +146,7 @@ export interface FileRouteTypes {
     | '/projects/'
     | '/projects/$id/api-keys'
     | '/projects/$id/billing'
-    | '/projects/$id/home'
+    | '/projects/$id/dashboard'
     | '/projects/$id/notifications'
     | '/projects/$id/preferences'
     | '/projects/$id/settings'
@@ -160,7 +160,7 @@ export interface FileRouteTypes {
     | '/projects'
     | '/projects/$id/api-keys'
     | '/projects/$id/billing'
-    | '/projects/$id/home'
+    | '/projects/$id/dashboard'
     | '/projects/$id/notifications'
     | '/projects/$id/preferences'
     | '/projects/$id/settings'
@@ -175,7 +175,7 @@ export interface FileRouteTypes {
     | '/projects/'
     | '/projects/$id/api-keys'
     | '/projects/$id/billing'
-    | '/projects/$id/home'
+    | '/projects/$id/dashboard'
     | '/projects/$id/notifications'
     | '/projects/$id/preferences'
     | '/projects/$id/settings'
@@ -247,11 +247,11 @@ declare module '@tanstack/react-router' {
       preLoaderRoute: typeof ProjectsIdNotificationsRouteImport
       parentRoute: typeof ProjectsIdRoute
     }
-    '/projects/$id/home': {
-      id: '/projects/$id/home'
-      path: '/home'
-      fullPath: '/projects/$id/home'
-      preLoaderRoute: typeof ProjectsIdHomeRouteImport
+    '/projects/$id/dashboard': {
+      id: '/projects/$id/dashboard'
+      path: '/dashboard'
+      fullPath: '/projects/$id/dashboard'
+      preLoaderRoute: typeof ProjectsIdDashboardRouteImport
       parentRoute: typeof ProjectsIdRoute
     }
     '/projects/$id/billing': {
@@ -288,7 +288,7 @@ declare module '@tanstack/react-router' {
 interface ProjectsIdRouteChildren {
   ProjectsIdApiKeysRoute: typeof ProjectsIdApiKeysRoute
   ProjectsIdBillingRoute: typeof ProjectsIdBillingRoute
-  ProjectsIdHomeRoute: typeof ProjectsIdHomeRoute
+  ProjectsIdDashboardRoute: typeof ProjectsIdDashboardRoute
   ProjectsIdNotificationsRoute: typeof ProjectsIdNotificationsRoute
   ProjectsIdPreferencesRoute: typeof ProjectsIdPreferencesRoute
   ProjectsIdSettingsRoute: typeof ProjectsIdSettingsRoute
@@ -299,7 +299,7 @@ interface ProjectsIdRouteChildren {
 const ProjectsIdRouteChildren: ProjectsIdRouteChildren = {
   ProjectsIdApiKeysRoute: ProjectsIdApiKeysRoute,
   ProjectsIdBillingRoute: ProjectsIdBillingRoute,
-  ProjectsIdHomeRoute: ProjectsIdHomeRoute,
+  ProjectsIdDashboardRoute: ProjectsIdDashboardRoute,
   ProjectsIdNotificationsRoute: ProjectsIdNotificationsRoute,
   ProjectsIdPreferencesRoute: ProjectsIdPreferencesRoute,
   ProjectsIdSettingsRoute: ProjectsIdSettingsRoute,

@@ -27,6 +27,12 @@ export const API_ROUTES = {
                 `/console/projects/${projectId}/broadcasts`,
         },
 
+        // Home-page analytics: time-series + per-target/medium breakdowns over a
+        // date range (Phase 9.5). Aggregated live over notification +
+        // notification_delivery.
+        analytics: (projectId: string | number) =>
+            `/console/projects/${projectId}/analytics`,
+
         notifications: {
             send: (projectId: string | number) =>
                 `/console/projects/${projectId}/notifications/send`,
@@ -40,8 +46,6 @@ export const API_ROUTES = {
                 notificationId: string | number
             ) =>
                 `/console/projects/${projectId}/notifications/${notificationId}/deliveries`,
-            email_deliveries_overview: (projectId: string | number) =>
-                `/console/projects/${projectId}/email-deliveries/overview`,
         },
 
         recipients: {

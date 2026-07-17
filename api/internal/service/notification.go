@@ -356,17 +356,87 @@ func (s *NotificationService) Overview(ctx context.Context, projectID int) (*dto
 	return result, service.ErrNone, nil
 }
 
-// EmailDeliveryOverview returns the per-status email delivery counts for a
-// project, powering the console's email analytics (Phase 5).
-func (s *NotificationService) EmailDeliveryOverview(ctx context.Context, projectID int) (*dto.EmailDeliveryOverview, service.Error, error) {
-	if projectID <= 0 {
+// analyticsTargetLimit caps the per-target breakdown to the most active targets.
+// A breakdown chart shows a handful; an unbounded list on a project with
+// thousands of distinct targets is a payload nobody reads.
+const analyticsTargetLimit = 20
+
+// ProjectAnalytics assembles the console Home page's analytics (Phase 9.5): a
+// time-series + breakdowns for one project over a date range, bucketed by day in
+// the viewer's timezone `tz`.
+//
+// In-app and email are aggregated SEPARATELY, over their own tables, and merged
+// here — never one GROUP BY over a join, which would drop every in-app-only
+// notification (still the common case). See dto.ProjectAnalytics.
+func (s *NotificationService) ProjectAnalytics(ctx context.Context, filters *dto.AnalyticsFilters, tz string) (*dto.ProjectAnalytics, service.Error, error) {
+	if filters.ProjectID <= 0 {
 		return nil, service.ErrInvalidInput, fmt.Errorf("projectID required")
 	}
-	result, err := s.deliveryRepo.EmailDeliveryOverviewForProject(ctx, projectID)
-	if err != nil {
-		return nil, service.ErrInternalServerError, fmt.Errorf("email delivery overview: %w", err)
+	if err := filters.Validate(); err != nil {
+		return nil, service.ErrInvalidInput, err
 	}
-	return result, service.ErrNone, nil
+	if tz == "" {
+		tz = "UTC"
+	}
+
+	// In-app side: aggregate the `notification` row's status scalar. Totals and
+	// the per-status split are summed from the (day-bounded) series rather than
+	// paying a second scan.
+	inAppSeries, err := s.repo.InAppAnalyticsSeries(ctx, filters.ProjectID, filters.CreatedFrom, filters.CreatedTo, tz)
+	if err != nil {
+		return nil, service.ErrInternalServerError, fmt.Errorf("in-app analytics series: %w", err)
+	}
+	inApp := dto.AnalyticsInApp{Series: inAppSeries}
+	for _, d := range inAppSeries {
+		inApp.Total += d.Total
+		inApp.ByStatus.Enqueued += d.Enqueued
+		inApp.ByStatus.Muted += d.Muted
+		inApp.ByStatus.Delivered += d.Delivered
+		inApp.ByStatus.QuotaExceeded += d.QuotaExceeded
+		inApp.ByStatus.Failed += d.Failed
+	}
+
+	// Email side: aggregate notification_delivery WHERE medium='email'. The repo
+	// returns both the per-day series and the summed totals from one scan.
+	_, email, err := s.deliveryRepo.EmailAnalyticsSeries(ctx, filters.ProjectID, filters.CreatedFrom, filters.CreatedTo, tz)
+	if err != nil {
+		return nil, service.ErrInternalServerError, fmt.Errorf("email analytics series: %w", err)
+	}
+
+	// Per-target breakdown: notification volumes (all targets, top N), then merge
+	// email stats onto those present. Email deliveries are a subset of
+	// notifications, so a target with email always has ≥ that many notifications
+	// and ranks at least as high — email stats for targets outside the top N are
+	// dropped with their (smaller) notification counts, which is the intended
+	// "top targets by volume" reading.
+	targets, err := s.repo.TargetVolumes(ctx, filters.ProjectID, filters.CreatedFrom, filters.CreatedTo, analyticsTargetLimit)
+	if err != nil {
+		return nil, service.ErrInternalServerError, fmt.Errorf("target volumes: %w", err)
+	}
+	emailTargets, err := s.deliveryRepo.EmailTargetStats(ctx, filters.ProjectID, filters.CreatedFrom, filters.CreatedTo)
+	if err != nil {
+		return nil, service.ErrInternalServerError, fmt.Errorf("email target stats: %w", err)
+	}
+
+	type targetKey struct{ channel, topic, event string }
+	idx := make(map[targetKey]int, len(targets))
+	for i, t := range targets {
+		idx[targetKey{t.Channel, t.Topic, t.Event}] = i
+	}
+	for _, et := range emailTargets {
+		if i, ok := idx[targetKey{et.Channel, et.Topic, et.Event}]; ok {
+			targets[i].EmailAttempted = et.EmailAttempted
+			targets[i].EmailDelivered = et.EmailDelivered
+			targets[i].EmailBounced = et.EmailBounced
+			targets[i].EmailComplained = et.EmailComplained
+		}
+	}
+
+	return &dto.ProjectAnalytics{
+		InApp:   inApp,
+		Email:   *email,
+		Targets: targets,
+	}, service.ErrNone, nil
 }
 
 // ListNotificationDeliveries returns the full delivery records for one

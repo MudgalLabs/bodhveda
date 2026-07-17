@@ -2,6 +2,7 @@ package repository
 
 import (
 	"context"
+	"time"
 
 	"github.com/jackc/pgx/v5"
 	"github.com/mudgallabs/bodhveda/internal/model/dto"
@@ -19,6 +20,12 @@ type NotificationReader interface {
 	ListForRecipient(ctx context.Context, projectID int, recipientExtID string, cursor *query.Cursor) ([]*entity.Notification, *query.Cursor, error)
 	UnreadCountForRecipient(ctx context.Context, projectID int, recipientExtID string) (int, error)
 	ListNotifications(ctx context.Context, filters *dto.ListNotificationsFilters) ([]*entity.Notification, int, error)
+	// InAppAnalyticsSeries returns per-day in-app notification counts over a date
+	// range, bucketed by day in the viewer's timezone `tz` (Phase 9.5).
+	InAppAnalyticsSeries(ctx context.Context, projectID int, from, to *time.Time, tz string) ([]dto.AnalyticsInAppDay, error)
+	// TargetVolumes returns the top `limit` targets by in-app notification volume
+	// over the range (Phase 9.5).
+	TargetVolumes(ctx context.Context, projectID int, from, to *time.Time, limit int) ([]dto.AnalyticsTargetStat, error)
 }
 
 type NotificationWriter interface {

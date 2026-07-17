@@ -399,13 +399,104 @@ type NotificationsOverviewResult struct {
 	TotalBroadcastSent int `json:"total_broadcast_sent"`
 }
 
-// EmailDeliveryOverview aggregates the email `notification_delivery` rows for a
-// project into per-status counts, powering the console's email analytics (Phase
-// 5). `Opened` / `Clicked` are counted from the *_at timestamps (they are soft
-// signals that do not change `status`) — note in the UI that email "opened" is
-// directional only (Apple Mail Privacy Protection inflates it).
-type EmailDeliveryOverview struct {
-	Total      int `json:"total"`
+// AnalyticsFilters bounds a project analytics request to a date range. Like
+// ListNotificationsFilters, CreatedFrom/CreatedTo are absolute RFC3339 instants,
+// not calendar days: the console turns the picked day range into the viewer's
+// local start-of-day / end-of-day before sending, so "last 30 days" means the
+// operator's days, not UTC's. The per-day BUCKETING is done in the viewer's
+// timezone too (carried via the X-Timezone header — see the repo methods).
+type AnalyticsFilters struct {
+	ProjectID   int
+	CreatedFrom *time.Time `schema:"created_from"`
+	CreatedTo   *time.Time `schema:"created_to"`
+}
+
+// Validate rejects an inverted range with a 400 rather than letting it answer
+// with an empty chart. It mirrors ListNotificationsFilters.Validate — a blank
+// `?created_from=` is still a hard 400 from gorilla/schema (it decodes into a
+// *time.Time), so the console omits empties rather than blanking them.
+func (f *AnalyticsFilters) Validate() error {
+	if f.CreatedFrom != nil && f.CreatedTo != nil && f.CreatedTo.Before(*f.CreatedFrom) {
+		var errs service.InputValidationErrors
+		errs.Add(apires.NewApiError("Invalid date range", "`created_to` is before `created_from`", "created_to", *f.CreatedTo))
+		return errs
+	}
+	return nil
+}
+
+// ProjectAnalytics is the console Home page's analytics payload (Phase 9.5): a
+// time-series + breakdowns for one project over a date range.
+//
+// In-app and email outcomes live in DIFFERENT tables and are aggregated
+// SEPARATELY — never one GROUP BY over a join. In-app status is a scalar on the
+// `notification` row; email lives in a `notification_delivery` row that only
+// exists when the send carried an `email` block. A join would drop every
+// in-app-only notification (still the common case), so InApp is aggregated over
+// `notification` and Email over `notification_delivery WHERE medium='email'`.
+//
+// Email.Attempted == 0 is the self-hiding signal: a project that has never
+// attempted an email renders no email charts (the console hides the Email panel
+// and Delivery health entirely).
+type ProjectAnalytics struct {
+	InApp   AnalyticsInApp        `json:"in_app"`
+	Email   AnalyticsEmail        `json:"email"`
+	Targets []AnalyticsTargetStat `json:"targets"`
+}
+
+// AnalyticsInApp is the in-app (notification-row) side: the trustworthy inbox
+// outcome. Totals are summed from the per-day Series server-side (the series is
+// bounded by the number of days in range, so a second scan for totals is waste).
+type AnalyticsInApp struct {
+	Total    int                    `json:"total"`
+	ByStatus AnalyticsInAppByStatus `json:"by_status"`
+	Series   []AnalyticsInAppDay    `json:"series"`
+}
+
+// AnalyticsInAppByStatus counts the in-app notification statuses. Every value
+// here is one a `notification` row can actually hold (enum.NotificationStatus) —
+// there are no reserved-but-never-written members to mislead a chart.
+type AnalyticsInAppByStatus struct {
+	Enqueued      int `json:"enqueued"`
+	Muted         int `json:"muted"`
+	Delivered     int `json:"delivered"`
+	QuotaExceeded int `json:"quota_exceeded"`
+	Failed        int `json:"failed"`
+}
+
+// AnalyticsInAppDay is one calendar day's in-app counts, the day computed in the
+// viewer's timezone (Day is `YYYY-MM-DD`). Days with no notifications are absent
+// — the console gap-fills zeros across the range so the axis is continuous.
+type AnalyticsInAppDay struct {
+	Day           string `json:"day"`
+	Total         int    `json:"total"`
+	Enqueued      int    `json:"enqueued"`
+	Muted         int    `json:"muted"`
+	Delivered     int    `json:"delivered"`
+	QuotaExceeded int    `json:"quota_exceeded"`
+	Failed        int    `json:"failed"`
+}
+
+// AnalyticsEmail is the email (notification_delivery) side. Attempted is the
+// count of email delivery rows (medium='email') in range — 0 means the project
+// has never sent email in this window, and the console hides every email chart.
+//
+// Opened / Clicked are SOFT, directional signals counted from the *_at columns
+// (Apple Mail Privacy Protection inflates opens; blocked images deflate them).
+// They are NOT statuses and must never be charted as the trustworthy in-app
+// `read` — see OPEN_SOFT_SIGNAL_COPY in the console.
+type AnalyticsEmail struct {
+	Attempted int                    `json:"attempted"`
+	ByStatus  AnalyticsEmailByStatus `json:"by_status"`
+	Opened    int                    `json:"opened"`
+	Clicked   int                    `json:"clicked"`
+	Series    []AnalyticsEmailDay    `json:"series"`
+}
+
+// AnalyticsEmailByStatus counts the email delivery statuses. Only the eight
+// statuses v1 actually writes appear — the four reserved DeliveryStatus values
+// (sending/suppressed/quota_exceeded/rejected) are omitted so a chart never
+// shows an axis for data that cannot exist.
+type AnalyticsEmailByStatus struct {
 	Pending    int `json:"pending"`
 	Sent       int `json:"sent"`
 	Delivered  int `json:"delivered"`
@@ -414,8 +505,34 @@ type EmailDeliveryOverview struct {
 	Failed     int `json:"failed"`
 	NoContact  int `json:"no_contact"`
 	Muted      int `json:"muted"`
-	Opened     int `json:"opened"`
-	Clicked    int `json:"clicked"`
+}
+
+// AnalyticsEmailDay is one calendar day's email counts (Day in the viewer's
+// timezone). Only the delivery-health statuses that drive the over-time chart
+// are broken out per day; the full per-status split lives in ByStatus.
+type AnalyticsEmailDay struct {
+	Day        string `json:"day"`
+	Attempted  int    `json:"attempted"`
+	Delivered  int    `json:"delivered"`
+	Bounced    int    `json:"bounced"`
+	Complained int    `json:"complained"`
+}
+
+// AnalyticsTargetStat is one {channel, topic, event} target's activity over the
+// range — "which targets actually fire". Notifications is the in-app count (over
+// `notification`); the Email* counts come from the email delivery rows joined
+// back to their notification's target (a join that is CORRECT here, because the
+// question is specifically about email deliveries and their targets — unlike the
+// in-app aggregate, where a join would drop rows).
+type AnalyticsTargetStat struct {
+	Channel         string `json:"channel"`
+	Topic           string `json:"topic"`
+	Event           string `json:"event"`
+	Notifications   int    `json:"notifications"`
+	EmailAttempted  int    `json:"email_attempted"`
+	EmailDelivered  int    `json:"email_delivered"`
+	EmailBounced    int    `json:"email_bounced"`
+	EmailComplained int    `json:"email_complained"`
 }
 
 // NotificationDeliveryDetail is the FULL delivery record for one

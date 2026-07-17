@@ -22,6 +22,7 @@ import {
 } from "netra";
 import { Link } from "@tanstack/react-router";
 
+import { DEFAULT_RANGE_PRESET } from "@/features/dashboard/analytics_range";
 import { CreateProjectModal } from "@/features/project/list/create_project_modal";
 import { useGetProjects } from "@/features/project/project_hooks";
 import { DeleteProjectModal } from "@/features/project/components/delete_project_modal";
@@ -62,8 +63,9 @@ export function ProjectList() {
                             />
                         </div>
                         <Link
-                            to={`/projects/$id/home`}
+                            to={`/projects/$id/dashboard`}
                             params={{ id: String(project.id) }}
+                            search={{ preset: DEFAULT_RANGE_PRESET }}
                             className="link-unstyled w-full h-full flex items-center justify-center"
                         >
                             <Card className="hover:border-border-hover w-full sm:w-72 h-36 flex-center smooth-colors relative">

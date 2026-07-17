@@ -24,9 +24,12 @@ type NotificationDeliveryReader interface {
 	// route's VerifyUserOwnsThisProject only proves ownership of the PROJECT.
 	// Returns an empty slice (not ErrNotFound) when the send carried no email.
 	ListForNotification(ctx context.Context, projectID, notificationID int) ([]*entity.NotificationDelivery, error)
-	// EmailDeliveryOverviewForProject aggregates email delivery rows into
-	// per-status counts for the console analytics view (Phase 5).
-	EmailDeliveryOverviewForProject(ctx context.Context, projectID int) (*dto.EmailDeliveryOverview, error)
+	// EmailAnalyticsSeries returns per-day email delivery counts over a date range
+	// bucketed in the viewer's timezone `tz`, plus the summed totals (Phase 9.5).
+	EmailAnalyticsSeries(ctx context.Context, projectID int, from, to *time.Time, tz string) ([]dto.AnalyticsEmailDay, *dto.AnalyticsEmail, error)
+	// EmailTargetStats returns per-target email delivery counts over the range,
+	// joined back to each delivery's notification target (Phase 9.5).
+	EmailTargetStats(ctx context.Context, projectID int, from, to *time.Time) ([]dto.AnalyticsTargetStat, error)
 	// GetTargetByProviderMessageID returns the recipient + target for the delivery
 	// row matched by (projectID, provider_message_id), joined to its notification.
 	// Used to wire a spam `complained` webhook to a per-target email preference flip

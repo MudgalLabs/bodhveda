@@ -436,10 +436,22 @@ would be for plan tiers, not cost-recovery — deferred until a managed-sending 
   lists.
 - **Notification list filters** (9.4) — in-app status, target, email delivery outcome, date
   range, recipient search, all URL-synced. See the Phase 9.4 deviations for the semantics.
-- **Email delivery overview** (`email_delivery_overview.tsx`) — a per-status
-  `count(*) FILTER (…)` KPI row above the direct table; **self-hides until the project has
-  attempted ≥1 email**, and is deliberately **lifetime/unfiltered**. `opened`/`clicked` come
-  from the `*_at` columns (they are not statuses). The aggregate pattern to copy for 9.5.
+- ~~**Email delivery overview** (`email_delivery_overview.tsx`) — a per-status `count(*) FILTER (…)`
+  KPI row above the direct table.~~ **Removed in 9.5** (component, hook, DTO, endpoint, and repo
+  method all deleted): its lifetime email picture is superseded by the Dashboard's ranged
+  **Email** panel + **Delivery health**, and keeping a second lifetime copy on the Notifications page
+  read as the same numbers twice. Its `count(*) FILTER (…)` shape lives on in the analytics
+  aggregates. (The soft-signal caveat it seeded, `OPEN_SOFT_SIGNAL_COPY`, moved to
+  `delivery_copy.ts` back in 9.1 and survives.)
+- **Dashboard** (9.5, route `/projects/$id/dashboard`, `features/dashboard/`) — the renamed, rebuilt
+  landing page (was "Home"): a **fully ranged** analytics dashboard over the new
+  `GET /console/projects/{id}/analytics` endpoint — send volume over time (stacked by in-app
+  status), in-app-vs-email summary panels, delivery health (bounce/complaint rate), and a
+  per-target breakdown. Range (`?preset=7d|30d|90d` or `?from&to`) is URL-synced; per-day buckets
+  are the viewer's days via the `X-Timezone` header. Charts use **netra charting** (recharts wrapper
+  — `recharts` is now an explicit dep). Email panels **self-hide** on zero-email projects; the old
+  Home's four lifetime scalars (fetched via `useGetProjects().find()`) are gone. See the Phase 9.5
+  deviations. `useGetProjects` is now used only by the project switcher/list.
 
 > ⚠️ **`Notification.ListForRecipient` is the RECIPIENT'S INBOX, not an operator view.** It
 > filters out `muted`/`quota_exceeded` (`pg/notification.go`) and carries **no email delivery
@@ -555,7 +567,10 @@ testable. When a phase completes, update its status here and record what changed
   sub-phase to need a **migration** — though not for the reason the plan expected: the
   `notification` table had **no index at all** beyond its PK, so the list was already a seq scan
   before any filter was added.
-- Phase 9.5 — Analytics (time-series + per-target/medium breakdowns) — **TODO**
+- Phase 9.5 — Analytics (time-series + per-target/medium breakdowns) — **DONE** (see deviations below).
+  The second Phase 9 sub-phase to need a **migration**: `ix_notification_project_created`
+  (project_id, created_at) — the created_at index 9.4 explicitly *declined*, because analytics is
+  the opposite query shape (a full aggregate with no LIMIT, selective only on created_at).
 
 ---
 
@@ -1815,3 +1830,151 @@ Phase 9.5 status to DONE and add a "Phase 9.5 — deviations (as built)" section
 endpoint shape, whether live aggregation held up (with the measurement), any index work, and the
 final chart set.
 ```
+
+#### Phase 9.5 — deviations (as built)
+
+**One migration** — `migrations/20260717140000_add_notification_project_created_index.sql` (Goose,
+`NO TRANSACTION` + `CREATE INDEX CONCURRENTLY`; applied manually, verified to apply *and* roll back
+through goose). The send path, worker, broadcast pipeline, and all gating logic are untouched.
+`go build`/`go vet`/the whole suite pass; the console typechecks, lints (the same 2 pre-existing
+warnings 9.3/9.4 recorded), and builds; every chart was driven **live in a real browser** against
+the running API + Postgres, on a seeded 350k-row dataset across two projects **and** on the real
+projects 1/2/3.
+
+**THE ENDPOINT: one composite read, `GET /console/projects/{project_id}/analytics`.**
+- Query params `created_from`/`created_to` (RFC3339 instants) — the **exact** date-range plumbing
+  9.4 built (`dto.AnalyticsFilters` mirrors `ListNotificationsFilters`'s convention; blank is a hard
+  400 from gorilla/schema, so the console omits rather than blanks). Added to `API_ROUTES` as
+  `project.analytics`, console-only, under the existing `VerifyUserOwnsThisProject`.
+- Response `dto.ProjectAnalytics = {in_app, email, targets}` — **the shape IS the "two different
+  tables" fact**: `in_app` aggregates the `notification` status scalar, `email` aggregates
+  `notification_delivery WHERE medium='email'`, and they are **separate aggregates merged in Go**,
+  never one GROUP BY over a join (which would drop every in-app-only notification — still the common
+  case). This is 9.4's `EXISTS` insight from the other side; a test pins it (an in-app-only row is
+  counted in `in_app` and absent from `email`; the assert says "a join would inflate this").
+- **One composite endpoint, not several** — the Dashboard has one loading state and the self-hiding
+  logic is just `email.attempted === 0`. Four repo queries assemble it (in-app day series, email day
+  series+totals, target volumes, email-per-target), each following the (now-removed)
+  `EmailDeliveryOverviewForProject` `count(*) FILTER (…)` pattern the brief named.
+
+**LIVE AGGREGATION HELD UP — no rollup tables, no pipeline.** Measured end to end on the seeded
+200k-notification project (60k email deliveries, ~140 targets), last-30-days window:
+**HTTP 200 in 112 ms** for the whole composite (four sequential aggregates + JSON). Well within a
+cached, once-per-Home-load budget. The brief's "aggregate live; only add rollups if you measure a
+reason to" — measured, no reason to.
+
+**INDEX WORK — added the created_at index 9.4 explicitly DECLINED, because the query shape is the
+opposite.**
+- 9.4's migration note says it declined a `created_at` index: its list is
+  `WHERE project_id=? ORDER BY id DESC LIMIT n`, whose id-DESC ordering + LIMIT ride
+  `ix_notification_project_id (project_id, id DESC)`. **Analytics is a full aggregate** (`GROUP BY
+  day` / `GROUP BY target`) with **no LIMIT** and its only selective predicate on `created_at`. A
+  (project_id, id) index can't range-seek created_at, so without a created_at index every analytics
+  query is a **Parallel Seq Scan of the whole multi-tenant `notification` table** — and the
+  date-range control provides **zero** work reduction (the scan reads every row regardless of the
+  window). This is the same unbounded-scan class 9.4 fixed for the list, one shape over.
+- **Added `ix_notification_project_created (project_id, created_at)`.** Measured on 350k rows across
+  two projects (project 74 = 200k), last-30-days:
+  | | before (seq scan) | after |
+  |---|---|---|
+  | in-app day series | 5095 buf / 38.8 ms | 817 buf / 19.6 ms |
+  | target volumes | 5040 buf / 20.4 ms | 817 buf / 7.7 ms |
+  Buffers drop ~6×, and — the decisive part — the seq-scan cost scales with the **entire** table
+  across all tenants while the index scan scales only with the queried project's window, so the gap
+  widens without bound as the platform grows. `CONCURRENTLY` because `notification` is on the send
+  hot path (the Phase 2 / 9.4 precedent). It is a **second** project-prefixed index on
+  `notification` (the list keeps `(project_id, id DESC)`); neither can range-seek the other's second
+  column, and both serve first-class read patterns.
+- **DECLINED, having measured them:**
+  - An index on `(channel, topic, event)` — the target `GROUP BY` runs over the already-windowed row
+    set (HashAggregate, ~8 ms with the new index), so it buys nothing and taxes every INSERT.
+  - Any index/rewrite for the email per-target join (query 4). Its plan **self-corrects**: a hash
+    join while `notification` is small, and the planner flips to a **bounded nested-loop PK lookup**
+    (~one lookup per in-window email delivery, not per table row) once `notification` is large —
+    verified by forcing the nested loop (bounded by the ~13k email-delivery window, independent of
+    total rows). The email side is already served by `ix_nd_email_status_time`. So query 4 is left
+    consistent with the email totals (bound by `nd.created_at` only, no redundant `n.created_at`
+    predicate that would risk per-target-vs-total reconciliation fuzz at range boundaries).
+- **Unchanged and still true:** `ix_nd_email_status_time` remains misnamed (no `status` column —
+  `(project_id, created_at DESC) WHERE medium='email'`), and it is exactly what serves the email day
+  series (bitmap index scan, ~19 ms).
+
+**TIMEZONE — per-day buckets are the VIEWER'S days, via the `X-Timezone` header (TimezoneMiddleware's
+first real use).** `date_trunc('day', created_at AT TIME ZONE $tz)` buckets in the viewer's IANA
+zone, so "last 30 days" is the operator's days, not UTC's — the same instinct 9.4 applied to the
+range bounds. The zone rides the **`X-Timezone` header** (already parsed by `TimezoneMiddleware`,
+mounted at the root router but never consumed until now), not a query param, so it reuses existing
+plumbing. Pinned by both a service test (2026-06-15 18:30 UTC buckets to `06-15` UTC / `06-16`
+Asia/Kolkata) and a handler test that drives it over real HTTP through the middleware.
+- 🐛 **Found ONLY by browser-driving (curl can't): the console CORS blocked `X-Timezone`.** The
+  console CORS `AllowedHeaders` was `Accept, Authorization, Content-Type` — `X-Timezone` is a
+  non-simple header, so the browser's preflight OPTIONS failed (`No 'Access-Control-Allow-Origin'`)
+  while curl (which never preflights) sailed through. This is the brief's "9.1–9.4 each found real
+  mismatches ONLY by driving the real thing", again. Fixed by adding `X-Timezone` to the console CORS
+  allowlist (the developer-API CORS already had it). Preflight verified passing before re-driving.
+
+**THE FINAL CHART SET (netra charting → recharts, no library added).**
+- **Notifications over time** — a stacked bar per day, height = send volume, segments = in-app
+  status (delivered/muted/quota_exceeded/failed/enqueued). Two asks ("send volume over a selectable
+  range" + "delivery outcomes over time") in one chart. Only statuses that actually occurred in range
+  are stacked (a permanently-empty series is legend noise); all five are statuses a `notification`
+  row really holds, so nothing implies data that can't exist.
+- **In-app vs Email** — two summary panels **side by side, never one axis**: they are different KINDS
+  of fact (in-app `delivered` is a real inbox write; email lives in a separate delivery row and its
+  `opened` is a soft signal), so they are never stacked into a bar implying a shared denominator.
+- **Delivery health** — bounce rate + complaint rate over emails the provider **accepted**
+  (sent+delivered+bounced+complained; muted/no_contact/pending excluded), tinted against the
+  well-known danger zones (~5% bounce / ~0.1% complaint) — the numbers BYO-first exists to manage.
+- **Top targets by volume** — a horizontal bar per target, single sequential hue (color encodes
+  nothing; length does), email breakdown in the tooltip. Capped at the API's top 20, chart shows ~8.
+- **Honesty rules honored:** the Email panel + Delivery health **self-hide** when `email.attempted
+  === 0` (verified live: project 2, in-app-only, shows in-app charts and NO email wall; project 1,
+  empty, shows sensible empty states). `opened` carries the Apple-MPP caveat via
+  **`OPEN_SOFT_SIGNAL_COPY`** (reused verbatim, not reworded). No reserved DELIVERY status is ever
+  charted. The status palette is the console's **own** status tokens (so a chart reads like the rest
+  of the console); validated with the dataviz skill against the dark card surface — CVD separation
+  ΔE 25.8, normal-vision 30, contrast/chroma all pass; the only failing check is categorical
+  lightness-band, which a *status* palette is meant to fail (green "good" ≠ red "bad") and which the
+  always-present legend + labels are the prescribed secondary encoding for.
+
+**THE PAGE IS NOW FULLY RANGED — and RENAMED "Dashboard".** The old **Home** was four lifetime
+scalars sourced by fetching **every** project and `.find()`ing the current one (`home.tsx:41`);
+there is now a real stats endpoint, and the page became an analytics dashboard, so it was renamed:
+route `/projects/$id/home` → **`/projects/$id/dashboard`**, `features/home/` → **`features/dashboard/`**,
+the `Home` component → **`Dashboard`**, and the sidebar label/icon "Home"/`IconHouse` →
+"Dashboard"/`IconChartPie` (done post-9.5 at the user's request; no default redirect existed, so the
+only touch points were the two `<Link>`s + the route file). Every number on it covers the selected
+range, captioned "Showing last N days". The Notifications page's lifetime **Email delivery** KPI row
+(Phase 5) was **removed** as part of this phase — the Dashboard's ranged Email panel + Delivery
+health supersede it, and 9.4's "don't make two different numbers look like the same one" reasoning is
+better served by deleting the lifetime copy than by keeping both. The whole dead chain went with it
+(component, `useEmailDeliveryOverview`, the `EmailDeliveryOverview` DTO/type, the
+`GET …/email-deliveries/overview` route + handler + service + `EmailDeliveryOverviewForProject`
+repo method) — verified nothing else referenced it. The range lives in the URL (`?preset=7d|30d|90d`,
+or `?from&to` for a custom absolute range) via `lib/search.ts`, so a Dashboard view is shareable and
+survives reload — the route owns it and passes value+onChange down, the 9.4 convention. Relative
+presets re-resolve on load (a shared "last 30 days" keeps meaning the last 30 days); a custom range
+is two absolute calendar days, stable across reload and timezone.
+
+**Other notes:**
+- **`recharts` added to `console/package.json` explicitly** (^2.15.4, already the transitive install
+  via netra) + lockfile refreshed — Cloudflare's fresh `npm ci` is where a transitive-only dep
+  surfaces as a broken build ([[project-console-cloudflare-deploy]]). The netra barrel re-exports
+  `ChartContainer`/`ChartTooltipContent`/`ChartLegendContent`/`axisDefaults`/`tooltipCursor` but not
+  the recharts primitives (`BarChart`, `Bar`, …), so those import from `recharts` directly.
+  `ChartContainer` only provides the config **context** (no ResponsiveContainer, no `--color-<key>`
+  CSS-var injection like shadcn's), so each mark sets an explicit `fill`/`stroke`.
+- **A new `<Link to=".../home">` now requires `search`** (the route gained `validateSearch`), so the
+  sidebar and project-list links pass `search={{ preset: DEFAULT_RANGE_PRESET }}` — exactly how the
+  notifications link already passes `{ kind }`.
+- **Tests:** `internal/service/notification_analytics_test.go` (real-Postgres, self-cleaning — the
+  established pattern; pins the two-tables-no-join invariant, the per-target merge, tz bucketing, the
+  date range, and the inverted-range 400) and `internal/handler/notification_analytics_test.go` (the
+  endpoint over real HTTP through a chi **v1** router with `TimezoneMiddleware` mounted as
+  `routes.go` mounts it — proves `X-Timezone` drives the bucket, UTC fallback, and the 400).
+- **Performance verification restored the DB:** both seeded projects deleted, back to the original
+  3 projects / 4 notifications / 4 deliveries / 1 recipient / 1 preference. The new index remains —
+  it is the migration. (Sequences advanced; harmless.)
+- **Untouched (as scoped):** the send path, worker, broadcast pipeline, all gating logic, the SDKs,
+  `docs/`, and the Developer API (this is console-only — `dto.ProjectAnalytics`/`AnalyticsFilters`
+  are not a public surface). Phase 9 is complete.

@@ -240,32 +240,131 @@ func (r *NotificationDeliveryRepo) GetTargetByProviderMessageID(ctx context.Cont
 	return &t, nil
 }
 
-func (r *NotificationDeliveryRepo) EmailDeliveryOverviewForProject(ctx context.Context, projectID int) (*dto.EmailDeliveryOverview, error) {
+// EmailAnalyticsSeries returns per-day email delivery counts for a project over
+// the range, bucketed by DAY in the viewer's timezone (`tz`). It aggregates
+// `notification_delivery WHERE medium='email'` — the SEPARATE table where the
+// email medium's outcome lives (dto.ProjectAnalytics explains why in-app and
+// email are never one join). The full per-status split plus soft opened/clicked
+// signals are summed by the service from these rows; only the four
+// delivery-health statuses that drive the over-time chart are broken out per day.
+//
+// Served by ix_nd_email_status_time (project_id, created_at DESC) WHERE
+// medium='email' — the partial index whose predicate matches this query exactly
+// (note: despite its name it has no `status` column — the per-status FILTERs are
+// counted after the index narrows the rows). Only days with ≥1 email appear;
+// the console gap-fills.
+func (r *NotificationDeliveryRepo) EmailAnalyticsSeries(ctx context.Context, projectID int, from, to *time.Time, tz string) ([]dto.AnalyticsEmailDay, *dto.AnalyticsEmail, error) {
 	sql := `
 		SELECT
-			count(*),
-			count(*) FILTER (WHERE status = 'pending'),
-			count(*) FILTER (WHERE status = 'sent'),
-			count(*) FILTER (WHERE status = 'delivered'),
-			count(*) FILTER (WHERE status = 'bounced'),
-			count(*) FILTER (WHERE status = 'complained'),
-			count(*) FILTER (WHERE status = 'failed'),
-			count(*) FILTER (WHERE status = 'no_contact'),
-			count(*) FILTER (WHERE status = 'muted'),
-			count(*) FILTER (WHERE opened_at IS NOT NULL),
-			count(*) FILTER (WHERE clicked_at IS NOT NULL)
+			to_char(date_trunc('day', created_at AT TIME ZONE $4), 'YYYY-MM-DD') AS day,
+			count(*) AS attempted,
+			count(*) FILTER (WHERE status = 'pending') AS pending,
+			count(*) FILTER (WHERE status = 'sent') AS sent,
+			count(*) FILTER (WHERE status = 'delivered') AS delivered,
+			count(*) FILTER (WHERE status = 'bounced') AS bounced,
+			count(*) FILTER (WHERE status = 'complained') AS complained,
+			count(*) FILTER (WHERE status = 'failed') AS failed,
+			count(*) FILTER (WHERE status = 'no_contact') AS no_contact,
+			count(*) FILTER (WHERE status = 'muted') AS muted,
+			count(*) FILTER (WHERE opened_at IS NOT NULL) AS opened,
+			count(*) FILTER (WHERE clicked_at IS NOT NULL) AS clicked
 		FROM notification_delivery
 		WHERE project_id = $1 AND medium = 'email'
+			AND ($2::timestamptz IS NULL OR created_at >= $2)
+			AND ($3::timestamptz IS NULL OR created_at <= $3)
+		GROUP BY day
+		ORDER BY day
 	`
 
-	var o dto.EmailDeliveryOverview
-	err := r.db.QueryRow(ctx, sql, projectID).Scan(
-		&o.Total, &o.Pending, &o.Sent, &o.Delivered, &o.Bounced, &o.Complained,
-		&o.Failed, &o.NoContact, &o.Muted, &o.Opened, &o.Clicked,
-	)
+	rows, err := r.db.Query(ctx, sql, projectID, from, to, tz)
 	if err != nil {
+		return nil, nil, fmt.Errorf("email analytics series query: %w", err)
+	}
+	defer rows.Close()
+
+	series := []dto.AnalyticsEmailDay{}
+	totals := &dto.AnalyticsEmail{}
+	for rows.Next() {
+		var (
+			day                                                      string
+			attempted, pending, sent, delivered, bounced, complained int
+			failed, noContact, muted, opened, clicked                int
+		)
+		if err := rows.Scan(&day, &attempted, &pending, &sent, &delivered, &bounced,
+			&complained, &failed, &noContact, &muted, &opened, &clicked); err != nil {
+			return nil, nil, fmt.Errorf("scan email analytics day: %w", err)
+		}
+
+		series = append(series, dto.AnalyticsEmailDay{
+			Day: day, Attempted: attempted, Delivered: delivered,
+			Bounced: bounced, Complained: complained,
+		})
+
+		// Sum the per-status split from the same scan — the series is bounded by
+		// the number of days in range, so a second aggregate query for totals
+		// would be a wasted scan.
+		totals.Attempted += attempted
+		totals.ByStatus.Pending += pending
+		totals.ByStatus.Sent += sent
+		totals.ByStatus.Delivered += delivered
+		totals.ByStatus.Bounced += bounced
+		totals.ByStatus.Complained += complained
+		totals.ByStatus.Failed += failed
+		totals.ByStatus.NoContact += noContact
+		totals.ByStatus.Muted += muted
+		totals.Opened += opened
+		totals.Clicked += clicked
+	}
+	if err := rows.Err(); err != nil {
+		return nil, nil, err
+	}
+
+	totals.Series = series
+	return series, totals, nil
+}
+
+// EmailTargetStats returns per-target email delivery counts over the range,
+// joining each email delivery row back to its notification's {channel, topic,
+// event}. This join is CORRECT (unlike the in-app aggregate's would-be join):
+// the question is specifically about email deliveries and the targets they fired
+// on, so restricting to rows that HAVE a delivery is the intent, not a bug.
+//
+// Keyed the same way as TargetVolumes so the service can merge the two into one
+// per-target row. Not limited here — the service caps the merged, notification-
+// ranked list.
+func (r *NotificationDeliveryRepo) EmailTargetStats(ctx context.Context, projectID int, from, to *time.Time) ([]dto.AnalyticsTargetStat, error) {
+	sql := `
+		SELECT n.channel, n.topic, n.event,
+			count(*) AS attempted,
+			count(*) FILTER (WHERE nd.status = 'delivered') AS delivered,
+			count(*) FILTER (WHERE nd.status = 'bounced') AS bounced,
+			count(*) FILTER (WHERE nd.status = 'complained') AS complained
+		FROM notification_delivery nd
+		JOIN notification n ON n.id = nd.notification_id
+		WHERE nd.project_id = $1 AND nd.medium = 'email'
+			AND ($2::timestamptz IS NULL OR nd.created_at >= $2)
+			AND ($3::timestamptz IS NULL OR nd.created_at <= $3)
+		GROUP BY n.channel, n.topic, n.event
+	`
+
+	rows, err := r.db.Query(ctx, sql, projectID, from, to)
+	if err != nil {
+		return nil, fmt.Errorf("email target stats query: %w", err)
+	}
+	defer rows.Close()
+
+	stats := []dto.AnalyticsTargetStat{}
+	for rows.Next() {
+		var t dto.AnalyticsTargetStat
+		if err := rows.Scan(&t.Channel, &t.Topic, &t.Event, &t.EmailAttempted,
+			&t.EmailDelivered, &t.EmailBounced, &t.EmailComplained); err != nil {
+			return nil, fmt.Errorf("scan email target stat: %w", err)
+		}
+		stats = append(stats, t)
+	}
+	if err := rows.Err(); err != nil {
 		return nil, err
 	}
 
-	return &o, nil
+	return stats, nil
 }
