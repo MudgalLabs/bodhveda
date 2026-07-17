@@ -1,18 +1,25 @@
 import { PaginationMeta } from "@/lib/types";
 
-export type NotificationKind = "direct" | "broadcast";
+export const NOTIFICATION_KINDS = ["direct", "broadcast"] as const;
+
+export type NotificationKind = (typeof NOTIFICATION_KINDS)[number];
+
+export const DEFAULT_NOTIFICATION_KIND: NotificationKind = "direct";
 
 // The list endpoint also accepts "all" (both kinds), which the recipient detail
 // feed uses. The kind TOGGLE deliberately still offers only direct|broadcast —
 // those tables have different columns and cannot be merged.
 export type NotificationKindFilter = NotificationKind | "all";
 
-export type NotificationStatus =
-    | "enqueued"
-    | "muted"
-    | "delivered"
-    | "quota_exceeded"
-    | "failed";
+export const NOTIFICATION_STATUSES = [
+    "enqueued",
+    "muted",
+    "delivered",
+    "quota_exceeded",
+    "failed",
+] as const;
+
+export type NotificationStatus = (typeof NOTIFICATION_STATUSES)[number];
 
 export type BroadcastStatus =
     | "enqueued"
@@ -179,12 +186,73 @@ export interface SendNotificationResult {
     deliveries?: NotificationDelivery[];
 }
 
+// The delivery statuses an email can actually reach in v1. The API validates
+// against the full notification_delivery CHECK (12 values), but four of those
+// — sending / suppressed / quota_exceeded / rejected — are reserved and never
+// written, so offering them as filters would imply data that cannot exist.
+// The console offers what can occur; the API keeps accepting what is legal.
+export const EMAIL_DELIVERY_FILTER_STATUSES = [
+    "pending",
+    "sent",
+    "delivered",
+    "bounced",
+    "complained",
+    "failed",
+    "muted",
+    "no_contact",
+] as const;
+
+// The email filter folds the medium and delivery-status dimensions into one
+// control, because in v1 they are not independent: `email` is the only medium
+// with a delivery row at all (in_app keeps its outcome on the notification row,
+// filtered by `status`). So there are only three questions to ask about email —
+// was it skipped entirely (`none`), was it attempted (`any`), or how did it end
+// (a status). See enum.EmailDeliveryFilter in the API for the same reasoning.
+//
+// `none` is the one that matters most: it is how in-app-only notifications —
+// still the common case — stay findable rather than merely un-dropped.
+export const EMAIL_FILTERS = [
+    "none",
+    "any",
+    ...EMAIL_DELIVERY_FILTER_STATUSES,
+] as const;
+
+export type EmailFilter = (typeof EMAIL_FILTERS)[number];
+
+/**
+ * The operator's filter selection for the notifications list. Every field lives
+ * in the URL, so a filtered view is shareable and survives a reload.
+ *
+ * `from` / `to` are `YYYY-MM-DD` calendar days, NOT instants — see
+ * notificationFiltersToParams for where they become an absolute range.
+ */
+export interface NotificationFilters {
+    kind: NotificationKind;
+    status?: NotificationStatus;
+    email?: EmailFilter;
+    channel?: string;
+    topic?: string;
+    event?: string;
+    recipient_search?: string;
+    from?: string;
+    to?: string;
+}
+
 export interface ListNotificationsPayload {
     kind: NotificationKindFilter;
     page?: number;
     limit?: number;
     /** Exact recipient external id. Omit for the whole project. */
     recipient_id?: string;
+    status?: NotificationStatus;
+    email?: EmailFilter;
+    channel?: string;
+    topic?: string;
+    event?: string;
+    recipient_search?: string;
+    /** Absolute RFC3339 instants, derived from the picked days. */
+    created_from?: string;
+    created_to?: string;
 }
 
 export interface ListNotificationsResult {

@@ -1,6 +1,10 @@
 import { Target } from "@/features//notification/notification_types";
 
-export type PreferenceKind = "project" | "recipient";
+export const PREFERENCE_KINDS = ["project", "recipient"] as const;
+
+export type PreferenceKind = (typeof PREFERENCE_KINDS)[number];
+
+export const DEFAULT_PREFERENCE_KIND: PreferenceKind = "project";
 
 // Active preference mediums in v1. The backend enum scaffolds sms/web_push/
 // mobile_push too, but only these can be cataloged/toggled today.

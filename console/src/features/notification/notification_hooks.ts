@@ -8,6 +8,7 @@ import {
 
 import { API_ROUTES, APIRes, client } from "@/lib/api";
 import { getRecipientsKey } from "@/features/recipient/recipient_hooks";
+import { notificationFiltersToParams } from "@/features/notification/notification_filters";
 import {
     EmailDeliveryOverview,
     ListBroadcastsPayload,
@@ -15,6 +16,7 @@ import {
     ListNotificationDeliveriesResult,
     ListNotificationsPayload,
     ListNotificationsResult,
+    NotificationFilters,
     NotificationKindFilter,
     SendNotificationPayload,
     SendNotificationResult,
@@ -61,8 +63,24 @@ export function useSendNotification(
     });
 }
 
+export interface UseNotificationsParams {
+    kind: NotificationKindFilter;
+    page: number;
+    limit: number;
+    /**
+     * Exact recipient external id — what the recipient detail page's feed pins
+     * itself to. Distinct from `filters.recipient_search`, which is the
+     * substring search on the project-wide list: one addresses a known
+     * recipient, the other looks for one.
+     */
+    recipientID?: string;
+    /** The operator's filter selection (Phase 9.4). `kind` above wins over it. */
+    filters?: NotificationFilters;
+}
+
 // useNotifications lists a project's notifications. `recipientID` narrows it to
-// one recipient — the recipient detail page's feed (Phase 9.2).
+// one recipient — the recipient detail page's feed (Phase 9.2) — and `filters`
+// carries the operator's URL-synced filter selection (Phase 9.4).
 //
 // This is the OPERATOR's view, deliberately not the recipient's inbox feed
 // (`ListForRecipient` on the Developer API): it keeps `muted`/`quota_exceeded`
@@ -70,12 +88,14 @@ export function useSendNotification(
 // someone asking "why didn't they get it?" needs to see.
 export function useNotifications(
     projectID: string,
-    kind: NotificationKindFilter,
-    page: number,
-    limit: number,
-    recipientID?: string
+    { kind, page, limit, recipientID, filters }: UseNotificationsParams
 ) {
+    const filterParams = filters ? notificationFiltersToParams(filters) : {};
+
     return useQuery({
+        // filterParams (not `filters`) is the key: it is already normalized to
+        // what actually goes on the wire, so two selections that request the
+        // same rows share a cache entry.
         queryKey: [
             "useGetNotification",
             projectID,
@@ -83,6 +103,7 @@ export function useNotifications(
             page,
             limit,
             recipientID ?? null,
+            filterParams,
         ],
         queryFn: () => {
             const params: ListNotificationsPayload = {
@@ -90,6 +111,7 @@ export function useNotifications(
                 page,
                 limit,
                 ...(recipientID ? { recipient_id: recipientID } : {}),
+                ...filterParams,
             };
 
             return client.get(

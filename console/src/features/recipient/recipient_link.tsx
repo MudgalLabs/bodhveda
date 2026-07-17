@@ -1,6 +1,7 @@
 import { Link } from "@tanstack/react-router";
 
 import { useGetProjectIDFromParams } from "@/features/project/project_hooks";
+import { DEFAULT_RECIPIENT_TAB } from "@/features/recipient/detail/recipient_detail";
 
 interface RecipientLinkProps {
     recipientID: string;
@@ -21,6 +22,7 @@ export function RecipientLink({ recipientID }: RecipientLinkProps) {
         <Link
             to="/projects/$id/recipients/$recipientId"
             params={{ id: projectID, recipientId: recipientID }}
+            search={{ tab: DEFAULT_RECIPIENT_TAB }}
             className="underline underline-offset-2 hover:text-text-primary"
         >
             {recipientID}

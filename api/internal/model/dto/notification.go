@@ -557,7 +557,110 @@ type ListNotificationsFilters struct {
 	// own inbox feed (ListForRecipient), this keeps `muted`/`quota_exceeded`
 	// rows and their email delivery outcome — an operator debugging "why didn't
 	// they get it" is looking for exactly those.
+	//
+	// This is an EXACT match, and it is what the recipient detail page's feed
+	// pins itself to. It is deliberately distinct from RecipientSearch below:
+	// one addresses a known recipient, the other looks for one.
 	RecipientExtID *string `schema:"recipient_id"`
+
+	// Status filters the IN-APP outcome — the scalar on the `notification` row.
+	// There is no `medium` filter beside it: in_app is the medium whose status
+	// this is (Phase 4 kept the inbox outcome off notification_delivery), and
+	// email's is Email below. See enum.EmailDeliveryFilter.
+	Status *enum.NotificationStatus `schema:"status"`
+
+	// Channel / Topic / Event filter the target, each independently and by exact
+	// match. A target is an identity the list already renders verbatim, so exact
+	// is both what an operator can copy off the screen and what an index could
+	// serve; a substring match on a target component would mean neither.
+	Channel *string `schema:"channel"`
+	Topic   *string `schema:"topic"`
+	Event   *string `schema:"event"`
+
+	// Email filters on the email medium's delivery row. It compiles to an
+	// EXISTS/NOT EXISTS subquery rather than a join — see ListNotifications in
+	// pg/notification.go for why that matters (a join would drop in-app-only
+	// rows, which are still the common case).
+	Email *enum.EmailDeliveryFilter `schema:"email"`
+
+	// CreatedFrom / CreatedTo bound `notification.created_at` (inclusive). They
+	// are absolute instants (RFC3339), not dates: the console turns the picked
+	// day range into the viewer's local start-of-day / end-of-day before
+	// sending, so "last week" means the operator's week, not UTC's.
+	CreatedFrom *time.Time `schema:"created_from"`
+	CreatedTo   *time.Time `schema:"created_to"`
+
+	// RecipientSearch is a case-insensitive SUBSTRING match on the recipient's
+	// external id — the "find me the recipient" half, as opposed to
+	// RecipientExtID's "I know which one".
+	RecipientSearch *string `schema:"recipient_search"`
+}
+
+// Validate rejects a filter value that could never match, so a typo answers with
+// a 400 instead of an empty list that reads as "you have no such notifications".
+//
+// It also normalizes: blank query params (`?status=`) are treated as absent,
+// since a UI clearing a control has no reason to distinguish the two, and
+// external ids are lowercased to match how they are stored.
+func (f *ListNotificationsFilters) Validate() error {
+	var errs service.InputValidationErrors
+
+	f.RecipientExtID = normalizeOptionalStr(f.RecipientExtID, true)
+	f.RecipientSearch = normalizeOptionalStr(f.RecipientSearch, true)
+	f.Channel = normalizeOptionalStr(f.Channel, false)
+	f.Topic = normalizeOptionalStr(f.Topic, false)
+	f.Event = normalizeOptionalStr(f.Event, false)
+
+	if f.Status != nil {
+		if *f.Status == "" {
+			f.Status = nil
+		} else if !f.Status.Valid() {
+			errs.Add(apires.NewApiError("Invalid status", "Not a notification status", "status", *f.Status))
+		}
+	}
+
+	if f.Email != nil {
+		if *f.Email == "" {
+			f.Email = nil
+		} else if !f.Email.Valid() {
+			errs.Add(apires.NewApiError("Invalid email filter", "Expected `none`, `any`, or a delivery status", "email", *f.Email))
+		}
+	}
+
+	if f.Kind != "" && f.Kind != enum.NotificationKindDirect &&
+		f.Kind != enum.NotificationKindBroadcast && f.Kind != enum.NotificationKindAll {
+		errs.Add(apires.NewApiError("Invalid kind", "Expected `direct`, `broadcast`, or `all`", "kind", f.Kind))
+	}
+
+	if f.CreatedFrom != nil && f.CreatedTo != nil && f.CreatedTo.Before(*f.CreatedFrom) {
+		errs.Add(apires.NewApiError("Invalid date range", "`created_to` is before `created_from`", "created_to", *f.CreatedTo))
+	}
+
+	if len(errs) > 0 {
+		return errs
+	}
+
+	return nil
+}
+
+// normalizeOptionalStr collapses a blank filter to "absent" and optionally
+// lowercases it (external ids are stored lowercase, so a filter keyed on one
+// must be too — see ListNotifications in service/notification.go).
+func normalizeOptionalStr(s *string, lower bool) *string {
+	if s == nil {
+		return nil
+	}
+
+	v := strings.TrimSpace(*s)
+	if v == "" {
+		return nil
+	}
+
+	if lower {
+		v = strings.ToLower(v)
+	}
+
+	return &v
 }
 
 type ListNotificationsResult struct {

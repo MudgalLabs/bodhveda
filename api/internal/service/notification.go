@@ -6,7 +6,6 @@ import (
 	"errors"
 	"fmt"
 	"net/http"
-	"strings"
 
 	"github.com/hibiken/asynq"
 	"github.com/mudgallabs/bodhveda/internal/email"
@@ -515,10 +514,11 @@ func (s *NotificationService) DeleteForRecipient(ctx context.Context, projectID 
 func (s *NotificationService) ListNotifications(ctx context.Context, payload *dto.ListNotificationsFilters) (*dto.ListNotificationsResult, service.Error, error) {
 	payload.Pagination.ApplyDefaults()
 
-	// External IDs are stored lowercase, so an exact-match filter must be too.
-	if payload.RecipientExtID != nil {
-		normalized := strings.ToLower(*payload.RecipientExtID)
-		payload.RecipientExtID = &normalized
+	// Validate normalizes too — notably lowercasing the external-id filters,
+	// since external ids are stored lowercase (an exact-match filter that
+	// doesn't would just never match).
+	if err := payload.Validate(); err != nil {
+		return nil, service.ErrInvalidInput, err
 	}
 
 	notifications, total, err := s.repo.ListNotifications(ctx, payload)

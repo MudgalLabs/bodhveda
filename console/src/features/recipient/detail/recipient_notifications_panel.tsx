@@ -50,10 +50,12 @@ export function RecipientNotificationsPanel({
 
     const { data, isFetching, isLoading, isError } = useNotifications(
         projectID,
-        "all",
-        tableState.pagination.pageIndex + 1,
-        tableState.pagination.pageSize,
-        recipientID
+        {
+            kind: "all",
+            page: tableState.pagination.pageIndex + 1,
+            limit: tableState.pagination.pageSize,
+            recipientID,
+        }
     );
 
     if (isError) {

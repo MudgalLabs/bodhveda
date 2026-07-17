@@ -35,3 +35,16 @@ const (
 	NotificationStatusQuotaExceeded NotificationStatus = "quota_exceeded"
 	NotificationStatusFailed        NotificationStatus = "failed"
 )
+
+// Valid reports whether s is a status a notification row can actually hold.
+// Used to reject a filter naming a status that cannot exist, rather than
+// letting it silently match zero rows.
+func (s NotificationStatus) Valid() bool {
+	switch s {
+	case NotificationStatusEnqueued, NotificationStatusMuted, NotificationStatusDelivered,
+		NotificationStatusQuotaExceeded, NotificationStatusFailed:
+		return true
+	default:
+		return false
+	}
+}

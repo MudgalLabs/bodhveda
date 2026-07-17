@@ -36,3 +36,57 @@ const (
 	DeliveryQuotaExceeded    DeliveryStatus = "quota_exceeded"
 	DeliveryRejected         DeliveryStatus = "rejected"
 )
+
+// Valid reports whether s is a status the `notification_delivery.status` CHECK
+// accepts. Used to reject a filter naming a status that cannot exist, rather
+// than letting it silently match zero rows.
+func (s DeliveryStatus) Valid() bool {
+	switch s {
+	case DeliveryPending, DeliverySending, DeliverySent, DeliveryDelivered,
+		DeliveryBounced, DeliveryComplained, DeliveryFailed, DeliverySkippedMuted,
+		DeliverySkippedNoContact, DeliverySuppressed, DeliveryQuotaExceeded,
+		DeliveryRejected:
+		return true
+	default:
+		return false
+	}
+}
+
+// EmailDeliveryFilter selects notifications by their EMAIL-medium delivery
+// outcome. It deliberately folds the "medium" and "delivery status" dimensions
+// into one value, because in v1 they are not independent:
+//
+//   - `email` is the only medium that has a notification_delivery row at all.
+//     `in_app` keeps its outcome on the `notification` row (Phase 4 chose not to
+//     migrate the inbox onto delivery rows), so a `medium=in_app` filter could
+//     only ever mean "every notification" — a control that lies. The in-app
+//     outcome is filtered by ListNotificationsFilters.Status instead.
+//   - Which leaves exactly one real question about the email medium: did this
+//     send attempt email, and how did it end up? That is this one value.
+//
+// EmailFilterNone / EmailFilterAny are the medium dimension (was email
+// attempted?); any other value must be a DeliveryStatus and asks how it ended.
+// EmailFilterNone is what keeps in-app-only notifications reachable — they are
+// still the common case, and an EXISTS-shaped filter would otherwise make them
+// unfindable rather than merely unlisted.
+type EmailDeliveryFilter string
+
+const (
+	// EmailFilterNone matches notifications with NO email delivery row — i.e.
+	// in-app-only sends (no `email` block, so email was never eligible).
+	EmailFilterNone EmailDeliveryFilter = "none"
+	// EmailFilterAny matches notifications that attempted email, whatever the
+	// outcome.
+	EmailFilterAny EmailDeliveryFilter = "any"
+)
+
+// Valid reports whether f is a usable email filter: one of the two medium
+// sentinels, or a real DeliveryStatus.
+func (f EmailDeliveryFilter) Valid() bool {
+	switch f {
+	case EmailFilterNone, EmailFilterAny:
+		return true
+	default:
+		return DeliveryStatus(f).Valid()
+	}
+}

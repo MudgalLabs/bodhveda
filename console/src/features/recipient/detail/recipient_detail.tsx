@@ -11,7 +11,6 @@ import {
     Loading,
     LoadingScreen,
     PageHeading,
-    Separator,
     Tabs,
     TabsContent,
     TabsList,
@@ -27,11 +26,28 @@ import { RecipientNotificationsPanel } from "@/features/recipient/detail/recipie
 import { RecipientPreferencesPanel } from "@/features/recipient/detail/recipient_preferences_panel";
 import { RecipientListItem } from "@/features/recipient/recipient_types";
 
+export const RECIPIENT_TABS = [
+    "notifications",
+    "preferences",
+    "contacts",
+] as const;
+
+export type RecipientTab = (typeof RECIPIENT_TABS)[number];
+
+export const DEFAULT_RECIPIENT_TAB: RecipientTab = "notifications";
+
 interface RecipientDetailProps {
     recipientID: string;
+    /** The open tab. Owned by the route, which reads it from the URL. */
+    tab: RecipientTab;
+    onTabChange: (tab: RecipientTab) => void;
 }
 
-export function RecipientDetail({ recipientID }: RecipientDetailProps) {
+export function RecipientDetail({
+    recipientID,
+    tab,
+    onTabChange,
+}: RecipientDetailProps) {
     useDocumentTitle(`${recipientID} • Recipients • Bodhveda`);
 
     const projectID = useGetProjectIDFromParams();
@@ -58,43 +74,47 @@ export function RecipientDetail({ recipientID }: RecipientDetailProps) {
         }
 
         return (
-            <Tabs defaultValue="overview">
-                <TabsList>
-                    <TabsTrigger value="overview">Overview</TabsTrigger>
-                    <TabsTrigger value="notifications">
-                        Notifications
-                    </TabsTrigger>
-                    <TabsTrigger value="preferences">Preferences</TabsTrigger>
-                    <TabsTrigger value="contacts">Contacts</TabsTrigger>
-                </TabsList>
+            <>
+                <SummaryStrip recipient={recipient} />
 
-                <TabsContent value="overview" className="pt-4">
-                    <OverviewTab recipient={recipient} />
-                </TabsContent>
+                <Tabs
+                    value={tab}
+                    onValueChange={(v) => onTabChange(v as RecipientTab)}
+                >
+                    <TabsList>
+                        <TabsTrigger value="notifications">
+                            Notifications
+                        </TabsTrigger>
+                        <TabsTrigger value="preferences">
+                            Preferences
+                        </TabsTrigger>
+                        <TabsTrigger value="contacts">Contacts</TabsTrigger>
+                    </TabsList>
 
-                <TabsContent value="notifications" className="pt-4">
-                    <RecipientNotificationsPanel
-                        projectID={projectID}
-                        recipientID={recipientID}
-                    />
-                </TabsContent>
+                    <TabsContent value="notifications" className="pt-4">
+                        <RecipientNotificationsPanel
+                            projectID={projectID}
+                            recipientID={recipientID}
+                        />
+                    </TabsContent>
 
-                <TabsContent value="preferences" className="pt-4">
-                    <RecipientPreferencesPanel
-                        projectID={projectID}
-                        recipientID={recipientID}
-                    />
-                </TabsContent>
+                    <TabsContent value="preferences" className="pt-4">
+                        <RecipientPreferencesPanel
+                            projectID={projectID}
+                            recipientID={recipientID}
+                        />
+                    </TabsContent>
 
-                <TabsContent value="contacts" className="pt-4">
-                    <RecipientContactsPanel
-                        projectID={projectID}
-                        recipientID={recipientID}
-                    />
-                </TabsContent>
-            </Tabs>
+                    <TabsContent value="contacts" className="pt-4">
+                        <RecipientContactsPanel
+                            projectID={projectID}
+                            recipientID={recipientID}
+                        />
+                    </TabsContent>
+                </Tabs>
+            </>
         );
-    }, [isError, isLoading, recipient, recipientID, projectID]);
+    }, [isError, isLoading, recipient, recipientID, projectID, tab, onTabChange]);
 
     return (
         <div>
@@ -123,51 +143,46 @@ export function RecipientDetail({ recipientID }: RecipientDetailProps) {
     );
 }
 
-function OverviewTab({ recipient }: { recipient: RecipientListItem }) {
+/**
+ * The recipient's at-a-glance facts, as a strip between the heading and the
+ * tabs. These were an Overview tab, which meant the page opened on a handful of
+ * fields and made you click to reach anything you came here to do. There is no
+ * recipient id field: the heading is the id.
+ */
+function SummaryStrip({ recipient }: { recipient: RecipientListItem }) {
     return (
-        <div className="max-w-2xl space-y-4">
-            <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
-                <Field label="Recipient ID">
-                    <span className="select-text!">{recipient.id}</span>
-                </Field>
+        <div className="border-border-subtle mb-4 flex flex-wrap items-center gap-x-6 gap-y-2 border-b pb-3 text-sm">
+            <Fact label="Name">
+                {recipient.name || (
+                    <span className="text-foreground-muted">—</span>
+                )}
+            </Fact>
 
-                <Field label="Name">
-                    {recipient.name || (
-                        <span className="text-foreground-muted">—</span>
-                    )}
-                </Field>
+            <Fact label="Created">
+                {formatDate(new Date(recipient.created_at), { time: true })}
+            </Fact>
 
-                <Field label="Created">
-                    {formatDate(new Date(recipient.created_at), { time: true })}
-                </Field>
-            </div>
-
-            <Separator />
-
-            <div>
-                <p className="text-foreground-muted text-xs mb-2">
-                    Notifications
-                </p>
-                <div className="flex-x gap-x-6!">
+            <Fact label="Notifications">
+                <span className="flex-x gap-x-4!">
                     <Tooltip content="Direct notifications sent to this recipient">
-                        <span className="flex-x">
-                            <IconTarget size={16} />
+                        <span className="flex-x gap-x-1.5!">
+                            <IconTarget size={14} />
                             {recipient.direct_notifications_count} direct
                         </span>
                     </Tooltip>
                     <Tooltip content="Broadcast notifications this recipient received">
-                        <span className="flex-x">
-                            <IconMegaphone size={16} />
+                        <span className="flex-x gap-x-1.5!">
+                            <IconMegaphone size={14} />
                             {recipient.broadcast_notifications_count} broadcast
                         </span>
                     </Tooltip>
-                </div>
-            </div>
+                </span>
+            </Fact>
         </div>
     );
 }
 
-function Field({
+function Fact({
     label,
     children,
 }: {
@@ -175,9 +190,9 @@ function Field({
     children: React.ReactNode;
 }) {
     return (
-        <div>
-            <p className="text-foreground-muted text-xs mb-1">{label}</p>
-            <div className="text-sm">{children}</div>
+        <div className="flex-x gap-x-2!">
+            <span className="text-foreground-muted text-xs">{label}</span>
+            {children}
         </div>
     );
 }

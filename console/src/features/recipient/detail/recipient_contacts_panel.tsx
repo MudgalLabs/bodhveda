@@ -24,13 +24,16 @@ import {
 import { Medium, RecipientContact } from "@/features/recipient/contact_types";
 import { apiErrorHandler } from "@/lib/api";
 
+// Only the mediums that actually deliver today — mirrors `Medium.Active()` in
+// `api/internal/model/enum/medium.go`. The API accepts the scaffolded contact
+// mediums (sms, web_push, mobile_push), but offering them here would let someone
+// store an address no transport can ever reach.
 const MEDIUM_OPTIONS: { label: string; value: Medium }[] = [
     { label: "Email", value: "email" },
-    { label: "SMS", value: "sms" },
-    { label: "Web Push", value: "web_push" },
-    { label: "Mobile Push", value: "mobile_push" },
 ];
 
+// Every medium, not just the offered ones: a contact created through the API can
+// carry any of them, and the rows above still have to render it.
 const MEDIUM_LABEL: Record<Medium, string> = {
     email: "Email",
     sms: "SMS",
@@ -66,8 +69,8 @@ export function RecipientContactsPanel({
             <p className="text-foreground-muted text-sm">
                 Where this recipient can be reached. Email delivery requires a{" "}
                 <strong>primary</strong> email contact — without one, an email
-                send records a <code>no_contact</code> outcome. Other mediums are
-                reserved for future delivery transports.
+                send records a <code>no_contact</code> outcome. Email is the only
+                medium that delivers today.
             </p>
 
             <div className="space-y-3">

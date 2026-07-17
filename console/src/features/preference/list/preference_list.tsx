@@ -38,11 +38,19 @@ import { DeleteProjectPreferenceModal } from "../components/delete_project_prefe
 import { TargetInfoTooltip } from "@/components/target_info_tooltip";
 import { targetToString } from "@/lib/utils";
 
-export function ProjectPreferenceList() {
+interface ProjectPreferenceListProps {
+    /** The kind being viewed. Owned by the route, which reads it from the URL. */
+    kind: PreferenceKind;
+    onKindChange: (kind: PreferenceKind) => void;
+}
+
+export function ProjectPreferenceList({
+    kind,
+    onKindChange,
+}: ProjectPreferenceListProps) {
     useDocumentTitle("Preferences  • Bodhveda");
 
     const id = useGetProjectIDFromParams();
-    const [kind, setKind] = useState<PreferenceKind>("project");
     const isProject = kind === "project";
 
     const { data, isLoading, isFetching, isError } = useGetPreferences(
@@ -93,7 +101,7 @@ export function ProjectPreferenceList() {
                     size="small"
                     value={kind}
                     onValueChange={(value) =>
-                        value && setKind(value as PreferenceKind)
+                        value && onKindChange(value as PreferenceKind)
                     }
                 >
                     <ToggleGroupItem value="project">Project</ToggleGroupItem>

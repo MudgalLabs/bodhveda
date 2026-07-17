@@ -19,6 +19,8 @@ import {
 } from "netra";
 import { useGetProjectIDFromParams } from "@/features/project/project_hooks";
 import { Branding } from "@/components/branding";
+import { DEFAULT_NOTIFICATION_KIND } from "@/features/notification/notification_types";
+import { DEFAULT_PREFERENCE_KIND } from "@/features/preference/preference_type";
 
 export const Sidebar = () => {
     const { pathname } = useLocation();
@@ -82,6 +84,7 @@ export const Sidebar = () => {
                     <Link
                         to="/projects/$id/notifications"
                         params={{ id }}
+                        search={{ kind: DEFAULT_NOTIFICATION_KIND }}
                         className="link-unstyled "
                     >
                         <SidebarItem
@@ -112,6 +115,7 @@ export const Sidebar = () => {
                     <Link
                         to="/projects/$id/preferences"
                         params={{ id }}
+                        search={{ kind: DEFAULT_PREFERENCE_KIND }}
                         className="link-unstyled "
                     >
                         <SidebarItem

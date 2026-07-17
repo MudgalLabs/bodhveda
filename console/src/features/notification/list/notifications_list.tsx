@@ -23,9 +23,12 @@ import {
     NotificationKind,
     Notification,
     BroadcastListItem,
+    NotificationFilters,
 } from "@/features/notification/notification_types";
 import { SendNotificationModal } from "@/features/notification/components/send_notification_modal";
 import { NotificationKindToggle } from "@/features/notification/components/notification_kind_toggle";
+import { NotificationFilterBar } from "@/features/notification/components/notification_filter_bar";
+import { notificationFiltersToParams } from "@/features/notification/notification_filters";
 import { EmailDeliveryOverview } from "@/features/notification/components/email_delivery_overview";
 import {
     DeliveryDetailCell,
@@ -41,12 +44,23 @@ import { RecipientLink } from "@/features/recipient/recipient_link";
 import { targetToString } from "@/lib/utils";
 import { TargetInfoTooltip } from "@/components/target_info_tooltip";
 
-export function NotificationList() {
+interface NotificationListProps {
+    /**
+     * The filter selection, `kind` included. Owned by the route, which reads it
+     * from the URL — so a filtered view is shareable and survives a reload.
+     */
+    filters: NotificationFilters;
+    onFiltersChange: (filters: NotificationFilters) => void;
+}
+
+export function NotificationList({
+    filters,
+    onFiltersChange,
+}: NotificationListProps) {
     useDocumentTitle("Notifications  • Bodhveda");
 
     const projectID = useGetProjectIDFromParams();
-    const [notificationKind, setNotificationKind] =
-        useState<NotificationKind>("direct");
+    const notificationKind = filters.kind;
     const isViewingNotifications = notificationKind === "direct";
     const isViewingBroadcasts = notificationKind === "broadcast";
 
@@ -56,17 +70,43 @@ export function NotificationList() {
         sorting: [],
     });
 
+    // Narrowing the result set invalidates the page you were on: filtering while
+    // on page 5 of an unfiltered list would otherwise land you on page 5 of a
+    // shorter one, which renders as an empty table that reads like "no matches".
+    const handleFiltersChange = (next: NotificationFilters) => {
+        setDirectTableState((s) => ({
+            ...s,
+            pagination: { ...s.pagination, pageIndex: 0 },
+        }));
+        onFiltersChange(next);
+    };
+
+    // Resetting the page above is only half the job, and the missing half is not
+    // obvious: DataTableSmart seeds its pagination from `state.pagination` ONCE
+    // (useState initializer) and thereafter owns it, publishing changes upward
+    // via onStateChange but never reading the prop again. So the reset reaches
+    // the QUERY but not the table's own pager, which goes on claiming "Page 4"
+    // over page-1 rows. Remounting on a filter change is what makes the table
+    // re-seed from the state we just reset. No other console list hits this,
+    // because nothing else ever moved their page from the outside.
+    //
+    // Keyed on the filters ONLY — never the page, or paging would remount the
+    // table and bounce it back to page 1 on every click.
+    const directTableKey = `direct:${JSON.stringify(
+        notificationFiltersToParams(filters)
+    )}`;
+
     const {
         data: notificationsData,
         isFetching: isFetchingNotifications,
         isLoading: isLoadingNotifications,
         isError: isErrorNotifications,
-    } = useNotifications(
-        projectID,
-        notificationKind,
-        directTableState.pagination.pageIndex + 1,
-        directTableState.pagination.pageSize
-    );
+    } = useNotifications(projectID, {
+        kind: notificationKind,
+        page: directTableState.pagination.pageIndex + 1,
+        limit: directTableState.pagination.pageSize,
+        filters,
+    });
 
     const [broadcastTableState, setBroadcastTableState] =
         useState<DataTableState>({
@@ -100,10 +140,17 @@ export function NotificationList() {
                 <>
                     {/* Email is DIRECT-only, so its delivery analytics live above
                         the direct table. The card self-hides when the project has
-                        not attempted any email. */}
+                        not attempted any email. It is deliberately NOT filtered —
+                        it is the project's lifetime email picture (Phase 5), and
+                        silently re-scoping it to the current filter would make
+                        two different numbers look like the same one. */}
                     <EmailDeliveryOverview />
+                    <NotificationFilterBar
+                        filters={filters}
+                        onChange={handleFiltersChange}
+                    />
                     <NotificationTable
-                        key="direct"
+                        key={directTableKey}
                         data={notificationsData?.data?.notifications || []}
                         totalItems={
                             notificationsData?.data?.pagination.total_items || 0
@@ -138,6 +185,7 @@ export function NotificationList() {
         }
 
         return null;
+        // eslint-disable-next-line react-hooks/exhaustive-deps
     }, [
         isViewingNotifications,
         isViewingBroadcasts,
@@ -147,6 +195,8 @@ export function NotificationList() {
         notificationsData?.data?.pagination.total_items,
         directTableState,
         isFetchingNotifications,
+        filters,
+        directTableKey,
         isErrorBroadcasts,
         isLoadingBroadcasts,
         broadcastsData?.data?.broadcasts,
@@ -168,7 +218,13 @@ export function NotificationList() {
             <div className="flex justify-between mb-4">
                 <NotificationKindToggle
                     kind={notificationKind}
-                    setKind={setNotificationKind}
+                    // Switching kind PRESERVES the filters rather than clearing
+                    // them: the broadcast table is served by a different endpoint
+                    // and shows no filter bar, so the selection is simply
+                    // dormant, and switching back restores it intact.
+                    setKind={(kind: NotificationKind) =>
+                        handleFiltersChange({ ...filters, kind })
+                    }
                 />
 
                 <SendNotificationModal

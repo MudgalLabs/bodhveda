@@ -36,6 +36,7 @@ import {
     useGetRecipients,
 } from "@/features/recipient/recipient_hooks";
 import { CreateRecipientModal } from "@/features/recipient/list/create_recipient_modal";
+import { DEFAULT_RECIPIENT_TAB } from "@/features/recipient/detail/recipient_detail";
 import { RecipientListItem } from "@/features/recipient/recipient_types";
 import { EditRecipientModal } from "@/features/recipient/list/edit_recipient_modal";
 import { RecipientLink } from "@/features/recipient/recipient_link";
@@ -159,6 +160,7 @@ function ActionCell({ recipient }: { recipient: RecipientListItem }) {
                                         id: projectID,
                                         recipientId: recipient.id,
                                     },
+                                    search: { tab: DEFAULT_RECIPIENT_TAB },
                                 })
                             }
                         >

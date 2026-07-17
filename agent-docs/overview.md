@@ -491,7 +491,10 @@ down. Sub-phases are ordered by dependency and each is one session.
 - Phase 9.2 — Recipient detail page (`/projects/$id/recipients/$recipientId`) — **DONE** (see "Phase 9.2 — deviations (as built)" below)
 - Phase 9.3 — Recipient preference editing (the per-medium grid deferred in Phase 2) — **DONE** (see "Phase 9.3 — deviations (as built)" below)
 - Phase 9.3.1 — Developer API preference read fix (the public-surface half of 9.3) — **DONE** (see "Phase 9.3.1 — deviations (as built)" below). Not a console phase: 9.3 fixed the console's read and recorded that the Dev API's `GET /recipients/{id}/preferences` was still wrong on purpose, because it is a documented, SDK-consumed surface. This is that fix, versioned — openapi + docs + SDK bumps (js core/react `0.2.0`, go `v0.3.0`; runbook: `agent-docs/release-preference-read-fix.md`). **Unpublished/undeployed** — see the runbook.
-- Phase 9.4 — Notification list filters — **TODO**
+- Phase 9.4 — Notification list filters — **DONE** (see "Phase 9.4 — deviations (as built)" below). The
+  only Phase 9 sub-phase to need a **migration**, as the brief anticipated — though not for the reason
+  it expected: the `notification` table had **no index at all** beyond its PK, so the list was already
+  a seq scan before any filter was added.
 - Phase 9.5 — Analytics (time-series + per-target/medium breakdowns) — **TODO**
 
 ---
@@ -921,6 +924,11 @@ CREATE TABLE notification_delivery (
 -- ix_nd_notification, ix_nd_project_recipient, ux_nd_provider_message (partial, WHERE
 -- provider_message_id IS NOT NULL), ix_nd_email_status_time (partial, WHERE medium='email').
 ```
+
+> ⚠️ **Correction (measured in 9.4): `ix_nd_email_status_time` is misnamed — it has no `status`
+> column.** It is `(project_id, created_at DESC) WHERE medium='email'`. Do not reach for it to serve
+> a delivery-status predicate; it cannot. 9.4's email filter is keyed by `notification_id` and is
+> served by `ix_nd_notification`. See the Phase 9.4 deviations.
 
 **Delivery-status enum** (`enum.DeliveryStatus`, matches the CHECK). v1 sets only: `pending`
 (enqueued), `sent` (provider accepted — the v1 success terminal without webhooks), `failed`
@@ -1652,9 +1660,10 @@ The console shows **status + one elapsed time**.
 - ~~`recipient_list.tsx:203-205` renders the recipient ID as a plain span; nothing links anywhere.~~
   **Fixed in 9.2:** recipient ids link to the detail page from both the recipient list and the
   notifications list, via the shared `features/recipient/recipient_link.tsx`.
-- `dto.ListNotificationsFilters` is `{ProjectID, Pagination, Kind}` + (**9.2**) `RecipientExtID` —
-  still no status, target, medium, or date filter. **9.2 also switched the repo method to take the
-  filters DTO**, so 9.4 adds filters by extending that struct, not by growing a parameter list.
+- ~~`dto.ListNotificationsFilters` is `{ProjectID, Pagination, Kind}` + (**9.2**) `RecipientExtID` —
+  still no status, target, medium, or date filter.~~ **9.2 switched the repo method to take the
+  filters DTO**, and **9.4 duly extended that struct** (status, target, email delivery, date range,
+  recipient search) with no signature churn — the seam worked as designed.
 
 **What already exists to build on (reuse — do NOT re-derive):**
 - ⚠️ `Notification.ListForRecipient` — powers the Dev API's `GET /recipients/{id}/notifications`.
@@ -2517,6 +2526,214 @@ JOIN would silently drop every in-app-only notification).
 Follow the layered handler→service→pg pattern. Update Phase 9.4 status to DONE and add a
 "Phase 9.4 — deviations (as built)" section recording the final filter set + any index work.
 ```
+
+#### Phase 9.4 — deviations (as built)
+
+**One migration** — `migrations/20260717120000_add_notification_project_id_index.sql` (Goose,
+`NO TRANSACTION` + `CREATE INDEX CONCURRENTLY`; applied manually, no runner is wired in). 9.4 is
+the Phase 9 sub-phase that needed one, as the brief guessed — but **not for the reason it gave**
+(see the index section). The send path, worker, broadcast pipeline, and all gating logic are
+untouched. `go build`/`go vet`/the whole suite pass; the console typechecks, lints (the same 2
+pre-existing warnings 9.3 recorded), and builds; every filter was driven **live in a real browser**
+against the running API + Postgres, on a seeded 400k-row dataset **and** on the real project 3.
+
+**THE FINAL FILTER SET** (`dto.ListNotificationsFilters`, extended in place — no signature churn,
+exactly as 9.2 set it up for):
+
+| filter | param | shape |
+|---|---|---|
+| in-app status | `status` | one `enum.NotificationStatus` |
+| target | `channel`, `topic`, `event` | exact match, each independent |
+| email medium + delivery status | `email` | `none` \| `any` \| a `DeliveryStatus` |
+| date range | `created_from`, `created_to` | RFC3339 instants, inclusive |
+| recipient search | `recipient_search` | case-insensitive substring |
+| (9.2, unchanged) | `recipient_id` | exact match |
+
+- **THE DECISION (batch query vs. join): the batch query STAYS, and the filter is an `EXISTS`
+  subquery.** The brief expected a delivery-status filter might force the join. It does not, and
+  the distinction it drew is the reason why: **narrowing the row set and projecting the email data
+  are different jobs.** The `EXISTS` narrows (only when asked); the batch query projects (always,
+  and narrows nothing). So the main query still touches `notification` alone, in-app-only rows are
+  never dropped by a filter that wasn't about email, and the plan for an unfiltered list is
+  byte-for-byte what it was. A `LEFT JOIN` would have been the correct *join* answer but a worse
+  one: it changes the plan for every request to serve the minority that filters on email, and it
+  re-opens the "what does a NULL delivery mean" question that `EXISTS`/`NOT EXISTS` answers
+  structurally.
+- **There is deliberately NO `medium` filter, and that is the honest reading of "medium + delivery
+  status".** In v1 the two dimensions are not independent: `email` is the only medium with a
+  `notification_delivery` row at all — Phase 4 kept the in-app outcome on the `notification` row —
+  so a `medium=in_app` control could only ever mean "every notification", i.e. a filter that lies.
+  The medium dimension is instead expressed by *which* control you use (`status` is in-app's;
+  `email` is email's), and `email=none`/`any` carries the "was email attempted" question. This is
+  the same class of fix as 9.3's "uncataloged ⇒ unavailable is a lie": the control set now matches
+  what the data can actually answer.
+  - **`email=none` is the load-bearing one.** It is the anti-join (`NOT EXISTS`) that makes
+    in-app-only notifications — still the common case — **findable**, not merely un-dropped. Proven
+    live: on the seeded project it returns exactly 140,000 of 200,000 rows (the 60k that carried
+    email excluded), every row rendering an In-app line and no Email line.
+- **The console offers only the delivery statuses that can occur; the API accepts every legal one.**
+  Four of the twelve `DeliveryStatus` values (`sending`, `suppressed`, `quota_exceeded`, `rejected`)
+  are reserved and never written in v1 (Phase 4), so offering them as filters would imply data that
+  cannot exist. `enum.EmailDeliveryFilter.Valid()` still accepts them — the API validates against
+  the CHECK constraint, the UI against reality.
+- **Single-select per filter, not multi.** One `status`, one `email`. Multi-select would mean array
+  search params, a bigger URL grammar, and a `= ANY($n)` per filter, to answer questions
+  ("failed OR quota_exceeded") nobody has asked yet. Recorded as the cheap thing to revisit.
+- **An impossible filter value is a 400, not an empty list.** `dto.ListNotificationsFilters.Validate()`
+  rejects a `status`/`email`/`kind` that no row could hold, and an inverted date range. Silently
+  returning zero rows for a typo reads as "you have no such notifications", which is a lie of the
+  same family this phase exists to remove. It also **normalizes**: blank params (`?status=`) are
+  treated as absent, and the external-id filters are lowercased (external ids are stored lowercase —
+  the rule 9.2 recorded). The service's old ad-hoc lowercasing moved into it.
+  - Blank-is-absent is not hypothetical: `httpx.DecodeQuery` decodes `created_from` into a
+    `*time.Time`, and an empty `?created_from=` is a hard **400** from gorilla/schema, not an
+    ignored param. The console omits empties for that reason; the DTO collapses the rest.
+- **`recipient_search` escapes LIKE wildcards.** This is the repo's **first** use of dbx's
+  `AddContainsFilter`, and dbx does not escape `%`/`_`/`\`. External ids are customer-chosen and
+  very often contain `_` (`user_1`), which LIKE reads as "any single character" — so searching
+  `user_1` also matched `userX1`, and a lone `%` matched everything. Escaped in the pg layer
+  (`escapeLikeNeedle`; Postgres' default LIKE escape is a backslash, so no ESCAPE clause is needed).
+  It is a precision bug, not injection — the needle was always a bind parameter. Pinned by a test
+  that was **confirmed to fail** against the unescaped version.
+
+**INDEX WORK — the brief pointed at the wrong index, and missed a live bug.**
+
+- 🐛 **`notification` had NO index beyond its primary key.** Not on `project_id`, not on anything.
+  So *every* console notifications list — the one shipped today, with no filters at all — is a
+  sequential scan of the whole table, narrowed to one project afterwards. It hides in dev (a handful
+  of rows) and hides in the plan whenever the project being listed happens to own the highest ids,
+  because then walking `notification_pkey` backward stops at LIMIT and looks perfect. **It is not
+  perfect for any other project:** their rows sit behind that one in id order. Measured on 400k rows
+  across two projects, listing project 3 (4 rows, lowest ids):
+  | | plan | buffers | time |
+  |---|---|---|---|
+  | before | Parallel Seq Scan | 4707 | 14.3 ms |
+  | after `ix_notification_project_id` | Index Scan | **4** | **0.058 ms** |
+  This is a pre-existing bug 9.4 did not introduce — but "the list is usable on a project with real
+  volume" is this phase's stated goal, and shipping filters onto a seq scan would not have met it.
+  - **Someone had already noticed.** A commented-out
+    `CREATE INDEX ... ON notification (id DESC, project_id, recipient_external_id)` had been sitting
+    in `pg/notification.go` above `ListForRecipient` for a long time, never applied — because a
+    comment is not a migration and no runner is wired in. (Its leading `id DESC` could not seek to a
+    project anyway, so it would not have fixed this.) Replaced with a note pointing at the real
+    migration, and at the fact that `ListForRecipient` — the Dev API inbox, out of scope here —
+    still has no index of its own beyond the `project_id` prefix it can now borrow.
+- **The one index added: `ix_notification_project_id (project_id, id DESC)`** — the universal prefix
+  of every list query (all of them filter `project_id = ?` and order by `id DESC` with a LIMIT), so
+  it serves the scan, the ordering and the early stop at once. `CONCURRENTLY` because `notification`
+  is on the **send hot path** and a plain `CREATE INDEX` would take ACCESS EXCLUSIVE and block every
+  send for the build (Phase 2's precedent). Verified to apply *and* roll back through goose.
+- ⚠️ **`ix_nd_email_status_time` does NOT contain `status`, despite its name.** It is
+  `(project_id, created_at DESC) WHERE medium='email'`. The brief (and this doc) cite it as the
+  partial index covering a delivery-status predicate; it cannot. **No new delivery index was needed
+  anyway** — the `EXISTS` is keyed by `notification_id`, so **`ix_nd_notification` serves it**
+  (measured: `email=bounced` → Index Scan Backward on `ix_nd_notification`, 0.085 ms). The brief's
+  own instruction — check whether an existing partial index covers the predicate before adding one —
+  is what surfaced this: the answer was "no, but a different existing index does". Left as-is; the
+  misleading *name* is recorded here rather than renamed, since renaming an index is its own
+  migration for zero behavioral gain.
+- **Measured and DECLINED: an index on `(channel, topic, event)` or on `created_at`.** Every filter
+  answers in ≤ ~45 ms on 400k rows, and most are sub-millisecond; the two slower shapes are a
+  deliberately broad old date window (43 ms — walking id DESC to reach an 11-month-old window) and
+  the full target+date+email combination (~12 ms). Each additional index taxes **every INSERT on the
+  send path** to speed one console filter combination. Same instinct as 9.2 refusing to hang
+  aggregates off `repo.Get`. Revisit only with a measurement.
+- **Untouched and still true: the paginated `COUNT(*)` is the most expensive part of a large list**
+  (~19 ms / 200k rows, a seq scan — it must count every match). Pre-existing to offset pagination,
+  not something filters changed. Noted for 9.5, which will face it directly.
+
+**CONSOLE — built on the uncommitted URL-sync work already in the tree.**
+
+- ⚠️ **There was uncommitted WIP when this phase started**, beyond the recipient-detail files the
+  brief warned about: a console-wide "sync the selected view to the URL" pass (new untracked
+  `console/src/lib/search.ts` with `validateViewSearch`, applied to the notifications `kind` toggle,
+  the preferences kind, and the recipient-detail tab). 9.4 **built on it rather than around it** —
+  the notifications route's `validateSearch` grew from that one-key helper into
+  `validateNotificationSearch` (kind + every filter), and `lib/search.ts` gained the optional-param
+  readers. The route-owns-URL-state / feature-takes-value-and-onChange convention is that WIP's; it
+  is now also 9.4's.
+- **Filters live in the URL; the PAGE does not.** A shared link is a shared *question*, and page 5
+  of it is not part of the question. Pagination stays local table state.
+- 🐛 **Fixed while verifying: filtering left the pager claiming a page it wasn't on.** Resetting to
+  page 1 on a filter change is obvious (otherwise you land on page 5 of a shorter list and read the
+  empty table as "no matches"). The non-obvious half: **`DataTableSmart` seeds its pagination from
+  `state.pagination` ONCE**, via a `useState` initializer, and thereafter owns it — publishing
+  upward through `onStateChange` but never reading the prop again. So the reset reached the *query*
+  (which correctly refetched `page=1`) but not the table's own pager, which went on displaying
+  "Page 4 of 2500" above page-1 rows. Fixed by keying the table on the filter signature so it
+  re-seeds; the key deliberately **excludes** the page, or paging would remount and bounce back to
+  page 1 forever (verified: 1→2→3→4 while filtered, filters holding). No other console list hits
+  this because nothing else ever moved their page from the outside.
+- 🐛 **Fixed while verifying: numeric-looking filters were silently dropped.** TanStack Router
+  *parses* the search string, so `?recipient_search=12` arrives as the **number** 12 and
+  `?channel=true` as a boolean. The first cut's `typeof value === "string"` guard rejected those as
+  malformed and dropped them — and recipient external ids are customer-chosen strings that are very
+  often all digits. It was invisible against a project whose row count happened to equal the
+  unfiltered count, and only showed up on the **real** project 3, whose one real recipient is
+  literally named `123`. `optionalStringSearch` now coerces number/boolean back to text. (TanStack
+  then re-serializes the string as `?recipient_search=%2212%22` to preserve the type on round-trip —
+  ugly, correct, and it reloads and shares fine. Left alone.)
+- 🐛 **Fixed while verifying: a date RANGE could never be picked — only its last day.** netra's
+  `DatePicker` wraps `@rehookify/datepicker` in `mode="range"`, where a **two-date selection means
+  "complete"** and the next click starts a new range. The first cut closed the range on the first
+  click (`to = from`, to keep it a "valid single-day range") and fed that back in as the picker's
+  state — so the second click always started over, and `from == to == the day you clicked last`. A
+  half-picked range is now an **open-ended `from` with no `to`** ("on or after that day"), which is
+  both a legitimate filter and the state the picker needs to complete. Verified live: click 10 →
+  `?from=2026-07-10`; click 14 → `?from=2026-07-10&to=2026-07-14`.
+- **Dates are calendar DAYS in the URL, INSTANTS on the wire.** `?from=2026-07-10` is readable and
+  shareable; the console converts it to the viewer's local start-of-day / end-of-day before calling
+  the API, so "last week" means the operator's week, not UTC's. End-of-day is computed as
+  next-day-minus-1ms rather than a hardcoded `23:59:59.999`, so a DST transition can't clip an hour.
+  Verified live: a `to=Jul 14` range returns rows sent at `Jul 14, 23:35`, which a naive
+  `T00:00:00` bound would have excluded. (A link shared across timezones resolves to the reader's
+  own days — the right reading of a date picker, and recorded so it isn't mistaken for a bug.)
+- **Free-text filters are debounced (300 ms)**; without it every keystroke is a router navigation, a
+  refetch, and a history entry (measured: typing `digest` = 6 keystrokes = **1** request). The
+  inputs keep a local mirror while typing and re-sync when the prop moves on its own (Clear, back
+  button), so the URL stays the source of truth — but the re-sync must ignore **the echo of its own
+  write**, or the trimmed value coming back erases a trailing space mid-typing and the next
+  character lands in the wrong place (`digest ` + `x` → `digestx`). Guarded by comparing against the
+  trimmed local value; verified live.
+- **The Phase 5 "Email delivery" KPI row is deliberately NOT filtered.** It is the project's
+  lifetime email picture; silently re-scoping it to the current filter would make two different
+  numbers look like the same one. (Filtered aggregates are 9.5's job.)
+- **Switching kind PRESERVES the filters rather than clearing them.** The broadcast table is served
+  by a different endpoint (`/broadcasts`, unfiltered — out of scope for a *notification* list phase)
+  and shows no filter bar, so the selection is simply dormant and switching back restores it.
+- **`useNotifications` took an options object** instead of growing to a sixth positional parameter —
+  the same instinct 9.2 applied to `ListNotifications` on the Go side. Two call sites, both updated.
+
+**Live verification (real browser, real API, real Postgres):**
+1. On a **seeded 200k-row project**: unfiltered, `email=none` (140,000 rows, no Email lines),
+   `email=bounced` (every row Email/Bounced), and the brief's own question —
+   *bounced email on `digest/none/mention`* — all correct.
+2. **The filtered URL survives a reload** and, opened in a **fresh browser context**, renders the
+   same 10 rows — i.e. it is genuinely shareable, not just restored from local state.
+3. A hand-edited `?status=bogus` is **dropped** from the URL and the page renders unfiltered (the
+   route drops unrecognized optional params; the API would 400 an actual request).
+4. Interactively: typing in Channel updates the URL and the rows; the date picker builds a real
+   range; **Clear** ("Clear filter" / "Clear N filters") removes them and restores the full list.
+5. On the **real project 3**: every filter behaves, `email=none` correctly returns 0 (all 4 of its
+   notifications carried email) and renders "No results." rather than looking broken, and
+   `recipient_search=999` returns 0 while `123` returns 4 — which is how the numeric-coercion bug
+   above was caught.
+6. **The dev DB was restored**: both seeded projects deleted, back to the original 3 projects /
+   4 notifications / 4 deliveries / 1 recipient / 1 preference, with the same delivery-status mix.
+   The new index remains — it is the migration. (Sequences are advanced; harmless.)
+
+- **Tests:** `internal/service/notification_filters_test.go` (real-Postgres, gated on `TEST_DB_URL`,
+  self-cleaning — the established pattern). The fixture gives every filter a match and a non-match,
+  and pins the things that would silently rot: **in-app-only rows survive every non-email filter**
+  (a JOIN regression fails here), `email=none` finds exactly them, `email=<status>` selects on the
+  *delivery* row and not the notification's own (the fixture's bounced row is deliberately in-app
+  `delivered`), filters compose as AND, the paginated **total agrees with the rows** (a COUNT that
+  loses the filters offers pages that render empty), blank params don't narrow, external ids are
+  lowercased, impossible values are rejected, and the `EXISTS` **cannot reach across projects**.
+- **Untouched (as scoped):** the send path, worker, broadcast pipeline, all gating logic, the SDKs,
+  `docs/`, the Developer API (this is console-only — `ListNotificationsFilters` is not a public
+  surface), and the broadcast list. Analytics (9.5) is still open, and now has a measured COUNT
+  problem waiting for it.
 
 ### Phase 9.5 — Analytics
 

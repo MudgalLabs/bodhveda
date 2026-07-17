@@ -3,6 +3,7 @@ package pg
 import (
 	"context"
 	"fmt"
+	"strings"
 	"time"
 
 	"github.com/jackc/pgx/v5"
@@ -109,11 +110,18 @@ func (r *NotificationRepo) Overview(ctx context.Context, projectID int) (*dto.No
 	return result, nil
 }
 
-/*
-CREATE INDEX CONCURRENTLY IF NOT EXISTS idx_notification_id_project_recipient
-ON notification (id DESC, project_id, recipient_external_id);
-*/
-
+// NOTE: this method (the Developer API's recipient inbox) has no index of its
+// own. `notification` carries exactly one index besides its PK —
+// ix_notification_project_id (project_id, id DESC), added in Phase 9.4 for the
+// console list — which this query's leading `project_id` can use, though a
+// dedicated (project_id, recipient_external_id, id DESC) would serve its cursor
+// walk better. Measure before adding one: every index here is paid on the send
+// hot path, which inserts into this table.
+//
+// (A commented-out `CREATE INDEX ... (id DESC, project_id, recipient_external_id)`
+// sat here for a long time and was never applied — a comment is not a migration,
+// and no runner is wired in. Its leading `id DESC` could not seek to a project
+// anyway. Migrations live in migrations/, applied with goose.)
 func (r *NotificationRepo) ListForRecipient(ctx context.Context, projectID int, recipientExtID string, cursor *query.Cursor) ([]*entity.Notification, *query.Cursor, error) {
 	returnedCursor := &query.Cursor{
 		After:  nil,
@@ -296,6 +304,22 @@ func (r *NotificationRepo) DeleteForProject(ctx context.Context, projectID int) 
 	return int(res.RowsAffected()), nil
 }
 
+// escapeLikeNeedle makes a user-typed search term match literally, by escaping
+// the wildcards LIKE/ILIKE would otherwise honour inside it.
+//
+// This matters more than it looks: recipient external ids are customer-chosen
+// and very commonly contain `_` (`user_1`, `perf_user_42`), which LIKE reads as
+// "any single character" — so searching `user_1` would quietly also match
+// `userX1`. `%` and the escape character itself have the same problem.
+//
+// Postgres' default LIKE escape character is a backslash, so prefixing is enough
+// and no ESCAPE clause is needed. The needle is passed as a bind parameter, so
+// this is about matching precision, not injection.
+func escapeLikeNeedle(s string) string {
+	r := strings.NewReplacer(`\`, `\\`, `%`, `\%`, `_`, `\_`)
+	return r.Replace(s)
+}
+
 func (r *NotificationRepo) ListNotifications(ctx context.Context, filters *dto.ListNotificationsFilters) ([]*entity.Notification, int, error) {
 	sql := `
 		SELECT id, project_id, recipient_external_id, payload, broadcast_id, channel, topic, event, read_at, opened_at, created_at, updated_at, completed_at, status
@@ -317,6 +341,67 @@ func (r *NotificationRepo) ListNotifications(ctx context.Context, filters *dto.L
 
 	if filters.RecipientExtID != nil {
 		b.AddCompareFilter("recipient_external_id", dbx.OperatorEQ, *filters.RecipientExtID)
+	}
+
+	if filters.RecipientSearch != nil {
+		b.AddContainsFilter("recipient_external_id", escapeLikeNeedle(*filters.RecipientSearch), false)
+	}
+
+	if filters.Status != nil {
+		b.AddCompareFilter("status", dbx.OperatorEQ, string(*filters.Status))
+	}
+
+	if filters.Channel != nil {
+		b.AddCompareFilter("channel", dbx.OperatorEQ, *filters.Channel)
+	}
+	if filters.Topic != nil {
+		b.AddCompareFilter("topic", dbx.OperatorEQ, *filters.Topic)
+	}
+	if filters.Event != nil {
+		b.AddCompareFilter("event", dbx.OperatorEQ, *filters.Event)
+	}
+
+	// Dereferenced deliberately: AddCompareFilter skips a nil `value`, but a nil
+	// *time.Time boxed into `any` is NOT == nil, so passing the pointer would
+	// sneak a NULL comparison into the WHERE and match nothing.
+	if filters.CreatedFrom != nil {
+		b.AddCompareFilter("created_at", dbx.OperatorGTE, *filters.CreatedFrom)
+	}
+	if filters.CreatedTo != nil {
+		b.AddCompareFilter("created_at", dbx.OperatorLTE, *filters.CreatedTo)
+	}
+
+	// The email filter is an EXISTS subquery, NOT a join — and that is the whole
+	// design of this method, so it is worth stating plainly.
+	//
+	// This list attaches email deliveries via a SECOND batch query (below),
+	// because a notification with no email simply has no delivery row: joining
+	// would drop every in-app-only notification, still the common case. Adding a
+	// delivery-status filter does NOT force that join. EXISTS keeps the main
+	// query on `notification` alone — same plan, same batch attach, one extra
+	// semi-join — and it keeps the two concerns honest:
+	//
+	//   - narrowing the row set (this predicate) is what the operator ASKED for;
+	//   - projecting the email data (the batch query) must never narrow anything.
+	//
+	// EmailFilterNone is the anti-join that makes in-app-only rows findable
+	// rather than merely un-dropped.
+	if filters.Email != nil {
+		const emailDeliveryExists = `SELECT 1 FROM notification_delivery nd
+			WHERE nd.notification_id = notification.id AND nd.medium = 'email'`
+
+		switch *filters.Email {
+		case enum.EmailFilterNone:
+			b.AppendWhere(fmt.Sprintf("NOT EXISTS (%s)", emailDeliveryExists))
+		case enum.EmailFilterAny:
+			b.AppendWhere(fmt.Sprintf("EXISTS (%s)", emailDeliveryExists))
+		default:
+			// Validated as a real DeliveryStatus by the DTO.
+			b.AppendWhere(
+				fmt.Sprintf("EXISTS (%s AND nd.status = $%d)", emailDeliveryExists, b.ArgNum()),
+				string(*filters.Email),
+			)
+		}
 	}
 
 	b.AddSorting("id", "DESC")
