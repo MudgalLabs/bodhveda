@@ -124,13 +124,10 @@ function InAppSection({ notification }: { notification: Notification }) {
             </div>
 
             <dl className="grid grid-cols-1 gap-3 sm:grid-cols-2">
-                <Field
-                    label="Sent"
-                    value={formatTimestamp(notification.created_at)}
-                />
-                <Field
+                <TimestampField label="Sent" ts={notification.created_at} />
+                <TimestampField
                     label="Resolved"
-                    value={formatTimestamp(notification.completed_at)}
+                    ts={notification.completed_at}
                     hint="When the delivery pipeline finished resolving this notification's in-app outcome."
                 />
                 <Field
@@ -246,33 +243,21 @@ function FieldGrid({ delivery }: { delivery: NotificationDeliveryDetail }) {
                 <Separator />
             </div>
 
-            <Field
-                label="Resolved"
-                value={formatTimestamp(delivery.created_at)}
-            />
-            <Field label="Sent" value={formatTimestamp(delivery.sent_at)} />
-            <Field
-                label="Delivered"
-                value={formatTimestamp(delivery.delivered_at)}
-            />
-            <Field
+            <TimestampField label="Resolved" ts={delivery.created_at} />
+            <TimestampField label="Sent" ts={delivery.sent_at} />
+            <TimestampField label="Delivered" ts={delivery.delivered_at} />
+            <TimestampField
                 label="Opened"
-                value={formatTimestamp(delivery.opened_at)}
+                ts={delivery.opened_at}
                 hint={OPEN_SOFT_SIGNAL_COPY}
             />
-            <Field
+            <TimestampField
                 label="Clicked"
-                value={formatTimestamp(delivery.clicked_at)}
+                ts={delivery.clicked_at}
                 hint={OPEN_SOFT_SIGNAL_COPY}
             />
-            <Field
-                label="Bounced"
-                value={formatTimestamp(delivery.bounced_at)}
-            />
-            <Field
-                label="Complained"
-                value={formatTimestamp(delivery.complained_at)}
-            />
+            <TimestampField label="Bounced" ts={delivery.bounced_at} />
+            <TimestampField label="Complained" ts={delivery.complained_at} />
         </dl>
     );
 }
@@ -282,11 +267,13 @@ function Field({
     value,
     hint,
     mono,
+    title,
 }: {
     label: string;
     value?: string | null;
     hint?: string;
     mono?: boolean;
+    title?: string;
 }) {
     return (
         <div className="flex flex-col gap-y-1">
@@ -299,6 +286,7 @@ function Field({
                 )}
             </dt>
             <dd
+                title={value ? title : undefined}
                 className={`text-text-primary text-sm break-all ${
                     mono ? "font-mono text-xs" : ""
                 } ${!value ? "text-text-muted" : ""}`}
@@ -306,6 +294,27 @@ function Field({
                 {value || "—"}
             </dd>
         </div>
+    );
+}
+
+// TimestampField owns both renderings of one instant — seconds inline, full
+// millisecond precision on hover — so no call site can pair the two up wrongly.
+function TimestampField({
+    label,
+    ts,
+    hint,
+}: {
+    label: string;
+    ts?: string | null;
+    hint?: string;
+}) {
+    return (
+        <Field
+            label={label}
+            value={formatTimestamp(ts)}
+            title={formatTimestampPrecise(ts) ?? undefined}
+            hint={hint}
+        />
     );
 }
 
@@ -363,7 +372,12 @@ function EventTimeline({
                         </div>
 
                         {event.at && (
-                            <span className="text-text-muted text-xs">
+                            <span
+                                title={
+                                    formatTimestampPrecise(event.at) ?? undefined
+                                }
+                                className="text-text-muted text-xs"
+                            >
                                 {formatTimestamp(event.at)}
                             </span>
                         )}
@@ -383,9 +397,25 @@ function EventTimeline({
     );
 }
 
+// The timestamps in this dialog are read against each other — the question is
+// always "what happened, in what order" — and this pipeline resolves in
+// milliseconds. netra's formatDate stops at minutes, which renders genuinely
+// distinct instants as the same string (a real row here: resolved 06:13:40.797,
+// sent 06:13:42.464 — 1.7s apart, both "06:13"). So seconds are shown inline,
+// and the sub-second gaps stay recoverable on hover rather than being rounded
+// away. Built on top of formatDate so the date half can't drift from the rest of
+// the console.
 function formatTimestamp(ts?: string | null): string | null {
     if (!ts) return null;
-    return formatDate(new Date(ts), { time: true });
+    const date = new Date(ts);
+    const seconds = String(date.getSeconds()).padStart(2, "0");
+    return `${formatDate(date, { time: true })}:${seconds}`;
+}
+
+function formatTimestampPrecise(ts?: string | null): string | null {
+    if (!ts) return null;
+    const ms = String(new Date(ts).getMilliseconds()).padStart(3, "0");
+    return `${formatTimestamp(ts)}.${ms}`;
 }
 
 // The payload is arbitrary customer JSON, so it is pretty-printed rather than
