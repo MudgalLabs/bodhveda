@@ -2205,9 +2205,16 @@ console typechecks, lints (2 pre-existing unrelated warnings), and builds; the g
   SHARED WITH THE DEVELOPER API.** The brief scoped 9.3 console-only and named that service method
   as the broken read. It is also the handler for the Dev API's
   `GET /recipients/{id}/preferences` (`routes.go:118`, API-key auth) — a **documented, SDK-consumed,
-  openapi'd** surface, and the one Resurface's settings UI reads via `usePreferences()`. Fixing it
-  in place would have changed the row SET and the resolved values a public API returns, from inside
-  a console phase. So:
+  openapi'd** surface. Fixing it in place would have changed the row SET and the resolved values a
+  public API returns, from inside a console phase. So:
+  - ✏️ **Correction (measured in 9.3.1, against the Resurface checkout):** this section originally
+    said the read was "the one Resurface's settings UI reads via `usePreferences()`". **It is not.**
+    `usePreferences` appears nowhere in Resurface — the Phase 8 prompt (above) asked for those React
+    hooks, but the cutover was built **server-side** instead: `/settings` calls
+    `getDigestPreferences()` → two `preferences.**check**()` calls (`web/lib/bodhveda.ts`). The
+    read's public-surface argument stands on its own (openapi'd + SDK'd), but the specific Resurface
+    claim was wrong, and it propagated into 9.3.1's first draft before being caught. Verify against
+    `../resurface`, don't inherit this.
   - **New repo method + new service method + the console handler re-pointed at it.**
     `PreferenceRepo.ResolveRecipientPreferences` → `PreferenceService.ResolveRecipientPreferences`
     → `GetRecipientPreferencesConsole`. The Dev API keeps the old method, unchanged.
@@ -2417,7 +2424,15 @@ including a real send.
   deployed**; those steps are irreversible/credential-gated and are the human's.
   - ⚠️ **The SDK bumps are types + docs only. The behavior change ships with the API** — customers
     get it whether or not they upgrade. That asymmetry is why the CHANGELOGs lead with the behavior
-    change rather than the type change, and why the runbook ends with "tell Resurface".
+    change rather than the type change.
+  - **Resurface's measured impact: almost certainly none** — and the reasoning is worth keeping,
+    because the *first draft of this section claimed the opposite*. It inherited 9.3's wrong claim
+    that Resurface's settings UI reads `usePreferences()` (it does not; the string is absent from
+    that codebase — see the correction in the 9.3 deviations). It reads via **`check`**, and old ==
+    new for every case it can hit: `topic: none` can't take an `any` rule, and its backfill wrote
+    explicit rows for every user, so `check` resolves `recipient_exact` either way. The lesson is
+    the phase's own: **a claim about a downstream consumer is not verified until you open that
+    consumer's code.** Full analysis in `agent-docs/release-preference-read-fix.md` §6.
 
 **Live verification (project 3 `Resend`, recipient `123`, real API + Postgres + a real send):**
 1. **The bug reproduced on untouched real data.** Project 3 catalogs `digest/none/sent` for **email

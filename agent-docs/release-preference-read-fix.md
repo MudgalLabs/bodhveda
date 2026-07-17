@@ -107,9 +107,32 @@ the moment the API ships, whether or not they upgrade.** That is the whole reaso
 are loud. Deploy via the usual `.github/workflows/deploy.yml` path (push to `main` builds + pushes
 the image and SSH-deploys the VPS).
 
-## 6. Tell Resurface
+## 6. Resurface — measured impact: almost certainly none
 
-Resurface's settings UI reads `usePreferences()`. After this ships its toggles resolve honestly —
-which is the point, but it means the rendered state can change without Resurface deploying
-anything. Worth an explicit look at that screen post-deploy. See the Phase 9.3.1 deviations in
-`agent-docs/overview.md`.
+Checked against the `../resurface` checkout in 9.3.1, because an earlier draft of this file claimed
+(wrongly, inheriting it from the 9.3 deviations) that Resurface's settings UI reads
+`usePreferences()`. **It does not — `usePreferences` appears nowhere in Resurface.**
+
+What it actually does: `/settings` (a server component) calls `getDigestPreferences()` → two
+`preferences.**check**()` calls (in_app + email) on `digest/none/sent` → renders the toggles
+(`web/lib/bodhveda.ts`, `web/app/(app)/settings/page.tsx`). So the path to their UI is the **check**
+endpoint, not the list read.
+
+Old and new `check()` **agree** for every case Resurface can hit:
+
+- Their target is `topic: none`, so the `topic='any'` fix is a no-op for them by definition.
+- The medium-dependent default only fires when nothing matches. `web/scripts/bodhveda-backfill.ts`
+  wrote explicit `in_app` + `email` rows for **every** user ⇒ `check` resolves `recipient_exact` ⇒
+  same stored value, before and after.
+- `bodhveda-targets.ts` requires `digestSent` to be cataloged for in_app + email ⇒ even an
+  un-backfilled user resolves `project_exact` ⇒ identical.
+
+The only divergence: a user with **no explicit email row AND email not cataloged** — old `true`, new
+`false`. There the old value was the lie (the page rendered "Email digest: ON" while the send path,
+unchanged since Phase 2, refused to send). So the only visible change is a toggle that stops
+contradicting the inbox.
+
+Worth passing on (Resurface's own code, not ours): `settings/page.tsx` falls back to
+`{ inApp: true, email: true }` when Bodhveda is unreachable, commented as "matches the catalog
+default". That hardcodes the same wrong assumption this release removes — email's default is
+`false`. It only fires during an outage, but it is the same bug's last hiding place.
