@@ -5,8 +5,9 @@
 -- v1 scope: this table is written for EMAIL (and future non-in_app mediums)
 -- ONLY. The in-app inbox is NOT migrated onto delivery rows — its status /
 -- read_at / opened_at stay on the `notification` row (see agent-docs/overview.md,
--- "notification_delivery for email (non-in_app) only in v1"). So the old design
--- doc's in_app backfill / dual-write / column-drop is deliberately NOT done here.
+-- "Design decisions" → "notification_delivery for email (non-in_app) only"). So the
+-- old design doc's in_app backfill / dual-write / column-drop is deliberately NOT
+-- done here.
 --
 -- One row per (notification_id, medium). `address_snapshot` captures the contact
 -- address at enqueue time so later contact edits don't rewrite history.

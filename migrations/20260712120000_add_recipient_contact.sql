@@ -23,7 +23,8 @@ CREATE TABLE IF NOT EXISTS recipient_contact (
 -- At most one primary contact per (recipient, medium). A second primary for the
 -- same pair violates this partial unique index and surfaces as a 409.
 -- This index also serves the "fetch the primary contact" lookup, so no separate
--- non-unique index is created (see agent-docs/overview.md Phase 1 deviations).
+-- non-unique index is created — a plain index on the identical columns+predicate
+-- would be pure write cost. (The old design doc's DDL listed both.)
 CREATE UNIQUE INDEX IF NOT EXISTS ux_recipient_contact_one_primary
     ON recipient_contact(project_id, recipient_external_id, medium)
     WHERE is_primary = true;
