@@ -490,6 +490,7 @@ down. Sub-phases are ordered by dependency and each is one session.
 - Phase 9.1 — Delivery detail (widen the delivery projection + a detail dialog) — **DONE** (see "Phase 9.1 — deviations (as built)" below)
 - Phase 9.2 — Recipient detail page (`/projects/$id/recipients/$recipientId`) — **DONE** (see "Phase 9.2 — deviations (as built)" below)
 - Phase 9.3 — Recipient preference editing (the per-medium grid deferred in Phase 2) — **DONE** (see "Phase 9.3 — deviations (as built)" below)
+- Phase 9.3.1 — Developer API preference read fix (the public-surface half of 9.3) — **DONE** (see "Phase 9.3.1 — deviations (as built)" below). Not a console phase: 9.3 fixed the console's read and recorded that the Dev API's `GET /recipients/{id}/preferences` was still wrong on purpose, because it is a documented, SDK-consumed surface. This is that fix, versioned — openapi + docs + SDK bumps (js core/react `0.2.0`, go `v0.3.0`; runbook: `agent-docs/release-preference-read-fix.md`). **Unpublished/undeployed** — see the runbook.
 - Phase 9.4 — Notification list filters — **TODO**
 - Phase 9.5 — Analytics (time-series + per-target/medium breakdowns) — **TODO**
 
@@ -2323,10 +2324,141 @@ console typechecks, lints (2 pre-existing unrelated warnings), and builds; the g
   `enum.MediumInApp` call site, the SDKs, and `docs/`. No migration; `routeTree.gen.ts` untouched
   (9.2's route already existed). Analytics (9.5) and broader filters (9.4) are still open.
 
+### Phase 9.3.1 — Developer API preference read fix
+
+- **Goal:** kill the divergence 9.3 deliberately left behind — the Developer API's
+  `GET /recipients/{id}/preferences` still answered with the old Go exact-match merge, so a
+  customer's own settings UI could render a toggle that contradicted what the recipient received.
+- **In scope:** re-point that read (and `/preferences/check`) at the proven resolver; the public
+  surface work that makes it a real release — `openapi.json` first, docs prose, SDK bumps + loud
+  CHANGELOGs, a publish runbook.
+- **Out of scope:** gating semantics (correct), the console (9.3 already honest), 9.4/9.5.
+- **Done when:** the Dev API read agrees with `ShouldDirectNotificationBeDelivered` cell-for-cell,
+  and 9.3's characterization test — which pinned the divergence — is gone.
+
+#### Phase 9.3.1 — deviations (as built)
+
+**No migration**, no new endpoints, no gating-semantics change. The send path, worker, broadcast
+pipeline, and `ShouldDirectNotificationBeDelivered` are byte-for-byte untouched — this phase changed
+the READ that disagreed with them, one surface over from 9.3. `go build`/`go vet`/the full suite
+pass; the console typechecks; both reads were driven live against the running API + Postgres,
+including a real send.
+
+- **THE DECISION (what the public surface exposes): `cataloged` YES, `source` NO.** The brief left
+  this open. `cataloged` is exposed because *this change creates the need for it*: the row set now
+  includes `(target, medium)` cells the customer never cataloged (they resolve, and can deliver), so
+  a settings UI needs to tell a declared catalog entry from a default-resolved cell in order to
+  decide what to render. `source` is withheld because it names the resolver's internal cascade rungs
+  (`recipient_exact`/`project_any`/…) — publishing it freezes our resolution *algorithm's vocabulary*
+  into a permanent contract, and `inherited` already answers the only question a settings UI asks
+  ("did the recipient choose this?"). The console keeps `source`: it ships in-repo with the resolver
+  and changes alongside it.
+  - Shape: `dto.ResolvedPreferenceState{Enabled, Inherited, Cataloged}` is the public read state;
+    `dto.ConsoleResolvedPreferenceState` **embeds** it and adds `Source` (embedding keeps the
+    console's JSON byte-identical, so no console change was needed). `dto.PreferenceState`
+    `{Enabled, Inherited}` now means "the row you just WROTE" and rides the PATCH response only —
+    a write describes a row, a read answers a question, and they are no longer the same type.
+  - Verified live: the Dev API response carries `cataloged` and no `source`; the console carries
+    both; both agree cell-for-cell.
+- **The check endpoint had the same bug and a worse one, and is fixed too.**
+  `CheckRecipientTargetSubscription` walked stored rows in Go with exact matching: it never
+  consulted the `topic='any'` fallbacks, and its step-3 default returned `enabled=true` for **every**
+  medium — so an email target that could never fire reported as subscribed. Measured live before/after
+  on `brandnew/none/evt`: email `true` → **`false`**; `in_app` stays `true`. Its response gains
+  `cataloged`, and now carries the catalog `label` for cataloged pairs (the old code explicitly
+  nulled it); both additive.
+  - **How it got in, worth remembering:** its step-3 carried a comment asserting *"This must match
+    the delivery default in ShouldDirectNotificationBeDelivered, which delivers when no preference is
+    found."* That was TRUE when in_app was the only medium. **Phase 2 made the default
+    medium-dependent and updated the gating query — but not this hand-rolled mirror of it**, so the
+    comment quietly became false while still reading as a justification. A prose invariant pointing
+    at another function does not hold anything in step; the cell-for-cell test does. That is the
+    argument for one shared cascade, restated by a real bug.
+- **A single-target check CANNOT be "the list read, filtered" — this is the one real design
+  constraint.** The list's universe is the catalog UNION the recipient's rows; a check must answer
+  for **any** `(channel, topic, event)`, including one stored nowhere — which is absent from that
+  universe yet still resolves (a project `topic='any'` rule can cover it, and `in_app` delivers by
+  default). Filtering would have returned "not found" and forced a re-implemented default in Go —
+  the exact bug being fixed. So the repo grew
+  `ResolveRecipientPreferenceForTargets(…, targets []dto.Target)`: **the same cascade over a
+  caller-named universe.** Both entry points delegate to one unexported `resolvePreferences`; only
+  the `target` CTE differs. **Still two SQL resolvers total, not three** — the set-based one and the
+  send path's single-cell one — so `TestResolveRecipientPreferencesAgreesWithGating` remains the
+  invariant that holds everything in step.
+- **No recipient-exists check / 404 on the Dev API read, deliberately.** The console read 404s
+  (9.3), and symmetry was tempting. But every Dev API recipient route is behind
+  `CreateRecipientIfNotExists` (`routes.go:102`), so the recipient is *guaranteed* to exist there —
+  a 404 branch is unreachable code plus a wasted query on every call. Recorded so nobody "fixes" the
+  asymmetry.
+- **9.3's characterization test is deleted, as its author instructed — and replaced by its
+  inverse.** `the Dev API read still disagrees (why the console does not reuse it)` failed on both
+  assertions the moment the fix landed (captured before deleting: *"Dev API read now sees uncataloged
+  recipient rows"* / *"now models the in_app default"*) — exactly the signal it was written to give.
+  Deleting it would have left the fix unpinned, so it became **`the Dev API read agrees with
+  gating`** (every returned cell equals `ShouldDirectNotificationBeDelivered`, plus the two cells the
+  old read could not express) and **`the Dev API check agrees with gating`** (every known cell, plus
+  the unknown-target and `topic='none'` cases that were wrong).
+- **🐛 Found + fixed en route: the Go SDK's `inherited` never deserialized.**
+  `PreferenceState.Inherit` was tagged `json:"inherit"`; the API sends `inherited`. It has been
+  wrong since the SDK's first commit (`8b027dc`) — every Go consumer read `false`, always. Renamed
+  to `Inherited` with the right tag. The rename is the point: fixing only the tag would silently
+  start feeding real values to code written around a field that was always false, so a compile error
+  at the call site is the safer break. Called out in the Go CHANGELOG as source-breaking.
+- **Docs carried the same lie and were corrected, not just extended.**
+  `docs/concepts/preferences.mdx` said a `(target, medium)` "must be declared before that medium can
+  fire" and that email "only fires when the pair is cataloged **and** the recipient enabled it" —
+  both contradicted by the measured cascade (an explicit recipient rule wins *before* the catalog is
+  consulted, so an uncataloged email rule sends). Replaced with a "How a preference resolves" section
+  stating the five rungs, the medium-dependent default, and **the catalog is a default, not a gate**.
+  `openapi.json` was updated FIRST (the MDX renders from it), per the established pattern.
+- **Versioning: minor across the board** (js core/react `0.1.0`→`0.2.0`, go `sdk/go/v0.2.0`→`v0.3.0`),
+  runbook at **`agent-docs/release-preference-read-fix.md`** (a NEW file — `release-email-medium.md`
+  is the record of what shipped in Phase 7.5 and was left alone). **Nothing is published or
+  deployed**; those steps are irreversible/credential-gated and are the human's.
+  - ⚠️ **The SDK bumps are types + docs only. The behavior change ships with the API** — customers
+    get it whether or not they upgrade. That asymmetry is why the CHANGELOGs lead with the behavior
+    change rather than the type change, and why the runbook ends with "tell Resurface".
+
+**Live verification (project 3 `Resend`, recipient `123`, real API + Postgres + a real send):**
+1. **The bug reproduced on untouched real data.** Project 3 catalogs `digest/none/sent` for **email
+   only** — no in_app row. The old read returned **one** cell; the fixed read returns **two**, the
+   second being `(digest/none/sent, in_app)` → `enabled=true, cataloged=false` — a cell the old read
+   omitted entirely *while in-app was actively delivering*. Same shape 9.3 hit; now on the public API.
+2. **Read ↔ delivery agreement proven through a real send.** Flipped email off via the Dev API
+   `PATCH`; the read said `email: enabled=false, inherited=false, cataloged=true` and
+   `in_app: enabled=true`. A direct send with an `email` block then returned
+   `deliveries: [{medium: email, status: muted, failure_reason: preference_disabled}]` and the
+   notification row went `delivered` — **both mediums exactly as the read predicted.** Project 3 has
+   a live Resend secret + a real primary contact (`ceoshikhar@gmail.com`), so the muted path was
+   chosen deliberately: the skip is terminal, so it never enqueued and **Resend was never called**
+   (no real email sent).
+3. **The marquee case, live:** an explicit recipient rule on the **uncataloged**
+   `(secret/none/ping, email)` → read shows `enabled=true, cataloged=false` — invisible to the old
+   read, and it *delivers*. `(secret/none/ping, in_app)` → `enabled=true` by default.
+4. **The check endpoint's medium-dependent default, live:** unknown target `brandnew/none/evt` →
+   `email: false` (was `true`), `in_app: true`.
+5. The PATCH response was confirmed to still carry `{enabled, inherited}` with **no** `cataloged` —
+   it describes the written row, not a resolution.
+6. The dev DB was **restored** (project 3's recipient preferences deleted, verification API key
+   deleted); the verification notification remains, as sends cannot be unsent.
+
+- **Dead code the fix orphaned was removed, not left lying.** Both rewritten methods were
+  `ListPreferencesForRecipient`'s only callers, so it went (repo impl + interface), and with it the
+  now-unpopulated `PreferenceSearchFilter.RecipientExtID` field and its branch in `findPreferences`.
+  Also dropped `dto.PatchRecipientPreferenceTargetResult`, a type alias that was **already** dead at
+  HEAD (nothing ever referenced it). All `internal/`, so no external consumer. `PreferenceTarget`,
+  `PreferenceTargetDTOFromPreference` and `PreferenceTargetStateDTOFromPreference` stay — the PATCH
+  response still uses them. Verified after removal: the project-preference list (the surviving
+  `findPreferences` caller) and both reads still serve correctly.
+- **Untouched (as scoped):** the send path, worker, broadcast pipeline, all gating logic, the console
+  (its read already shared the resolver; typechecks clean), and every write path — `repo.Create`
+  remains the single convergence point that keeps the settings toggle and the one-click unsubscribe
+  writing the same row (Phase 6). No migration. Analytics (9.5) and list filters (9.4) still open.
+
 ### Phase 9.4 — Notification list filters
 
 - **Goal:** the notifications list is usable on a project with real volume.
-- **In scope:** extend `dto.ListNotificationsFilters` (`dto/notification.go:439` — today just
+- **In scope:** extend `dto.ListNotificationsFilters` (`dto/notification.go:551` — today just
   `{ProjectID, Pagination, Kind}`) and the `pg` query with filters for status, target
   (channel/topic/event), medium + delivery status, date range, and recipient search; matching
   console filter UI (netra `date_picker`/`select`/`toggle_group`); URL-synced filter state via
@@ -2343,9 +2475,11 @@ console typechecks, lints (2 pre-existing unrelated warnings), and builds; the g
 Read agent-docs/overview.md in full first, esp. "Phase 9 — Console" and the Phase 4 deviations
 (the notification_delivery schema + its indexes). Implement Phase 9.4 (Notification list filters).
 
-Today `dto.ListNotificationsFilters` (internal/model/dto/notification.go:439) is
-`{ProjectID, query.Pagination, Kind}` — `kind` (direct|broadcast) is the ONLY filter. On a project
-with real volume the list is unusable.
+Today `dto.ListNotificationsFilters` (internal/model/dto/notification.go:551) is
+`{ProjectID, query.Pagination, Kind, RecipientExtID}` — 9.2 added `RecipientExtID` and switched
+`repository.NotificationRepository.ListNotifications` to take the FILTERS DTO instead of a parameter
+list, precisely so 9.4 extends the struct with no signature churn. Beyond those, the list is
+unfiltered; on a project with real volume it is unusable.
 
 Add filters: status, target (channel/topic/event), medium + delivery status, date range, and
 recipient search. Extend the DTO + the pg query + the console UI (netra has date_picker, select,

@@ -272,49 +272,115 @@ func TestResolveRecipientPreferencesAgreesWithGating(t *testing.T) {
 		}
 	})
 
-	// Characterization test, NOT an endorsement. The Developer API's read
-	// (GetRecipientProjectPreferences) is a Go exact-match merge over the project
-	// catalog, and it still disagrees with delivery — this pins the disagreement
-	// so nobody re-points the console at it thinking it is equivalent.
-	//
-	// The Dev API keeps it because its response is a documented, SDK-consumed
-	// surface (openapi.json, Phase 7); fixing it changes the row SET callers get
-	// and belongs with that surface's own phase, not a console phase. See the
-	// Phase 9.3 deviations in agent-docs/overview.md.
-	//
-	// WHEN THE DEV API READ IS FIXED, DELETE THIS TEST — its failure is the
-	// signal that the divergence is gone.
-	t.Run("the Dev API read still disagrees (why the console does not reuse it)", func(t *testing.T) {
+	// The Developer API's read used to be a Go exact-match merge that disagreed
+	// with delivery, and a characterization test here pinned that divergence so
+	// nobody re-pointed the console at it. The divergence is GONE — the read now
+	// shares this resolver — so that test is replaced by its inverse: the
+	// agreement it used to deny.
+	t.Run("the Dev API read agrees with gating", func(t *testing.T) {
 		recipientRepo := pg.NewRecipientRepo(pool)
 		svc := NewProjectPreferenceService(repo, recipientRepo)
 
-		old, _, err := svc.GetRecipientProjectPreferences(ctx, projectID, extID)
+		got, _, err := svc.GetRecipientProjectPreferences(ctx, projectID, extID)
 		if err != nil {
 			t.Fatalf("GetRecipientProjectPreferences: %v", err)
 		}
 
-		hasCell := func(channel, topic, event, medium string) bool {
-			for _, p := range old.Preferences {
+		findCell := func(channel, topic, event, medium string) *dto.PreferenceTargetResolvedStateDTO {
+			for _, p := range got.Preferences {
 				if p.Target.Channel == channel && p.Target.Topic == topic &&
 					p.Target.Event == event && p.Target.Medium == medium {
-					return true
+					return p
 				}
 			}
-			return false
+			return nil
 		}
 
-		// It walks project prefs only, so the recipient's explicit row on an
-		// UNCATALOGED target is invisible — while that row makes email DELIVER.
-		// This is the exact "the tab says unavailable while we are actively
-		// emailing them" failure.
-		if hasCell("secret", "none", "ping", "email") {
-			t.Error("Dev API read now sees uncataloged recipient rows — it was fixed; delete this test and revisit the console read")
+		// THE INVARIANT, now on the public surface too: every cell it returns
+		// must equal what a send would do.
+		for _, p := range got.Preferences {
+			target := dto.Target{Channel: p.Target.Channel, Topic: p.Target.Topic, Event: p.Target.Event}
+
+			want, err := repo.ShouldDirectNotificationBeDelivered(ctx, projectID, extID, target, enum.Medium(p.Target.Medium))
+			if err != nil {
+				t.Fatalf("ShouldDirectNotificationBeDelivered: %v", err)
+			}
+			if p.State.Enabled != want {
+				t.Errorf("cell %s/%s/%s medium=%s: Dev API read says enabled=%v, send path says %v",
+					p.Target.Channel, p.Target.Topic, p.Target.Event, p.Target.Medium, p.State.Enabled, want)
+			}
 		}
 
-		// It has no notion of the medium-dependent default, so a target that
-		// delivers in-app purely by default does not appear at all.
-		if hasCell("secret", "none", "ping", "in_app") {
-			t.Error("Dev API read now models the in_app default — it was fixed; delete this test and revisit the console read")
+		// The two cells the OLD read could not express at all. A recipient's row
+		// on an uncataloged target DELIVERS, and in_app delivers by default —
+		// both were invisible while being actively true.
+		if c := findCell("secret", "none", "ping", "email"); c == nil {
+			t.Error("uncataloged recipient row is missing — the row set regressed to the catalog-only merge")
+		} else if !c.State.Enabled || c.State.Cataloged {
+			t.Errorf("uncataloged recipient email cell: enabled=%v cataloged=%v, want true/false", c.State.Enabled, c.State.Cataloged)
+		}
+
+		if c := findCell("secret", "none", "ping", "in_app"); c == nil {
+			t.Error("in_app default cell is missing — the read still ignores the medium-dependent default")
+		} else if !c.State.Enabled {
+			t.Error("in_app default cell should deliver")
+		}
+	})
+
+	// The check endpoint answers ONE arbitrary (target, medium) — including
+	// targets nothing is stored about — so it resolves an explicit universe
+	// rather than filtering the read above. Same cascade, same answers.
+	t.Run("the Dev API check agrees with gating", func(t *testing.T) {
+		recipientRepo := pg.NewRecipientRepo(pool)
+		svc := NewProjectPreferenceService(repo, recipientRepo)
+
+		check := func(channel, topic, event, medium string) *dto.PreferenceTargetResolvedStateDTO {
+			t.Helper()
+			out, _, err := svc.CheckRecipientTargetSubscription(ctx, projectID, extID, dto.CheckRecipientTargetPayload{
+				Target: dto.Target{Channel: channel, Topic: topic, Event: event},
+				Medium: medium,
+			})
+			if err != nil {
+				t.Fatalf("CheckRecipientTargetSubscription(%s/%s/%s, %s): %v", channel, topic, event, medium, err)
+			}
+			return out
+		}
+
+		// Every known cell: check must equal the send path.
+		for _, cell := range resolved {
+			want, err := repo.ShouldDirectNotificationBeDelivered(ctx, projectID, extID,
+				dto.Target{Channel: cell.Channel, Topic: cell.Topic, Event: cell.Event}, enum.Medium(cell.Medium))
+			if err != nil {
+				t.Fatalf("ShouldDirectNotificationBeDelivered: %v", err)
+			}
+
+			if got := check(cell.Channel, cell.Topic, cell.Event, cell.Medium); got.State.Enabled != want {
+				t.Errorf("check %s/%s/%s medium=%s: says enabled=%v, send path says %v",
+					cell.Channel, cell.Topic, cell.Event, cell.Medium, got.State.Enabled, want)
+			}
+		}
+
+		// A target stored NOWHERE — absent from the read's universe, yet it still
+		// resolves. The old code defaulted every medium to enabled=true here, so
+		// an email that would never fire reported as subscribed.
+		if got := check("brand", "none", "new", "email"); got.State.Enabled {
+			t.Error("unknown (target, email) reports subscribed, but email does not fire by default")
+		}
+		if got := check("brand", "none", "new", "in_app"); !got.State.Enabled {
+			t.Error("unknown (target, in_app) reports unsubscribed, but in_app delivers by default")
+		}
+
+		// topic='none' must not take an 'any' rule: 'announce/any/new_feature'
+		// email is cataloged true, but a 'none' topic can never reach it. The old
+		// exact-match walk fell through to its default and said true.
+		if got := check("announce", "none", "new_feature", "email"); got.State.Enabled {
+			t.Error("topic=none took the 'any' fallback — it must not")
+		}
+
+		// A recipient 'any' rule the old exact-match walk could not see: it
+		// returned the project's exact row (false) while the send path delivers.
+		if got := check("posts", "post_1", "new_comment", "email"); !got.State.Enabled {
+			t.Error("recipient topic=any rule ignored — it beats the exact catalog row")
 		}
 	})
 

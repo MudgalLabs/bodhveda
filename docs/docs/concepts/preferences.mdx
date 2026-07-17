@@ -14,12 +14,30 @@ Use recipient's project preferences to build notification settings screens for y
 
 Each preference applies to a single [medium](/docs/concepts/mediums). The `in_app` and `email` preferences for the same target are toggled **independently**, so a recipient can keep the in-app bell on while turning email off.
 
--   **Project-level** preferences form the **catalog**: a `(target, medium)` must be declared before that medium can fire. Only `in_app` and `email` can be cataloged today.
+-   **Project-level** preferences form the **catalog**: they set the default for a `(target, medium)`. Only `in_app` and `email` can be cataloged today.
 -   **Recipient-level** preferences are the per-recipient opt-in/opt-out for a `(target, medium)`.
 
 When you [set](/api-reference/endpoint/recipients/preferences/set-preference) or [check](/api-reference/endpoint/recipients/preferences/check-preference) a preference, pass a `medium` (`in_app` or `email`). **It defaults to `in_app`** when omitted, so existing integrations keep working unchanged.
 
-In-app has a permissive default — a direct notification is delivered to the inbox unless the recipient has explicitly muted it. Email is the opposite: it only fires when the `(target, email)` pair is cataloged **and** the recipient's email preference is enabled.
+## How a preference resolves
+
+Whether a send delivers is **resolved**, not read from a single row. The first rule that matches wins:
+
+1. The recipient's rule for the exact target.
+2. The recipient's `topic: any` rule for that channel/event.
+3. The project's rule for the exact target (the catalog).
+4. The project's `topic: any` rule.
+5. The **medium's default**.
+
+A `topic: none` target never takes an `any` rule — `none` means "this rule has no topic".
+
+**The default is per medium.** In-app is permissive: a direct notification reaches the inbox unless the recipient muted it, with no catalog entry required. Email is the opposite — it stays off unless something turns it on.
+
+<Note>
+    **The catalog is a default, not a gate.** An explicit recipient rule wins the cascade *before* the catalog is consulted, so a recipient rule enabling email on a target you never cataloged **will send**. Cataloging a `(target, email)` pair is how you turn email on *by default* for everyone; it is not what makes email possible.
+</Note>
+
+This is why the [preference read](/api-reference/endpoint/recipients/preferences/list-preferences) reports `state.cataloged` separately from `state.enabled`. Use `cataloged` to decide what to render on a settings screen; use `enabled` to know what will actually happen.
 
 If you want to build something like Reddit where an author is subscribed to their own post and any other user can explictly _follow_ someone else's post as well.
 

@@ -5,4 +5,11 @@ openapi: "GET /recipients/{recipient_id}/preferences/check"
 
 💡 You could use this API to conditionally render something based on whether the recipient has subscribed to the target or not.
 
-`inherited: false` means the recipient **has** overridden the preference for that `target` explicitly to whatever `subscribed` is right now.
+`state.enabled` is **resolved** — it is what a send to this `(target, medium)` would actually do, computed by the same [cascade](/docs/concepts/preferences#how-a-preference-resolves) the delivery path uses. The target does not need to be cataloged, or stored at all; any `(channel, topic, event)` resolves.
+
+-   `inherited: false` means the recipient **has** explicitly overridden this `(target, medium)`; `true` means the value came from elsewhere in the cascade.
+-   `cataloged: false` means your project has no rule declared for that exact `(target, medium)` — context for rendering, not a predictor of delivery.
+
+<Note>
+    Remember the default is **per medium**: with nothing set anywhere, `in_app` resolves to `enabled: true` and `email` resolves to `enabled: false`.
+</Note>

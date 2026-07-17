@@ -160,56 +160,32 @@ func (s *PreferenceService) UpdateRecipientPreferenceTarget(ctx context.Context,
 	return dto.PreferenceTargetStateDTOFromPreference(newPref, false), service.ErrNone, nil
 }
 
+// GetRecipientProjectPreferences is the Developer API's preference read: every
+// (target, Active medium) known for this recipient, resolved by the SAME cascade
+// the send path gates on.
+//
+// It used to be a Go exact-match merge over the project catalog, which disagreed
+// with delivery three ways — no topic='any' fallbacks, no medium-dependent
+// default, and a recipient's row on an uncataloged pair was invisible while
+// still delivering. Customers render their own settings screens off this, so a
+// recipient could be shown a toggle that contradicted what they actually
+// received. It now shares PreferenceRepo.ResolveRecipientPreferences with the
+// console read.
+//
+// No recipient-exists check: every route reaching this is behind
+// CreateRecipientIfNotExists (cmd/api/routes.go), so the recipient is guaranteed
+// to exist and a 404 branch would be unreachable — and a wasted query per call.
 func (s *PreferenceService) GetRecipientProjectPreferences(ctx context.Context, projectID int, recipientExtID string) (*dto.PreferenceTargetStatesResultDTO, service.Error, error) {
-	// 1. Fetch all project-level preferences (these are the defaults for all recipients)
-	projectPrefs, err := s.repo.ListPreferences(ctx, projectID, enum.PreferenceKindProject)
+	resolved, err := s.repo.ResolveRecipientPreferences(ctx, projectID, recipientExtID, enum.ActiveMediums())
 	if err != nil {
-		return nil, service.ErrInternalServerError, fmt.Errorf("repo list project preferences: %w", err)
+		return nil, service.ErrInternalServerError, fmt.Errorf("repo resolve recipient preferences: %w", err)
 	}
 
-	// 2. Fetch all recipient-level preferences for this recipient (these override project-level preferences)
-	recipientPrefs, err := s.repo.ListPreferencesForRecipient(ctx, projectID, recipientExtID)
-	if err != nil {
-		return nil, service.ErrInternalServerError, fmt.Errorf("repo list recipient preferences: %w", err)
+	result := []*dto.PreferenceTargetResolvedStateDTO{}
+	for _, p := range resolved {
+		result = append(result, dto.FromResolvedPreferenceForAPI(p))
 	}
 
-	// 3. Build a map for quick lookup of recipient-level preferences by (channel, topic, event, medium)
-	type prefKey struct{ Channel, Topic, Event, Medium string }
-	recipientPrefMap := make(map[prefKey]*entity.Preference)
-	for _, pref := range recipientPrefs {
-		// Only consider preferences for the given recipient
-		if pref.RecipientExtID != nil && *pref.RecipientExtID == recipientExtID {
-			recipientPrefMap[prefKey{pref.Channel, pref.Topic, pref.Event, pref.Medium}] = pref
-		}
-	}
-
-	result := []*dto.PreferenceTargetStateDTO{}
-	// 4. For each project-level preference, check if there is a recipient-level override
-	for _, projPref := range projectPrefs {
-		key := prefKey{projPref.Channel, projPref.Topic, projPref.Event, projPref.Medium}
-
-		item := dto.PreferenceTargetStateDTO{
-			Target: dto.PreferenceTargetDTOFromPreference(projPref),
-			State: dto.PreferenceState{
-				Enabled:   projPref.Enabled,
-				Inherited: true,
-			},
-		}
-
-		if projPref.Label != nil {
-			item.Target.Label = projPref.Label
-		}
-
-		// 5. If a recipient-level preference exists, override the project-level setting
-		if rp, ok := recipientPrefMap[key]; ok {
-			item.State.Enabled = rp.Enabled
-			item.State.Inherited = false
-		}
-
-		result = append(result, &item)
-	}
-
-	// 6. Return the merged preferences (project-level, overridden by recipient-level where applicable)
 	return &dto.PreferenceTargetStatesResultDTO{
 		Preferences: result,
 	}, service.ErrNone, nil
@@ -219,20 +195,14 @@ func (s *PreferenceService) GetRecipientProjectPreferences(ctx context.Context, 
 // recipient with the resolution the SEND PATH would perform, resolved in the
 // database by the same cascade.
 //
-// It is the honest counterpart to GetRecipientProjectPreferences, which is a Go
-// exact-match merge over the project catalog and therefore:
-//   - misses the topic='any' fallbacks entirely,
-//   - assumes every medium defaults to the catalog's value, ignoring that the
-//     default is medium-dependent (in_app delivers with no catalog row at all),
-//   - and cannot see a recipient's row on an UNCATALOGED (target, medium) —
-//     it only iterates project prefs, so such a row vanishes from the response
-//     while still delivering.
-//
-// The two are NOT merged: GetRecipientProjectPreferences also serves the
-// Developer API's documented GET /recipients/{id}/preferences, whose response
-// shape and row set are a public, SDK-consumed surface. Changing it belongs
-// with the openapi/SDK work, not a console phase. See the Phase 9.3 deviations
-// in agent-docs/overview.md.
+// It is the console's read. GetRecipientProjectPreferences is the Developer
+// API's, and both now resolve through the same repo cascade — they agree on
+// every value. This one exists separately because it adds `source` (the cascade
+// rung, which the console renders as prose) and 404s for an unknown recipient.
+// Neither belongs on the public surface: `source` would freeze the resolver's
+// vocabulary into a permanent contract, and the Dev API's routes auto-create the
+// recipient, so a 404 there is unreachable. See the Phase 9.3.1 deviations in
+// agent-docs/overview.md.
 //
 // Only Active mediums are resolved — a toggle for a transport that cannot fire
 // would be a lie of a different kind.
@@ -259,56 +229,44 @@ func (s *PreferenceService) ResolveRecipientPreferences(ctx context.Context, pro
 	return &dto.ResolvedPreferencesResultDTO{Preferences: dtos}, service.ErrNone, nil
 }
 
-func (s *PreferenceService) CheckRecipientTargetSubscription(ctx context.Context, projectID int, recipientExtID string, payload dto.CheckRecipientTargetPayload) (*dto.PreferenceTargetStateDTO, service.Error, error) {
+// CheckRecipientTargetSubscription resolves ONE (target, medium) the way a send
+// would decide it.
+//
+// It used to walk the stored rows in Go and exact-match them, which was wrong in
+// the same ways the old list read was: it never consulted the topic='any'
+// fallbacks, and its not-found default returned enabled=true for EVERY medium —
+// so an email target that would never fire reported as subscribed. It now runs
+// the shared cascade.
+//
+// The target need not be cataloged or stored at all, which is why this resolves
+// an explicit target universe rather than filtering the "everything known" read:
+// an unknown target still resolves (a project topic='any' rule can cover it, and
+// in_app delivers by default).
+func (s *PreferenceService) CheckRecipientTargetSubscription(ctx context.Context, projectID int, recipientExtID string, payload dto.CheckRecipientTargetPayload) (*dto.PreferenceTargetResolvedStateDTO, service.Error, error) {
 	if err := payload.Validate(); err != nil {
 		return nil, service.ErrInvalidInput, err
 	}
 
-	// 1. Try recipient-level preference for this target
-	recipientPrefs, err := s.repo.ListPreferencesForRecipient(ctx, projectID, recipientExtID)
-	if err != nil {
-		return nil, service.ErrInternalServerError, err
-	}
-	for _, pref := range recipientPrefs {
-		if pref.Channel == payload.Channel && pref.Topic == payload.Topic && pref.Event == payload.Event && pref.Medium == payload.Medium {
-			result := dto.PreferenceTargetStateDTOFromPreference(pref, false)
-			result.Target.Label = nil // Recipient-level preferences do not have labels.
-			return result, service.ErrNone, nil
-		}
+	target := dto.Target{
+		Channel: payload.Channel,
+		Topic:   payload.Topic,
+		Event:   payload.Event,
 	}
 
-	// 2. Try project-level preference for this (target, medium)
-	projectPrefs, err := s.repo.ListPreferences(ctx, projectID, enum.PreferenceKindProject)
+	resolved, err := s.repo.ResolveRecipientPreferenceForTargets(
+		ctx, projectID, recipientExtID,
+		[]enum.Medium{enum.Medium(payload.Medium)},
+		[]dto.Target{target},
+	)
 	if err != nil {
-		return nil, service.ErrInternalServerError, err
-	}
-	for _, pref := range projectPrefs {
-		if pref.Channel == payload.Channel && pref.Topic == payload.Topic && pref.Event == payload.Event && pref.Medium == payload.Medium {
-			result := dto.PreferenceTargetStateDTOFromPreference(pref, false)
-			result.Target.Label = nil // Recipient-level preferences do not have labels.
-			return result, service.ErrNone, nil
-		}
+		return nil, service.ErrInternalServerError, fmt.Errorf("repo resolve recipient preference for target: %w", err)
 	}
 
-	// 3. Not found: default to enabled=true, inherited=true.
-	// This must match the delivery default in
-	// PreferenceRepo.ShouldDirectNotificationBeDelivered, which delivers when no
-	// preference is found. If this reported false, a settings UI reading current
-	// state would render every untoggled target as OFF while sends still deliver.
-	return &dto.PreferenceTargetStateDTO{
-		Target: dto.PreferenceTarget{
-			Target: dto.Target{
-				Channel: payload.Channel,
-				Topic:   payload.Topic,
-				Event:   payload.Event,
-			},
-			Medium: payload.Medium,
-		},
-		State: dto.PreferenceState{
-			Enabled:   true,
-			Inherited: true,
-		},
-	}, service.ErrNone, nil
+	if len(resolved) != 1 {
+		return nil, service.ErrInternalServerError, fmt.Errorf("resolve returned %d cells for one (target, medium)", len(resolved))
+	}
+
+	return dto.FromResolvedPreferenceForAPI(resolved[0]), service.ErrNone, nil
 }
 
 func (s *PreferenceService) Delete(ctx context.Context, payload *dto.DeletePreferencePayload) (service.Error, error) {

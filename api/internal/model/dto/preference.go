@@ -221,6 +221,11 @@ type PreferenceTarget struct {
 	Label  *string `json:"label,omitempty"`
 }
 
+// PreferenceState is the state of a preference row that was just WRITTEN — it
+// describes the row, not a resolution, so it carries no catalog context.
+//
+// Read responses use ResolvedPreferenceState instead: a read has to answer what
+// a send would actually do, which is a different question from what is stored.
 type PreferenceState struct {
 	Enabled   bool `json:"enabled"`
 	Inherited bool `json:"inherited"`
@@ -231,17 +236,20 @@ type PreferenceTargetStateDTO struct {
 	State  PreferenceState  `json:"state"`
 }
 
-type PreferenceTargetStatesResultDTO struct {
-	Preferences []*PreferenceTargetStateDTO `json:"preferences"`
-}
-
-// ResolvedPreferenceState is the console's honest answer for one
-// (target, medium): what a send would ACTUALLY do, plus enough context to
-// explain it.
+// ResolvedPreferenceState is the honest answer for one (target, medium): what a
+// send would ACTUALLY do, plus the context needed to explain it.
 //
-// It is deliberately a separate type from PreferenceState (which rides the
-// Developer API's documented preference responses) so the console read can
-// carry `cataloged`/`source` without widening a public, SDK-consumed surface.
+// This is the PUBLIC shape — the Developer API's preference reads reply with it.
+// `cataloged` is exposed because this read now returns cells for uncataloged
+// (target, medium) pairs (they resolve, and can deliver), so a caller building a
+// settings screen needs to tell a declared catalog entry from a default-resolved
+// cell. It is context for RENDERING, never a predictor of delivery — Enabled is
+// the answer.
+//
+// `source` is deliberately NOT here: it names the internal cascade rungs, and
+// publishing it would freeze the resolver's vocabulary into a public contract.
+// The console gets it via ConsoleResolvedPreferenceState, which ships in-repo
+// with the resolver and can change alongside it.
 type ResolvedPreferenceState struct {
 	// Enabled is the resolved decision — it agrees with the send path's gating.
 	Enabled bool `json:"enabled"`
@@ -252,41 +260,82 @@ type ResolvedPreferenceState struct {
 	// It is context, NOT a gate: an explicit recipient row on an uncataloged
 	// pair still delivers.
 	Cataloged bool `json:"cataloged"`
+}
+
+// ConsoleResolvedPreferenceState adds the cascade attribution the console's grid
+// renders as prose ("Following the project's posts/any/new_comment default").
+// Console-only — see ResolvedPreferenceState.
+type ConsoleResolvedPreferenceState struct {
+	ResolvedPreferenceState
 	// Source names the cascade rung that decided Enabled: recipient_exact,
 	// recipient_any, project_exact, project_any, or default.
 	Source string `json:"source"`
 }
 
-type ResolvedPreferenceDTO struct {
+// PreferenceTargetResolvedStateDTO is one resolved (target, medium) on the
+// Developer API.
+type PreferenceTargetResolvedStateDTO struct {
 	Target PreferenceTarget        `json:"target"`
 	State  ResolvedPreferenceState `json:"state"`
+}
+
+type PreferenceTargetStatesResultDTO struct {
+	Preferences []*PreferenceTargetResolvedStateDTO `json:"preferences"`
+}
+
+type ResolvedPreferenceDTO struct {
+	Target PreferenceTarget               `json:"target"`
+	State  ConsoleResolvedPreferenceState `json:"state"`
 }
 
 type ResolvedPreferencesResultDTO struct {
 	Preferences []*ResolvedPreferenceDTO `json:"preferences"`
 }
 
+func resolvedPreferenceTarget(e *entity.ResolvedPreference) PreferenceTarget {
+	return PreferenceTarget{
+		Target: Target{
+			Channel: e.Channel,
+			Topic:   e.Topic,
+			Event:   e.Event,
+		},
+		Medium: e.Medium,
+		Label:  e.Label,
+	}
+}
+
+func resolvedPreferenceState(e *entity.ResolvedPreference) ResolvedPreferenceState {
+	return ResolvedPreferenceState{
+		Enabled:   e.Enabled,
+		Inherited: e.Inherited(),
+		Cataloged: e.Cataloged,
+	}
+}
+
+// FromResolvedPreference builds the console shape (with the cascade source).
 func FromResolvedPreference(e *entity.ResolvedPreference) *ResolvedPreferenceDTO {
 	if e == nil {
 		return nil
 	}
 
 	return &ResolvedPreferenceDTO{
-		Target: PreferenceTarget{
-			Target: Target{
-				Channel: e.Channel,
-				Topic:   e.Topic,
-				Event:   e.Event,
-			},
-			Medium: e.Medium,
-			Label:  e.Label,
+		Target: resolvedPreferenceTarget(e),
+		State: ConsoleResolvedPreferenceState{
+			ResolvedPreferenceState: resolvedPreferenceState(e),
+			Source:                  string(e.Source),
 		},
-		State: ResolvedPreferenceState{
-			Enabled:   e.Enabled,
-			Inherited: e.Inherited(),
-			Cataloged: e.Cataloged,
-			Source:    string(e.Source),
-		},
+	}
+}
+
+// FromResolvedPreferenceForAPI builds the Developer API shape (no source).
+func FromResolvedPreferenceForAPI(e *entity.ResolvedPreference) *PreferenceTargetResolvedStateDTO {
+	if e == nil {
+		return nil
+	}
+
+	return &PreferenceTargetResolvedStateDTO{
+		Target: resolvedPreferenceTarget(e),
+		State:  resolvedPreferenceState(e),
 	}
 }
 
@@ -322,8 +371,6 @@ func (p *PatchRecipientPreferenceTargetPayload) Validate() error {
 	}
 	return nil
 }
-
-type PatchRecipientPreferenceTargetResult = PreferenceTargetStateDTO
 
 func PreferenceTargetDTOFromPreference(e *entity.Preference) PreferenceTarget {
 	return PreferenceTarget{

@@ -1,5 +1,15 @@
 # Changelog
 
+## 0.2.0
+
+-   Bumped in lockstep with core `bodhveda@0.2.0` (**preference reads now tell the truth**) — this
+    package re-exports the core types, so `usePreferences()` and `useCheckPreference()` now return
+    a `state` resolved by the same cascade the delivery path uses, plus the new `cataloged` field.
+-   **This changes what a settings screen built on `usePreferences()` renders.** The hook returns
+    more entries than before, and some toggle states flip to what Bodhveda actually does. See the
+    core `bodhveda@0.2.0` changelog for the three specific ways the old answers were wrong.
+-   No new hooks, and no API change in this package itself.
+
 ## 0.1.0
 
 -   Bumped in lockstep with core `bodhveda@0.1.0` (the email medium release) — this package

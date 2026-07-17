@@ -115,16 +115,38 @@ type TargetWithLabel struct {
 	Label  *string `json:"label,omitempty"`
 }
 
-// PreferenceState represents the state of a preference.
+// PreferenceState represents the state of a preference that was just written.
+// It describes the stored row, so it carries no catalog context — reads answer a
+// different question and reply with ResolvedPreferenceState.
 type PreferenceState struct {
 	Enabled bool `json:"enabled"`
-	Inherit bool `json:"inherit"`
+	// Inherited is true when the recipient has no rule of their own for this
+	// exact (target, medium).
+	Inherited bool `json:"inherited"`
 }
 
-// Preference represents a preference.
+// ResolvedPreferenceState is what a preference read returns: whether a send
+// would ACTUALLY deliver, plus the context to explain it.
+type ResolvedPreferenceState struct {
+	// Enabled is the resolved decision — what a send to this (target, medium)
+	// would do. It is not a stored flag: it is resolved through the recipient's
+	// exact rule, their topic="any" rule, the project's exact rule, the project's
+	// topic="any" rule, and finally the medium's default (in_app delivers, every
+	// other medium does not).
+	Enabled bool `json:"enabled"`
+	// Inherited is true when the recipient has no rule of their own for this
+	// exact (target, medium); the value came from elsewhere in the cascade.
+	Inherited bool `json:"inherited"`
+	// Cataloged reports whether a project-level rule exists for this exact
+	// (target, medium). It is context for rendering, NOT a gate: an explicit
+	// recipient rule on an uncataloged pair still delivers. Enabled is the answer.
+	Cataloged bool `json:"cataloged"`
+}
+
+// Preference represents a resolved preference.
 type Preference struct {
-	Target TargetWithLabel `json:"target"`
-	State  PreferenceState `json:"state"`
+	Target TargetWithLabel         `json:"target"`
+	State  ResolvedPreferenceState `json:"state"`
 }
 
 // CreateRecipientRequest represents the request to create a recipient.
@@ -292,7 +314,9 @@ type CheckPreferenceRequest struct {
 }
 
 // CheckPreferenceResponse represents the response after checking a preference.
+// The target need not be cataloged, or stored at all — any (channel, topic,
+// event) resolves.
 type CheckPreferenceResponse struct {
-	Target TargetWithLabel `json:"target"`
-	State  PreferenceState `json:"state"`
+	Target TargetWithLabel         `json:"target"`
+	State  ResolvedPreferenceState `json:"state"`
 }

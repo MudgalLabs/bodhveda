@@ -67,17 +67,6 @@ func (r *PreferenceRepo) ListPreferences(ctx context.Context, projectID int, kin
 	return prefs, err
 }
 
-func (r *PreferenceRepo) ListPreferencesForRecipient(ctx context.Context, projectID int, recipientExtID string) ([]*entity.Preference, error) {
-	returned, _, err := r.findPreferences(ctx, repository.SearchPreferencePayload{
-		Filters: repository.PreferenceSearchFilter{
-			ProjectOrRecipient: enum.PreferenceKindRecipient,
-			ProjectID:          projectID,
-			RecipientExtID:     &recipientExtID,
-		},
-	})
-	return returned, err
-}
-
 func (r *PreferenceRepo) findPreferences(ctx context.Context, payload repository.SearchPreferencePayload) ([]*entity.Preference, int, error) {
 	baseSQL := `
 		SELECT
@@ -96,11 +85,6 @@ func (r *PreferenceRepo) findPreferences(ctx context.Context, payload repository
 		builder.AppendWhere("p.recipient_external_id IS NOT NULL")
 	case enum.PreferenceKindProject:
 		builder.AppendWhere("p.recipient_external_id IS NULL")
-	}
-
-	// Add recipient_ext_id filter if set
-	if payload.Filters.RecipientExtID != nil {
-		builder.AddCompareFilter("p.recipient_external_id", "=", *payload.Filters.RecipientExtID)
 	}
 
 	// Apply default sorting if not provided.
@@ -292,9 +276,63 @@ func (r *PreferenceRepo) ShouldDirectNotificationBeDelivered(ctx context.Context
 // these LEFT JOINs resolve one row each and cannot fan out — the structural
 // reason the gating query's LIMIT 1 has no counterpart here.
 func (r *PreferenceRepo) ResolveRecipientPreferences(ctx context.Context, projectID int, recipientExtID string, mediums []enum.Medium) ([]*entity.ResolvedPreference, error) {
+	return r.resolvePreferences(ctx, projectID, recipientExtID, mediums, nil)
+}
+
+// ResolveRecipientPreferenceForTargets resolves exactly the targets it is given,
+// with the same cascade — including targets nothing is stored about anywhere.
+//
+// That is the difference from ResolveRecipientPreferences, whose universe is
+// "everything known" (the catalog UNION the recipient's rows). A caller asking
+// about ONE arbitrary target cannot use that universe: an uncataloged target the
+// recipient has no row for is absent from it, yet it still resolves — a project
+// 'topic=any' rule can cover it, and in_app delivers by default regardless. So
+// the answer must be computed, not looked up.
+func (r *PreferenceRepo) ResolveRecipientPreferenceForTargets(ctx context.Context, projectID int, recipientExtID string, mediums []enum.Medium, targets []dto.Target) ([]*entity.ResolvedPreference, error) {
+	if len(targets) == 0 {
+		return []*entity.ResolvedPreference{}, nil
+	}
+	return r.resolvePreferences(ctx, projectID, recipientExtID, mediums, targets)
+}
+
+// resolvePreferences is the one cascade, run over a universe of cells.
+//
+// When targets is nil the universe is everything known about this recipient (the
+// catalog UNION their own rows); otherwise it is exactly the targets given. Only
+// that universe differs — the cascade below is shared, which is what keeps the
+// list read and the single-target check from drifting apart.
+func (r *PreferenceRepo) resolvePreferences(ctx context.Context, projectID int, recipientExtID string, mediums []enum.Medium, targets []dto.Target) ([]*entity.ResolvedPreference, error) {
 	mediumStrs := make([]string, len(mediums))
 	for i, m := range mediums {
 		mediumStrs[i] = string(m)
+	}
+
+	args := []any{projectID, recipientExtID, mediumStrs}
+
+	// Every target anything is known about: the project catalog PLUS any target
+	// this recipient has a row for. That union is the point — a recipient row on
+	// an uncataloged target still delivers, so omitting it would hide a live
+	// preference.
+	targetSQL := `
+		    SELECT DISTINCT channel, topic, event
+		    FROM preference
+		    WHERE project_id = $1
+		      AND (recipient_external_id IS NULL OR recipient_external_id = $2)`
+
+	if targets != nil {
+		channels := make([]string, len(targets))
+		topics := make([]string, len(targets))
+		events := make([]string, len(targets))
+		for i, t := range targets {
+			channels[i], topics[i], events[i] = t.Channel, t.Topic, t.Event
+		}
+		args = append(args, channels, topics, events)
+
+		// The caller named the universe. Nothing needs to be stored for these to
+		// resolve.
+		targetSQL = `
+		    SELECT DISTINCT channel, topic, event
+		    FROM unnest($4::text[], $5::text[], $6::text[]) AS t(channel, topic, event)`
 	}
 
 	sql := `
@@ -302,21 +340,14 @@ func (r *PreferenceRepo) ResolveRecipientPreferences(ctx context.Context, projec
 		-- $1 = project_id
 		-- $2 = recipient_external_id
 		-- $3 = mediums to resolve (text[])
+		-- $4,$5,$6 = explicit target universe (text[]), only when given
 
 		WITH
 		medium AS (
 		    SELECT unnest($3::text[]) AS medium
 		),
 
-		-- Every target anything is known about: the project catalog PLUS any
-		-- target this recipient has a row for. That union is the point — a
-		-- recipient row on an uncataloged target still delivers, so omitting it
-		-- would hide a live preference.
-		target AS (
-		    SELECT DISTINCT channel, topic, event
-		    FROM preference
-		    WHERE project_id = $1
-		      AND (recipient_external_id IS NULL OR recipient_external_id = $2)
+		target AS (` + targetSQL + `
 		),
 
 		cell AS (
@@ -387,7 +418,7 @@ func (r *PreferenceRepo) ResolveRecipientPreferences(ctx context.Context, projec
 		ORDER BY c.channel, c.topic, c.event, c.medium;
 	`
 
-	rows, err := r.db.Query(ctx, sql, projectID, recipientExtID, mediumStrs)
+	rows, err := r.db.Query(ctx, sql, args...)
 	if err != nil {
 		return nil, fmt.Errorf("query: %w", err)
 	}

@@ -145,14 +145,14 @@ func GetRecipientProjectPreferences(s *service.PreferenceService) http.HandlerFu
 // GetRecipientPreferencesConsole is the console's per-recipient preference read:
 // every (target, Active medium) resolved by the SAME cascade the send path uses.
 //
-// It deliberately does NOT reuse the Developer API's
-// GetRecipientProjectPreferences. That method is a Go exact-match merge over the
-// project catalog which disagrees with delivery in three ways (topic='any'
-// fallbacks, the medium-dependent default, and recipient rows on uncataloged
-// targets being invisible while still delivering). A tab labelled "resolved"
-// that disagrees with what a send does is worse than no tab. The Developer API
-// keeps the old method because its response is a documented, SDK-consumed
-// surface — see the Phase 9.3 deviations in agent-docs/overview.md.
+// It shares that resolver with the Developer API's read
+// (GetRecipientProjectPreferences) — the two agree on every value, and a test
+// pins both against the send path's gating. They stay separate service methods
+// only because this one additionally exposes `source` (the cascade rung) and
+// 404s for an unknown recipient, neither of which belongs on the public surface:
+// `source` would freeze the resolver's vocabulary into a permanent contract, and
+// the Dev API's routes auto-create the recipient so a 404 is unreachable there.
+// See the Phase 9.3.1 deviations in agent-docs/overview.md.
 func GetRecipientPreferencesConsole(s *service.PreferenceService) http.HandlerFunc {
 	return func(w http.ResponseWriter, r *http.Request) {
 		ctx := r.Context()

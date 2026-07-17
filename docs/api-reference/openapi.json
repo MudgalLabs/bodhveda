@@ -727,7 +727,7 @@
                 "summary": "List preferences for a recipient",
                 "operationId": "listRecipientPreferences",
                 "tags": ["Preferences"],
-                "description": "List of recipient's preferences.",
+                "description": "Every `(target, medium)` known for this recipient, each with the state a send would **actually** act on.\n\n`state.enabled` is the **resolved** decision — the same answer the delivery path computes — not a raw stored row. Resolution walks, in order:\n\n1. the recipient's rule for the exact target,\n2. the recipient's `topic: any` rule for the channel/event,\n3. the project's rule for the exact target,\n4. the project's `topic: any` rule,\n5. the medium's **default**.\n\n**The default is per medium:** `in_app` delivers, every other medium does not. A `topic: none` target never takes an `any` rule.\n\nThe response covers every target in the project catalog **plus** any target this recipient has a rule of their own for, across the active mediums (`in_app` and `email`). So a recipient can have an entry for a `(target, medium)` you never cataloged — if they have an explicit rule for it, it is live, and this reports it.\n\nEach `state` carries:\n\n-   `enabled` — whether a send to this `(target, medium)` would deliver.\n-   `inherited` — `true` when the recipient has no rule of their own for this exact `(target, medium)`; the value came from elsewhere in the cascade. `false` means they set it explicitly.\n-   `cataloged` — whether a project-level rule exists for this exact `(target, medium)`. This is **context, not a gate**: an explicit recipient rule on an uncataloged pair still delivers, and `in_app` delivers by default with no catalog entry at all. Use it to decide what to render, never to predict delivery — `enabled` is the answer.",
                 "parameters": [
                     {
                         "name": "recipient_id",
@@ -739,7 +739,7 @@
                 ],
                 "responses": {
                     "200": {
-                        "description": "List of recipient's preferences.",
+                        "description": "List of recipient's resolved preferences.",
                         "content": {
                             "application/json": {
                                 "examples": {
@@ -758,7 +758,8 @@
                                                         },
                                                         "state": {
                                                             "enabled": true,
-                                                            "inherited": true
+                                                            "inherited": true,
+                                                            "cataloged": true
                                                         }
                                                     },
                                                     {
@@ -771,7 +772,21 @@
                                                         },
                                                         "state": {
                                                             "enabled": false,
-                                                            "inherited": false
+                                                            "inherited": false,
+                                                            "cataloged": true
+                                                        }
+                                                    },
+                                                    {
+                                                        "target": {
+                                                            "channel": "announcements",
+                                                            "topic": "none",
+                                                            "event": "new_feature",
+                                                            "medium": "in_app"
+                                                        },
+                                                        "state": {
+                                                            "enabled": true,
+                                                            "inherited": true,
+                                                            "cataloged": false
                                                         }
                                                     }
                                                 ]
@@ -881,7 +896,7 @@
                 "summary": "Check recipient's subscription state for a target",
                 "operationId": "checkRecipientTargetSubscription",
                 "tags": ["Preferences"],
-                "description": "Check if a recipient is subscribed to a specific target (channel, topic, event).",
+                "description": "Resolve a single `(target, medium)` for a recipient: whether a send would **actually** deliver.\n\n`state.enabled` is the resolved decision, computed by the same cascade the delivery path uses — the recipient's exact rule → the recipient's `topic: any` rule → the project's exact rule → the project's `topic: any` rule → the medium's default (`in_app` delivers, every other medium does not). A `topic: none` target never takes an `any` rule.\n\nThe target does **not** need to be in your catalog; any `(channel, topic, event)` resolves. `state.cataloged` reports whether a project-level rule exists for this exact `(target, medium)` — context, not a gate.",
                 "parameters": [
                     {
                         "name": "recipient_id",
@@ -941,7 +956,8 @@
                                                 },
                                                 "state": {
                                                     "enabled": true,
-                                                    "inherited": false
+                                                    "inherited": false,
+                                                    "cataloged": false
                                                 }
                                             }
                                         }

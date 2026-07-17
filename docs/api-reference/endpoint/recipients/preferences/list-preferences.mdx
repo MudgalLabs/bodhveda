@@ -3,9 +3,13 @@ title: "List preferences"
 openapi: "GET /recipients/{recipient_id}/preferences"
 ---
 
-These are the project preferences (global-level) of the recipient.
-To create project preferences go to **Bodhveda Console > Preferences**.
+Every `(target, medium)` known for this recipient, each **resolved** — `state.enabled` is what a send would actually do, not a raw stored row. To create project preferences (the catalog) go to **Bodhveda Console > Preferences**.
 
-💡 You should show these preferences on your "Notification's setting" screen where the recipient can see their current preferences and update them.
+💡 You should show these preferences on your "Notification settings" screen where the recipient can see their current preferences and update them with [set preference](/api-reference/endpoint/recipients/preferences/set-preference).
 
-`inherited: false` means the recipient **has** overridden the preference for that `target` explicitly to whatever `subscribed` is right now.
+-   `inherited: false` means the recipient **has** explicitly overridden this `(target, medium)`; `true` means the value came from elsewhere in the [cascade](/docs/concepts/preferences#how-a-preference-resolves) (a `topic: any` rule, the catalog, or the medium's default).
+-   `cataloged: false` means your project has no rule declared for that exact `(target, medium)`. It is **not** a reason to treat the pair as unavailable — in-app delivers by default, and a recipient's own rule sends email regardless. It tells you what you declared, not what happens; `enabled` tells you what happens.
+
+<Note>
+    The response includes entries for `(target, medium)` pairs you never cataloged, whenever they resolve to something a recipient can act on. That is deliberate: if a recipient has a rule for it, or a medium delivers by default, hiding it would show them a setting that disagrees with their inbox.
+</Note>

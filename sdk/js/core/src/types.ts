@@ -25,19 +25,54 @@ export interface TargetWithLabel extends Target {
 }
 
 /**
- * Represents the state of a preference.
+ * Represents the state of a preference that was just written. It describes the
+ * stored rule, so it carries no catalog context — reads answer a different
+ * question and reply with {@link ResolvedPreferenceState}.
  */
 export interface PreferenceState {
     enabled: boolean;
+    /**
+     * `true` when the recipient has no rule of their own for this exact
+     * (target, medium).
+     */
     inherited: boolean;
 }
 
 /**
- * Represents a preference with a target and state.
+ * What a preference read returns: whether a send would ACTUALLY deliver, plus
+ * the context to explain it.
+ */
+export interface ResolvedPreferenceState {
+    /**
+     * The resolved decision — what a send to this (target, medium) would do.
+     *
+     * This is not a stored flag. It is resolved through the recipient's exact
+     * rule, their `topic: "any"` rule, the project's exact rule, the project's
+     * `topic: "any"` rule, and finally the medium's default — `in_app` delivers,
+     * every other medium does not.
+     */
+    enabled: boolean;
+    /**
+     * `true` when the recipient has no rule of their own for this exact
+     * (target, medium); the value came from elsewhere in the cascade.
+     */
+    inherited: boolean;
+    /**
+     * Whether a project-level rule exists for this exact (target, medium).
+     *
+     * Context for deciding what to render, **not** a gate: an explicit recipient
+     * rule on an uncataloged pair still delivers, and `in_app` delivers by
+     * default with no catalog entry at all. `enabled` is the answer.
+     */
+    cataloged: boolean;
+}
+
+/**
+ * Represents a resolved preference with a target and state.
  */
 export interface Preference {
     target: TargetWithLabel;
-    state: PreferenceState;
+    state: ResolvedPreferenceState;
 }
 
 /**
@@ -300,11 +335,12 @@ export interface CheckPreferenceRequest {
 }
 
 /**
- * Represents the response after checking a preference.
+ * Represents the response after checking a preference. The target need not be
+ * cataloged, or stored at all — any (channel, topic, event) resolves.
  */
 export interface CheckPreferenceResponse {
     target: TargetWithLabel;
-    state: PreferenceState;
+    state: ResolvedPreferenceState;
 }
 
 /**
