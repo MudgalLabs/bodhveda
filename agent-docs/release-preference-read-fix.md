@@ -118,11 +118,16 @@ git tag sdk/js/core/v0.3.0  && git push origin sdk/js/core/v0.3.0
 git tag sdk/js/react/v0.3.0 && git push origin sdk/js/react/v0.3.0
 ```
 
-Verify Go (may lag a minute while the proxy warms):
+Verify the Go tag reached origin:
 
 ```bash
-GOPROXY=proxy.golang.org go list -m github.com/MudgalLabs/bodhveda/sdk/go@v0.3.0
+git ls-remote --tags origin | grep sdk/go/v0.3.0
 ```
+
+> ⚠️ **Do not verify via the public Go proxy** — the `MudgalLabs/bodhveda` repo is **private**, so
+> `proxy.golang.org` returns 404 for every version of this module (the old `sdk/go/v0.2.0` 404s too).
+> That is expected, not a release failure. Consumers resolve the private module with authenticated
+> git: `GOPRIVATE=github.com/MudgalLabs/* go get github.com/MudgalLabs/bodhveda/sdk/go@v0.3.0`.
 
 ## 5. Deploy the docs (Mintlify)
 
