@@ -273,16 +273,21 @@ function PreferenceCell({
     };
 
     return (
-        <div className="space-y-1">
-            <div className="flex-x">
-                <Switch
-                    checked={enabled}
-                    disabled={isPending}
-                    onCheckedChange={onChange}
-                    aria-label={`${PREFERENCE_MEDIUM_LABELS[medium]} for ${targetToString(
-                        target
-                    )}`}
-                />
+        // The switch sits on its own line with the status chips grouped
+        // beneath it, rather than the first chip riding alongside the toggle —
+        // that put "Inherited" level with the switch but wrapped "Not cataloged"
+        // to its own line, so a two-chip cell read as ragged.
+        <div className="space-y-1.5">
+            <Switch
+                checked={enabled}
+                disabled={isPending}
+                onCheckedChange={onChange}
+                aria-label={`${PREFERENCE_MEDIUM_LABELS[medium]} for ${targetToString(
+                    target
+                )}`}
+            />
+
+            <div className="flex flex-wrap items-center gap-1">
                 <Tooltip
                     content={sourceCopy(cell.state.source, medium, target)}
                 >
@@ -298,24 +303,24 @@ function PreferenceCell({
                         )}
                     </span>
                 </Tooltip>
-            </div>
 
-            {!cell.state.cataloged && (
-                <Tooltip
-                    content={
-                        medium === "in_app"
-                            ? "This target is not in the project catalog for in-app. In-app delivers by default, so it still sends — the catalog is a default, not a gate."
-                            : "This target is not in the project catalog for email. Email is off by default, but an explicit preference here still overrides that and sends."
-                    }
-                >
-                    <span className="flex-x w-fit">
-                        <Tag variant="muted" size="small">
-                            Not cataloged
-                        </Tag>
-                        <IconInfo size={12} />
-                    </span>
-                </Tooltip>
-            )}
+                {!cell.state.cataloged && (
+                    <Tooltip
+                        content={
+                            medium === "in_app"
+                                ? "This target is not in the project catalog for in-app. In-app delivers by default, so it still sends — the catalog is a default, not a gate."
+                                : "This target is not in the project catalog for email. Email is off by default, but an explicit preference here still overrides that and sends."
+                        }
+                    >
+                        <span className="flex-x w-fit">
+                            <Tag variant="muted" size="small">
+                                Not cataloged
+                            </Tag>
+                            <IconInfo size={12} />
+                        </span>
+                    </Tooltip>
+                )}
+            </div>
         </div>
     );
 }

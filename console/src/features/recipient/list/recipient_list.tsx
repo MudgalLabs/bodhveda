@@ -38,6 +38,7 @@ import {
 import { CreateRecipientModal } from "@/features/recipient/list/create_recipient_modal";
 import { DEFAULT_RECIPIENT_TAB } from "@/features/recipient/detail/recipient_detail";
 import { RecipientListItem } from "@/features/recipient/recipient_types";
+import { ConfirmDialog } from "@/components/confirm_dialog";
 import { EditRecipientModal } from "@/features/recipient/list/edit_recipient_modal";
 import { RecipientLink } from "@/features/recipient/recipient_link";
 
@@ -112,10 +113,18 @@ export function RecipientList() {
 function ActionCell({ recipient }: { recipient: RecipientListItem }) {
     const [dropdownOpen, setDropdownOpen] = useState(false);
     const [editOpen, setEditOpen] = useState(false);
+    const [deleteOpen, setDeleteOpen] = useState(false);
 
     const handleEditOpen = () => {
         setDropdownOpen(false);
         setEditOpen(true);
+    };
+
+    // Hand off from the dropdown to the confirm dialog: the menu must close or
+    // it lingers behind the dialog and steals the focus trap.
+    const handleDeleteOpen = () => {
+        setDropdownOpen(false);
+        setDeleteOpen(true);
     };
 
     const projectID = useGetProjectIDFromParams();
@@ -125,6 +134,7 @@ function ActionCell({ recipient }: { recipient: RecipientListItem }) {
         useDeleteRecipient(projectID, {
             onSuccess: () => {
                 toast.success("Recipient deleted successfully");
+                setDeleteOpen(false);
             },
         });
 
@@ -173,12 +183,7 @@ function ActionCell({ recipient }: { recipient: RecipientListItem }) {
                         <Button
                             variant="destructive"
                             className="w-full!"
-                            onClick={() =>
-                                deleteRecipient({
-                                    recipientID: recipient.id,
-                                })
-                            }
-                            disabled={isDeleting}
+                            onClick={handleDeleteOpen}
                         >
                             <IconTrash size={16} />
                             Delete
@@ -191,6 +196,27 @@ function ActionCell({ recipient }: { recipient: RecipientListItem }) {
                 recipient={recipient}
                 open={editOpen}
                 setOpen={setEditOpen}
+            />
+
+            <ConfirmDialog
+                open={deleteOpen}
+                onOpenChange={setDeleteOpen}
+                title="Delete recipient"
+                description={
+                    <p>
+                        Delete{" "}
+                        <span className="font-bold text-text-primary">
+                            {recipient.id}
+                        </span>
+                        ? Their notifications, contacts, and preferences are
+                        removed too. This cannot be undone.
+                    </p>
+                }
+                confirmLabel="Delete recipient"
+                loading={isDeleting}
+                onConfirm={() =>
+                    deleteRecipient({ recipientID: recipient.id })
+                }
             />
         </>
     );

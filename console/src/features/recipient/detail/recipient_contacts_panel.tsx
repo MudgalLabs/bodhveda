@@ -22,6 +22,7 @@ import {
     useUpdateRecipientContact,
 } from "@/features/recipient/contact_hooks";
 import { Medium, RecipientContact } from "@/features/recipient/contact_types";
+import { ConfirmDialog } from "@/components/confirm_dialog";
 import { apiErrorHandler } from "@/lib/api";
 
 // Only the mediums that actually deliver today — mirrors `Medium.Active()` in
@@ -108,6 +109,8 @@ interface ContactRowProps {
 }
 
 function ContactRow({ projectID, recipientID, contact }: ContactRowProps) {
+    const [confirmOpen, setConfirmOpen] = useState(false);
+
     const { mutate: update, isPending: isUpdating } = useUpdateRecipientContact(
         projectID,
         recipientID,
@@ -121,7 +124,10 @@ function ContactRow({ projectID, recipientID, contact }: ContactRowProps) {
         projectID,
         recipientID,
         {
-            onSuccess: () => toast.success("Contact deleted"),
+            onSuccess: () => {
+                toast.success("Contact deleted");
+                setConfirmOpen(false);
+            },
             onError: apiErrorHandler,
         }
     );
@@ -175,11 +181,30 @@ function ContactRow({ projectID, recipientID, contact }: ContactRowProps) {
                     variant="destructive"
                     size="icon"
                     loading={isDeleting}
-                    onClick={() => remove({ contactID: contact.id })}
+                    onClick={() => setConfirmOpen(true)}
                 >
                     <IconTrash size={16} />
                 </Button>
             </div>
+
+            <ConfirmDialog
+                open={confirmOpen}
+                onOpenChange={setConfirmOpen}
+                title="Delete contact"
+                description={
+                    <p>
+                        Delete{" "}
+                        <span className="font-bold text-text-primary">
+                            {contact.address}
+                        </span>
+                        ? This recipient can no longer be reached at this
+                        address.
+                    </p>
+                }
+                confirmLabel="Delete contact"
+                loading={isDeleting}
+                onConfirm={() => remove({ contactID: contact.id })}
+            />
         </div>
     );
 }

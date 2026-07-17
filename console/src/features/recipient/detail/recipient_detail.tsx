@@ -1,10 +1,7 @@
 import { useMemo } from "react";
-import { Link } from "@tanstack/react-router";
 import {
-    buttonVariants,
     ErrorMessage,
     formatDate,
-    IconArrowLeft,
     IconMegaphone,
     IconTarget,
     IconUsers,
@@ -118,20 +115,6 @@ export function RecipientDetail({
 
     return (
         <div>
-            <div className="mb-2">
-                <Link
-                    to="/projects/$id/recipients"
-                    params={{ id: projectID }}
-                    className={buttonVariants({
-                        variant: "ghost",
-                        size: "small",
-                    })}
-                >
-                    <IconArrowLeft size={16} />
-                    Recipients
-                </Link>
-            </div>
-
             <PageHeading>
                 <IconUsers size={18} />
                 <h1 className="select-text!">{recipientID}</h1>
@@ -146,12 +129,18 @@ export function RecipientDetail({
 /**
  * The recipient's at-a-glance facts, as a strip between the heading and the
  * tabs. These were an Overview tab, which meant the page opened on a handful of
- * fields and made you click to reach anything you came here to do. There is no
- * recipient id field: the heading is the id.
+ * fields and made you click to reach anything you came here to do.
  */
 function SummaryStrip({ recipient }: { recipient: RecipientListItem }) {
     return (
         <div className="border-border-subtle mb-4 flex flex-wrap items-center gap-x-6 gap-y-2 border-b pb-3 text-sm">
+            {/* The external id — the string the customer chose. It IS the page
+                heading too, but it lives here as a labeled, selectable field so
+                a customer can copy it and find this recipient in their own DB. */}
+            <Fact label="External ID">
+                <span className="select-text!">{recipient.id}</span>
+            </Fact>
+
             <Fact label="Name">
                 {recipient.name || (
                     <span className="text-foreground-muted">—</span>
