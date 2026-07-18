@@ -1,5 +1,14 @@
 # Changelog
 
+## 0.4.0
+
+-   Bumped in lockstep with core `@bodhveda/js@0.4.0`, which adds the project
+    preference **catalog** client (`bodhveda.preferences`) and the idempotent
+    `recipients.contacts.setPrimary`. This package re-exports the new types, but
+    both are **server-side** concerns (full-access key, email addresses) — so
+    there are **no new hooks** here, and nothing should call them from a browser.
+-   Depends on `@bodhveda/js@^0.4.0`. No API change in this package itself.
+
 ## 0.3.0
 
 -   **Core dependency renamed to `@bodhveda/js`** (was `bodhveda`). This package now depends on

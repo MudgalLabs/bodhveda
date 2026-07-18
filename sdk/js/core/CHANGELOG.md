@@ -1,5 +1,24 @@
 # Changelog
 
+## 0.4.0
+
+Additive — no breaking changes to existing methods.
+
+-   **New `bodhveda.preferences` client** for the project preference **catalog**
+    (project-scoped by the API key): `list()`, `get(id)`, `create(req)` (strict —
+    409 on conflict), `update(id, req)`, `delete(id)`, and `upsertMany(prefs, {
+    prune? })` for declaratively setting a whole catalog in one call. This is
+    distinct from `recipients.preferences`, which stays a single recipient's own
+    toggles.
+-   **New `bodhveda.recipients.contacts.setPrimary(recipientId, { medium, address
+    })`** — idempotently ensure an address is the primary contact for a medium
+    (create-or-update, `200` either way). A server-side sync can keep a primary
+    email current in one call instead of list → diff → create/update. `create`
+    stays strict (409 on conflict).
+
+Both are **server-side** concerns (they need a full-access key and touch email
+addresses) — `@bodhveda/react` gains no browser-side hooks for them.
+
 ## 0.3.0
 
 **This package is now `@bodhveda/js`.** The npm package was renamed from `bodhveda` to

@@ -1,5 +1,12 @@
 # Changelog
 
+## v0.4.0
+
+Lockstep release with `@bodhveda/js` / `@bodhveda/react` `0.4.0`. **No changes to
+the Go SDK** — the 0.4.0 Dev-API additions (project preference catalog CRUD +
+bulk upsert, idempotent primary contact) are not yet surfaced in this SDK. The
+tag exists only to keep all three SDKs on one version number.
+
 ## v0.3.0
 
 **Preference reads now tell the truth.** `Recipients.Preferences.List` and `.Check` returned a
