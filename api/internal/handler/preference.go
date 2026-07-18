@@ -45,6 +45,119 @@ func CreateProjectPreference(s *service.PreferenceService) http.HandlerFunc {
 	}
 }
 
+// The handlers below (…API suffix) are the Developer API's project-preference
+// (catalog) CRUD. They are project-scoped by the API key — there is no
+// project_id in the path — mirroring the rest of the Developer API. The console
+// keeps its own project_id-in-path handlers (CreateProjectPreference,
+// ListPreferences, DeletePreference) unchanged.
+
+func ListProjectPreferencesAPI(s *service.PreferenceService) http.HandlerFunc {
+	return func(w http.ResponseWriter, r *http.Request) {
+		ctx := r.Context()
+		apiKey := middleware.GetAPIKeyFromContext(ctx)
+
+		result, errKind, err := s.ListProjectPreferencesForAPI(ctx, apiKey.ProjectID)
+		if err != nil {
+			httpx.ServiceErrResponse(w, r, errKind, err)
+			return
+		}
+
+		httpx.SuccessResponse(w, r, http.StatusOK, "", result)
+	}
+}
+
+func CreateProjectPreferenceAPI(s *service.PreferenceService) http.HandlerFunc {
+	return func(w http.ResponseWriter, r *http.Request) {
+		ctx := r.Context()
+		apiKey := middleware.GetAPIKeyFromContext(ctx)
+
+		var payload dto.CreateProjectPreferencePayload
+		if err := jsonx.DecodeJSONRequest(&payload, r); err != nil {
+			httpx.MalformedJSONResponse(w, r, err)
+			return
+		}
+
+		payload.ProjectID = apiKey.ProjectID
+
+		result, errKind, err := s.CreateProjectPreference(ctx, payload)
+		if err != nil {
+			httpx.ServiceErrResponse(w, r, errKind, err)
+			return
+		}
+
+		httpx.SuccessResponse(w, r, http.StatusCreated, "Project preference created", result)
+	}
+}
+
+func GetProjectPreferenceAPI(s *service.PreferenceService) http.HandlerFunc {
+	return func(w http.ResponseWriter, r *http.Request) {
+		ctx := r.Context()
+		apiKey := middleware.GetAPIKeyFromContext(ctx)
+
+		preferenceID, err := httpx.ParamInt(r, "preference_id")
+		if err != nil {
+			httpx.BadRequestResponse(w, r, errors.New("Invalid preference ID"))
+			return
+		}
+
+		result, errKind, err := s.GetProjectPreference(ctx, apiKey.ProjectID, preferenceID)
+		if err != nil {
+			httpx.ServiceErrResponse(w, r, errKind, err)
+			return
+		}
+
+		httpx.SuccessResponse(w, r, http.StatusOK, "", result)
+	}
+}
+
+func UpdateProjectPreferenceAPI(s *service.PreferenceService) http.HandlerFunc {
+	return func(w http.ResponseWriter, r *http.Request) {
+		ctx := r.Context()
+		apiKey := middleware.GetAPIKeyFromContext(ctx)
+
+		preferenceID, err := httpx.ParamInt(r, "preference_id")
+		if err != nil {
+			httpx.BadRequestResponse(w, r, errors.New("Invalid preference ID"))
+			return
+		}
+
+		var payload dto.UpdateProjectPreferencePayload
+		if err := jsonx.DecodeJSONRequest(&payload, r); err != nil {
+			httpx.MalformedJSONResponse(w, r, err)
+			return
+		}
+
+		result, errKind, err := s.UpdateProjectPreference(ctx, apiKey.ProjectID, preferenceID, payload)
+		if err != nil {
+			httpx.ServiceErrResponse(w, r, errKind, err)
+			return
+		}
+
+		httpx.SuccessResponse(w, r, http.StatusOK, "Project preference updated", result)
+	}
+}
+
+func DeleteProjectPreferenceAPI(s *service.PreferenceService) http.HandlerFunc {
+	return func(w http.ResponseWriter, r *http.Request) {
+		ctx := r.Context()
+		apiKey := middleware.GetAPIKeyFromContext(ctx)
+
+		preferenceID, err := httpx.ParamInt(r, "preference_id")
+		if err != nil {
+			httpx.BadRequestResponse(w, r, errors.New("Invalid preference ID"))
+			return
+		}
+
+		errKind, err := s.DeleteProjectPreference(ctx, apiKey.ProjectID, preferenceID)
+		if err != nil {
+			httpx.ServiceErrResponse(w, r, errKind, err)
+			return
+		}
+
+		httpx.SuccessResponse(w, r, http.StatusOK, "", nil)
+	}
+}
+
 func ListPreferences(s *service.PreferenceService) http.HandlerFunc {
 	return func(w http.ResponseWriter, r *http.Request) {
 		ctx := r.Context()

@@ -89,6 +89,29 @@ func (p *CreateProjectPreferencePayload) Validate() error {
 	return nil
 }
 
+// UpdateProjectPreferencePayload updates the mutable fields of a catalog entry
+// (its label and its project-level default). The natural key (channel, topic,
+// event, medium) is immutable — changing it would be a delete + create, not an
+// update — so it is deliberately absent here.
+type UpdateProjectPreferencePayload struct {
+	Label   string `json:"label"`
+	Enabled bool   `json:"default_enabled"`
+}
+
+func (p *UpdateProjectPreferencePayload) Validate() error {
+	var errs service.InputValidationErrors
+
+	if p.Label == "" {
+		errs.Add(apires.NewApiError("Label is required", "Label cannot be empty", "label", p.Label))
+	}
+
+	if len(errs) > 0 {
+		return errs
+	}
+
+	return nil
+}
+
 func FromPreferenceForProject(e *entity.Preference) *ProjectPreference {
 	if e == nil {
 		return nil

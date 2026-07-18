@@ -17,6 +17,12 @@ type PreferenceRepository interface {
 type PreferenceReader interface {
 	DoesProjectPreferenceExist(ctx context.Context, projectID int, target dto.Target, medium enum.Medium) (bool, error)
 	ListPreferences(ctx context.Context, projectID int, kind enum.PreferenceKind) ([]*entity.Preference, error)
+	// GetProjectPreferenceByID fetches a single catalog entry (a project-level
+	// row) by id, scoped to the project. It returns tantra's ErrNotFound when no
+	// project-level row with that id exists — a recipient-level row with the same
+	// id is invisible here, so a full-scope key cannot read one through the
+	// catalog surface.
+	GetProjectPreferenceByID(ctx context.Context, projectID int, preferenceID int) (*entity.Preference, error)
 	ShouldDirectNotificationBeDelivered(ctx context.Context, projectID int, recipientExtID string, target dto.Target, medium enum.Medium) (bool, error)
 	ListEligibleRecipientExtIDsForBroadcast(ctx context.Context, projectID int, target dto.Target, medium enum.Medium) ([]string, error)
 	// ResolveRecipientPreferences answers every known (target, medium) for one
@@ -31,6 +37,16 @@ type PreferenceReader interface {
 
 type PreferenceWriter interface {
 	Create(ctx context.Context, pref *entity.Preference) (*entity.Preference, error)
+	// UpdateProjectPreference updates a catalog entry's mutable fields (label and
+	// the project-level default). Scoped to project-level rows (recipient NULL)
+	// and to the project; returns tantra's ErrNotFound when no such row exists.
+	UpdateProjectPreference(ctx context.Context, projectID int, preferenceID int, label string, enabled bool) (*entity.Preference, error)
+	// DeleteProjectPreference removes a catalog entry (a project-level row) by id,
+	// scoped to the project. Like GetProjectPreferenceByID it is confined to
+	// project-level rows, so a full-scope key deleting through the catalog surface
+	// cannot un-set a recipient's own preference by id. Returns ErrNotFound when
+	// no project-level row with that id exists.
+	DeleteProjectPreference(ctx context.Context, projectID int, preferenceID int) error
 	Delete(ctx context.Context, projectID int, preferenceID int) error
 	DeleteForRecipient(ctx context.Context, projectID int, recipientExtID string) (int, error)
 	DeleteForProject(ctx context.Context, projectID int) (int, error)

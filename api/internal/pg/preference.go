@@ -57,6 +57,78 @@ func (r *PreferenceRepo) Create(ctx context.Context, pref *entity.Preference) (*
 	return &newPref, nil
 }
 
+// GetProjectPreferenceByID fetches one catalog entry by id, scoped to the
+// project and to project-level rows (recipient_external_id IS NULL). The NULL
+// filter is what confines the Developer API's catalog surface to catalog rows —
+// a recipient-level row with the same id resolves to ErrNotFound here.
+func (r *PreferenceRepo) GetProjectPreferenceByID(ctx context.Context, projectID int, preferenceID int) (*entity.Preference, error) {
+	sql := `
+		SELECT id, project_id, recipient_external_id, channel, topic, event, medium, label, enabled, created_at, updated_at
+		FROM preference
+		WHERE project_id = $1 AND id = $2 AND recipient_external_id IS NULL
+	`
+
+	row := r.db.QueryRow(ctx, sql, projectID, preferenceID)
+
+	var pref entity.Preference
+	err := row.Scan(&pref.ID, &pref.ProjectID, &pref.RecipientExtID, &pref.Channel, &pref.Topic, &pref.Event, &pref.Medium, &pref.Label, &pref.Enabled, &pref.CreatedAt, &pref.UpdatedAt)
+	if err != nil {
+		if err == pgx.ErrNoRows {
+			return nil, tantraRepo.ErrNotFound
+		}
+		return nil, err
+	}
+
+	return &pref, nil
+}
+
+// UpdateProjectPreference updates a catalog entry's mutable fields (label and
+// the project-level default). Scoped to project-level rows (recipient NULL) for
+// the same reason GetProjectPreferenceByID is; RETURNING gives back the fresh
+// row so the caller need not re-read. ErrNotFound when nothing matched.
+func (r *PreferenceRepo) UpdateProjectPreference(ctx context.Context, projectID int, preferenceID int, label string, enabled bool) (*entity.Preference, error) {
+	sql := `
+		UPDATE preference
+		SET label = $3, enabled = $4, updated_at = now()
+		WHERE project_id = $1 AND id = $2 AND recipient_external_id IS NULL
+		RETURNING id, project_id, recipient_external_id, channel, topic, event, medium, label, enabled, created_at, updated_at
+	`
+
+	row := r.db.QueryRow(ctx, sql, projectID, preferenceID, label, enabled)
+
+	var pref entity.Preference
+	err := row.Scan(&pref.ID, &pref.ProjectID, &pref.RecipientExtID, &pref.Channel, &pref.Topic, &pref.Event, &pref.Medium, &pref.Label, &pref.Enabled, &pref.CreatedAt, &pref.UpdatedAt)
+	if err != nil {
+		if err == pgx.ErrNoRows {
+			return nil, tantraRepo.ErrNotFound
+		}
+		return nil, err
+	}
+
+	return &pref, nil
+}
+
+// DeleteProjectPreference removes a catalog entry by id, scoped to the project
+// and to project-level rows — see GetProjectPreferenceByID for why the NULL
+// filter matters. ErrNotFound when no project-level row with that id exists.
+func (r *PreferenceRepo) DeleteProjectPreference(ctx context.Context, projectID int, preferenceID int) error {
+	sql := `
+		DELETE FROM preference
+		WHERE project_id = $1 AND id = $2 AND recipient_external_id IS NULL;
+	`
+
+	tag, err := r.db.Exec(ctx, sql, projectID, preferenceID)
+	if err != nil {
+		return fmt.Errorf("delete: %w", err)
+	}
+
+	if tag.RowsAffected() == 0 {
+		return tantraRepo.ErrNotFound
+	}
+
+	return nil
+}
+
 func (r *PreferenceRepo) ListPreferences(ctx context.Context, projectID int, kind enum.PreferenceKind) ([]*entity.Preference, error) {
 	prefs, _, err := r.findPreferences(ctx, repository.SearchPreferencePayload{
 		Filters: repository.PreferenceSearchFilter{

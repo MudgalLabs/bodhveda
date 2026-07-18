@@ -92,6 +92,24 @@ func initRouter() http.Handler {
 			r.Post("/send", handler.SendNotification(app.APP.Service.Notification))
 		})
 
+		// Project preference (catalog) CRUD. Full-scope only — the catalog
+		// defines what a whole project may send, so a recipient-scoped key has no
+		// business touching it. Project-scoped by the API key (no project_id in
+		// the path), mirroring the rest of the Developer API. The console keeps
+		// its own /console project_id-in-path preference routes unchanged.
+		r.Route("/preferences", func(r chi.Router) {
+			r.Use(middleware.VerifyAPIKeyHasFullScope)
+
+			r.Get("/", handler.ListProjectPreferencesAPI(app.APP.Service.Preference))
+			r.Post("/", handler.CreateProjectPreferenceAPI(app.APP.Service.Preference))
+
+			r.Route("/{preference_id}", func(r chi.Router) {
+				r.Get("/", handler.GetProjectPreferenceAPI(app.APP.Service.Preference))
+				r.Patch("/", handler.UpdateProjectPreferenceAPI(app.APP.Service.Preference))
+				r.Delete("/", handler.DeleteProjectPreferenceAPI(app.APP.Service.Preference))
+			})
+		})
+
 		r.Route("/recipients", func(r chi.Router) {
 			r.With(middleware.VerifyAPIKeyHasFullScope).Group(func(r chi.Router) {
 				r.Post("/", handler.CreateRecipient(app.APP.Service.Recipient))

@@ -53,6 +53,72 @@ func (s *PreferenceService) CreateProjectPreference(ctx context.Context, payload
 	return dto.FromPreferenceForProject(newPref), service.ErrNone, nil
 }
 
+// ListProjectPreferencesForAPI lists the project's catalog for the Developer
+// API. Unlike the console's ListProjectPreferences it does NOT compute
+// per-entry subscriber counts — that is a console dashboard concern and costs a
+// query per row. The Dev API just returns the catalog rows themselves.
+func (s *PreferenceService) ListProjectPreferencesForAPI(ctx context.Context, projectID int) ([]*dto.ProjectPreference, service.Error, error) {
+	prefs, err := s.repo.ListPreferences(ctx, projectID, enum.PreferenceKindProject)
+	if err != nil {
+		return nil, service.ErrInternalServerError, fmt.Errorf("repo list preferences: %w", err)
+	}
+
+	dtos := []*dto.ProjectPreference{}
+	for _, pref := range prefs {
+		dtos = append(dtos, dto.FromPreferenceForProject(pref))
+	}
+
+	return dtos, service.ErrNone, nil
+}
+
+// GetProjectPreference fetches one catalog entry by id, scoped to the project.
+// The repo confines the lookup to project-level rows, so an unknown id — or a
+// recipient-level row's id — is a 404.
+func (s *PreferenceService) GetProjectPreference(ctx context.Context, projectID int, preferenceID int) (*dto.ProjectPreference, service.Error, error) {
+	pref, err := s.repo.GetProjectPreferenceByID(ctx, projectID, preferenceID)
+	if err != nil {
+		if err == tantraRepo.ErrNotFound {
+			return nil, service.ErrNotFound, fmt.Errorf("Preference not found")
+		}
+		return nil, service.ErrInternalServerError, fmt.Errorf("repo get project preference: %w", err)
+	}
+
+	return dto.FromPreferenceForProject(pref), service.ErrNone, nil
+}
+
+// UpdateProjectPreference updates a catalog entry's label and project-level
+// default. The natural key is immutable, so only those two fields change.
+func (s *PreferenceService) UpdateProjectPreference(ctx context.Context, projectID int, preferenceID int, payload dto.UpdateProjectPreferencePayload) (*dto.ProjectPreference, service.Error, error) {
+	if err := payload.Validate(); err != nil {
+		return nil, service.ErrInvalidInput, err
+	}
+
+	pref, err := s.repo.UpdateProjectPreference(ctx, projectID, preferenceID, payload.Label, payload.Enabled)
+	if err != nil {
+		if err == tantraRepo.ErrNotFound {
+			return nil, service.ErrNotFound, fmt.Errorf("Preference not found")
+		}
+		return nil, service.ErrInternalServerError, fmt.Errorf("repo update project preference: %w", err)
+	}
+
+	return dto.FromPreferenceForProject(pref), service.ErrNone, nil
+}
+
+// DeleteProjectPreference un-catalogs a (target, medium): it removes the
+// project-level row. Scoped to project-level rows in the repo, so a full-scope
+// key cannot delete a recipient's own preference by id through this surface.
+func (s *PreferenceService) DeleteProjectPreference(ctx context.Context, projectID int, preferenceID int) (service.Error, error) {
+	err := s.repo.DeleteProjectPreference(ctx, projectID, preferenceID)
+	if err != nil {
+		if err == tantraRepo.ErrNotFound {
+			return service.ErrNotFound, fmt.Errorf("Preference not found")
+		}
+		return service.ErrInternalServerError, fmt.Errorf("repo delete project preference: %w", err)
+	}
+
+	return service.ErrNone, nil
+}
+
 func (s *PreferenceService) ListProjectPreferences(ctx context.Context, projectID int) ([]*dto.ProjectPreferenceListItem, service.Error, error) {
 	prefs, err := s.repo.ListPreferences(ctx, projectID, enum.PreferenceKindProject)
 	if err != nil {
