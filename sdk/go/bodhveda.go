@@ -15,6 +15,10 @@ type Client struct {
 
 	Notifications *Notifications
 	Recipients    *Recipients
+	// Preferences manages the project preference CATALOG (project-scoped by the
+	// API key). Distinct from Recipients.Preferences, which manages a single
+	// recipient's own toggles.
+	Preferences *ProjectPreferences
 }
 
 // ClientOptions configures the Bodhveda client.
@@ -47,6 +51,7 @@ func NewClient(apiKey string, opts *ClientOptions) *Client {
 			Preferences:   &RecipientsPreferences{client: client},
 			Contacts:      &RecipientsContacts{client: client},
 		},
+		Preferences: &ProjectPreferences{client: client},
 	}
 
 	return bodhveda
@@ -248,6 +253,12 @@ type RecipientContactsService interface {
 	// Create adds a contact to a recipient.
 	Create(ctx context.Context, recipientID string, req *CreateRecipientContactRequest) (*CreateRecipientContactResponse, error)
 
+	// SetPrimary ensures an address is the recipient's PRIMARY contact for a
+	// medium (idempotent create-or-update). Use this for a server-side sync that
+	// keeps a recipient's primary email current — it is a single call, unlike
+	// Create, which rejects (409) when the contact already exists.
+	SetPrimary(ctx context.Context, recipientID string, req *SetPrimaryContactRequest) (*SetPrimaryContactResponse, error)
+
 	// Update updates a recipient's contact by contact ID.
 	Update(ctx context.Context, recipientID string, contactID int64, req *UpdateRecipientContactRequest) (*UpdateRecipientContactResponse, error)
 
@@ -272,6 +283,12 @@ func (recipientsContacts *RecipientsContacts) Create(ctx context.Context, recipi
 	return &resp, err
 }
 
+func (recipientsContacts *RecipientsContacts) SetPrimary(ctx context.Context, recipientID string, req *SetPrimaryContactRequest) (*SetPrimaryContactResponse, error) {
+	var resp SetPrimaryContactResponse
+	err := recipientsContacts.client.Do(ctx, "PUT", routes.RecipientsContactsSetPrimary(recipientID), req, &resp)
+	return &resp, err
+}
+
 func (recipientsContacts *RecipientsContacts) Update(ctx context.Context, recipientID string, contactID int64, req *UpdateRecipientContactRequest) (*UpdateRecipientContactResponse, error) {
 	var resp UpdateRecipientContactResponse
 	err := recipientsContacts.client.Do(ctx, "PATCH", routes.RecipientsContactsUpdate(recipientID, contactID), req, &resp)
@@ -280,4 +297,84 @@ func (recipientsContacts *RecipientsContacts) Update(ctx context.Context, recipi
 
 func (recipientsContacts *RecipientsContacts) Delete(ctx context.Context, recipientID string, contactID int64) error {
 	return recipientsContacts.client.Do(ctx, "DELETE", routes.RecipientsContactsDelete(recipientID, contactID), nil, nil)
+}
+
+// ProjectPreferencesService manages the project preference CATALOG — the
+// project-level entries that declare which (target, medium) pairs the project may
+// send and the default a recipient inherits. Project-scoped by the API key. Not
+// to be confused with RecipientPreferencesService, which manages one recipient's
+// own toggles. Requires a full-scope API key.
+type ProjectPreferencesService interface {
+	// List lists the project's catalog.
+	List(ctx context.Context) ([]ProjectPreference, error)
+
+	// Get retrieves a single catalog entry by ID.
+	Get(ctx context.Context, preferenceID int64) (*ProjectPreference, error)
+
+	// Create creates a single catalog entry. Strict — rejects with a 409 when an
+	// entry for the same (channel, topic, event, medium) already exists. To change
+	// an existing entry use Update; to declaratively set a whole catalog use
+	// UpsertMany.
+	Create(ctx context.Context, req *CreateProjectPreferenceRequest) (*ProjectPreference, error)
+
+	// Update updates a catalog entry's label and default. The natural key
+	// (channel/topic/event/medium) is immutable.
+	Update(ctx context.Context, preferenceID int64, req *UpdateProjectPreferenceRequest) (*ProjectPreference, error)
+
+	// Delete deletes a catalog entry (un-catalogs the (target, medium)).
+	Delete(ctx context.Context, preferenceID int64) error
+
+	// UpsertMany declaratively merges a whole catalog in one call — the primitive
+	// for a one-off "set up my project's preferences" script. Each item is upserted
+	// by its natural key (new inserted, existing label + default updated). By
+	// default entries absent from the slice are left untouched; pass
+	// UpsertProjectPreferencesOptions{Prune: true} to also delete them, making the
+	// slice the entire desired catalog.
+	UpsertMany(ctx context.Context, prefs []UpsertProjectPreferenceItem, opts *UpsertProjectPreferencesOptions) ([]ProjectPreference, error)
+}
+
+// ProjectPreferences implements ProjectPreferencesService.
+type ProjectPreferences struct {
+	client *httpClient
+}
+
+func (projectPreferences *ProjectPreferences) List(ctx context.Context) ([]ProjectPreference, error) {
+	var resp []ProjectPreference
+	err := projectPreferences.client.Do(ctx, "GET", routes.PreferencesList, nil, &resp)
+	return resp, err
+}
+
+func (projectPreferences *ProjectPreferences) Get(ctx context.Context, preferenceID int64) (*ProjectPreference, error) {
+	var resp ProjectPreference
+	err := projectPreferences.client.Do(ctx, "GET", routes.PreferencesGet(preferenceID), nil, &resp)
+	return &resp, err
+}
+
+func (projectPreferences *ProjectPreferences) Create(ctx context.Context, req *CreateProjectPreferenceRequest) (*ProjectPreference, error) {
+	var resp ProjectPreference
+	err := projectPreferences.client.Do(ctx, "POST", routes.PreferencesCreate, req, &resp)
+	return &resp, err
+}
+
+func (projectPreferences *ProjectPreferences) Update(ctx context.Context, preferenceID int64, req *UpdateProjectPreferenceRequest) (*ProjectPreference, error) {
+	var resp ProjectPreference
+	err := projectPreferences.client.Do(ctx, "PATCH", routes.PreferencesUpdate(preferenceID), req, &resp)
+	return &resp, err
+}
+
+func (projectPreferences *ProjectPreferences) Delete(ctx context.Context, preferenceID int64) error {
+	return projectPreferences.client.Do(ctx, "DELETE", routes.PreferencesDelete(preferenceID), nil, nil)
+}
+
+func (projectPreferences *ProjectPreferences) UpsertMany(ctx context.Context, prefs []UpsertProjectPreferenceItem, opts *UpsertProjectPreferencesOptions) ([]ProjectPreference, error) {
+	path := routes.PreferencesUpsert
+	if opts != nil && opts.Prune {
+		params := url.Values{}
+		params.Set("prune", "true")
+		path += "?" + params.Encode()
+	}
+
+	var resp []ProjectPreference
+	err := projectPreferences.client.Do(ctx, "PUT", path, prefs, &resp)
+	return resp, err
 }

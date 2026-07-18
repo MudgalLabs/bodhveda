@@ -13,6 +13,7 @@ It offers a simpler way to work with Bodhveda APIs.
     -   [Recipient Notifications](#recipient-notifications)
     -   [Recipient Preferences](#recipient-preferences)
     -   [Recipient Contacts](#recipient-contacts)
+-   [Project Preferences](#project-preferences)
 -   [License](#license)
 
 ## Installation
@@ -271,6 +272,22 @@ resp, _ := client.Recipients.Contacts.Create(ctx, "user-123", &bodhveda.CreateRe
 // resp.RecipientContact
 ```
 
+### Set the primary contact (idempotent)
+
+Use this for a server-side sync that keeps a recipient's primary email current.
+Unlike `Create`, it does not fail (409) when the contact already exists — it
+creates the primary if absent, updates the existing primary's address if it
+differs (which resets verification), or no-ops if it already matches, all in a
+single call.
+
+```go
+resp, _ := client.Recipients.Contacts.SetPrimary(ctx, "user-123", &bodhveda.SetPrimaryContactRequest{
+    Medium:  bodhveda.MediumEmail,
+    Address: "alice@example.com",
+})
+// resp.RecipientContact
+```
+
 ### List contacts
 
 ```go
@@ -294,6 +311,80 @@ Requires a `Full access` API key.
 
 ```go
 err := client.Recipients.Contacts.Delete(ctx, "user-123", 1)
+```
+
+---
+
+## Project Preferences
+
+The project preference **catalog** declares which `(target, medium)` pairs your
+project may send and the default a recipient inherits until they set a toggle of
+their own. This is `client.Preferences` — project-scoped by the API key. It is
+distinct from `client.Recipients.Preferences`, which manages a single recipient's
+own toggles.
+
+All catalog methods require a `Full access` API key — the catalog defines what a
+whole project may send, so it has no place on a recipient-scoped key.
+
+### List the catalog
+
+```go
+prefs, _ := client.Preferences.List(ctx)
+```
+
+### Create a catalog entry
+
+Strict — rejects with a 409 when an entry for the same `(channel, topic, event,
+medium)` already exists. `Medium` defaults to `in_app` when empty.
+
+```go
+pref, _ := client.Preferences.Create(ctx, &bodhveda.CreateProjectPreferenceRequest{
+    Channel:        "posts",
+    Topic:          "any",
+    Event:          "new_comment",
+    Medium:         bodhveda.MediumEmail,
+    Label:          "New comments",
+    DefaultEnabled: true,
+})
+```
+
+### Get a catalog entry
+
+```go
+pref, _ := client.Preferences.Get(ctx, pref.ID)
+```
+
+### Update a catalog entry
+
+The natural key (`channel`/`topic`/`event`/`medium`) is immutable, so only the
+label and default change.
+
+```go
+pref, _ := client.Preferences.Update(ctx, pref.ID, &bodhveda.UpdateProjectPreferenceRequest{
+    Label:          "New comments on your posts",
+    DefaultEnabled: false,
+})
+```
+
+### Delete a catalog entry
+
+```go
+err := client.Preferences.Delete(ctx, pref.ID)
+```
+
+### Set up a whole catalog in one call
+
+`UpsertMany` declaratively merges a whole catalog — the primitive for a one-off
+"set up my project's preferences" script. Each item is upserted by its natural
+key. By default entries absent from the slice are left untouched; pass
+`&bodhveda.UpsertProjectPreferencesOptions{Prune: true}` to also delete them,
+making the slice the entire desired catalog.
+
+```go
+prefs, _ := client.Preferences.UpsertMany(ctx, []bodhveda.UpsertProjectPreferenceItem{
+    {Channel: "posts", Topic: "any", Event: "new_comment", Medium: bodhveda.MediumInApp, Label: "New comments", DefaultEnabled: true},
+    {Channel: "posts", Topic: "any", Event: "new_comment", Medium: bodhveda.MediumEmail, Label: "New comments", DefaultEnabled: false},
+}, &bodhveda.UpsertProjectPreferencesOptions{Prune: true})
 ```
 
 ---

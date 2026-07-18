@@ -1,11 +1,41 @@
 # Changelog
 
+## v0.4.1
+
+Feature parity with `@bodhveda/js` / `@bodhveda/react` `0.4.0` — the new 0.4.0
+Dev-API surface is now available in the Go SDK. Additive only; existing methods
+are unchanged.
+
+> These additions ship as `0.4.1`, one patch ahead of JS/React's `0.4.0`. The
+> `0.4.0` Go tag (below) was published as a no-op placeholder and was already
+> cached immutably by the Go module proxy, so it could not be re-pointed at this
+> code — hence the bump.
+
+-   **`client.Preferences`** — a top-level, project-scoped client for the
+    preference CATALOG (the project-level entries that declare which `(target,
+    medium)` pairs a project may send and the default a recipient inherits):
+    `List` / `Get` / `Create` (strict — 409 on a duplicate natural key) / `Update`
+    / `Delete`, plus `UpsertMany` for a declarative one-call catalog setup
+    (`&UpsertProjectPreferencesOptions{Prune: true}` to also delete entries absent
+    from the slice). Distinct from `client.Recipients.Preferences`, which stays a
+    single recipient's own toggles. Requires a full-scope API key.
+-   **`client.Recipients.Contacts.SetPrimary`** — idempotent "ensure this is the
+    primary contact for this medium" (PUT). A server-side sync can keep a
+    recipient's primary email current in one call instead of list → diff →
+    create/update; unlike `Create`, it does not 409 when the contact already
+    exists.
+
+New types: `ProjectPreference`, `CreateProjectPreferenceRequest`,
+`UpdateProjectPreferenceRequest`, `UpsertProjectPreferenceItem`,
+`UpsertProjectPreferencesOptions`, `SetPrimaryContactRequest`,
+`SetPrimaryContactResponse`.
+
 ## v0.4.0
 
-Lockstep release with `@bodhveda/js` / `@bodhveda/react` `0.4.0`. **No changes to
-the Go SDK** — the 0.4.0 Dev-API additions (project preference catalog CRUD +
-bulk upsert, idempotent primary contact) are not yet surfaced in this SDK. The
-tag exists only to keep all three SDKs on one version number.
+Lockstep placeholder — **no changes to the Go SDK.** Tagged only to keep all
+three SDKs on one version number; the 0.4.0 Dev-API additions land in `v0.4.1`
+above. (Superseded — install `v0.4.1` or later for the catalog + `SetPrimary`
+features.)
 
 ## v0.3.0
 

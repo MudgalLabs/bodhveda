@@ -107,6 +107,76 @@ type UpdateRecipientContactResponse struct {
 	RecipientContact
 }
 
+// SetPrimaryContactRequest is the body of the idempotent "ensure this is the
+// primary contact for this medium" upsert (PUT). Unlike CreateRecipientContactRequest
+// there is no IsPrimary field — setting the primary IS the operation: it creates
+// the primary if absent, updates the existing primary's address if it differs
+// (which resets verification), or no-ops if it already matches.
+type SetPrimaryContactRequest struct {
+	Medium  Medium `json:"medium"`
+	Address string `json:"address"`
+}
+
+// SetPrimaryContactResponse is the response after setting a primary contact.
+type SetPrimaryContactResponse struct {
+	RecipientContact
+}
+
+// ProjectPreference is one entry in the project's preference CATALOG. The
+// catalog declares which (target, medium) pairs a project may send, and supplies
+// the default a recipient inherits until they override it with a toggle of their
+// own. It is distinct from Preference, which is one recipient's RESOLVED state:
+// manage the catalog with Client.Preferences, and a recipient's own toggles with
+// Client.Recipients.Preferences.
+type ProjectPreference struct {
+	ID        int64  `json:"id"`
+	ProjectID int64  `json:"project_id"`
+	Target    Target `json:"target"`
+	// Medium is the medium this catalog entry gates (in_app or email).
+	Medium Medium `json:"medium"`
+	// DefaultEnabled is the project-level default for this (target, medium):
+	// whether a recipient who has expressed no preference of their own is
+	// delivered to.
+	DefaultEnabled bool      `json:"default_enabled"`
+	Label          string    `json:"label"`
+	CreatedAt      time.Time `json:"created_at"`
+	UpdatedAt      time.Time `json:"updated_at"`
+}
+
+// CreateProjectPreferenceRequest creates ONE catalog entry. Strict: creating an
+// entry whose (channel, topic, event, medium) already exists rejects with a 409 —
+// use ProjectPreferences.Update to change an existing entry, or UpsertMany to
+// declaratively merge a whole catalog. Medium defaults to in_app when empty.
+type CreateProjectPreferenceRequest struct {
+	Channel        string `json:"channel"`
+	Topic          string `json:"topic"`
+	Event          string `json:"event"`
+	Medium         Medium `json:"medium,omitempty"`
+	Label          string `json:"label"`
+	DefaultEnabled bool   `json:"default_enabled"`
+}
+
+// UpdateProjectPreferenceRequest updates a catalog entry. The natural key
+// (channel/topic/event/medium) is immutable, so only the label and default change.
+type UpdateProjectPreferenceRequest struct {
+	Label          string `json:"label"`
+	DefaultEnabled bool   `json:"default_enabled"`
+}
+
+// UpsertProjectPreferenceItem is one item of a declarative bulk upsert — the same
+// shape as CreateProjectPreferenceRequest.
+type UpsertProjectPreferenceItem = CreateProjectPreferenceRequest
+
+// UpsertProjectPreferencesOptions configures ProjectPreferences.UpsertMany.
+type UpsertProjectPreferencesOptions struct {
+	// Prune, when true, DELETES catalog entries NOT present in the array, making
+	// the array the project's entire desired catalog. Default false (merge):
+	// absent entries are left untouched. Pruning un-catalogs a (target, medium),
+	// which turns a non-in_app medium off for recipients relying on the catalog
+	// default — hence it is opt-in.
+	Prune bool
+}
+
 // TargetWithLabel represents a target with an optional label. Medium is the
 // medium this preference applies to (in_app or email).
 type TargetWithLabel struct {
