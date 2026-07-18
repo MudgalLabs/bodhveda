@@ -1,0 +1,6 @@
+---
+title: "Create a catalog entry"
+openapi: "POST /preferences"
+---
+
+Add one entry to your project's preference catalog. **Strict** — creating an entry whose `(channel, topic, event, medium)` already exists returns `409`. To change an existing entry use [update](/api-reference/endpoint/preferences/update-project-preference); to declaratively set a whole catalog use [bulk upsert](/api-reference/endpoint/preferences/upsert-project-preferences).

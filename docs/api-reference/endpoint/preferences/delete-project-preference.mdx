@@ -1,0 +1,10 @@
+---
+title: "Delete a catalog entry"
+openapi: "DELETE /preferences/{preference_id}"
+---
+
+Delete a catalog entry, un-cataloging the `(target, medium)`.
+
+<Warning>
+    Un-cataloging a `(target, email)` turns email off for any recipient who was relying on the catalog default (they had set no preference of their own).
+</Warning>

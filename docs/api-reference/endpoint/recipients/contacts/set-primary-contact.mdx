@@ -1,0 +1,8 @@
+---
+title: "Set the primary contact"
+openapi: "PUT /recipients/{recipient_id}/contacts"
+---
+
+Idempotently ensure an address is the recipient's **primary** contact for a medium. Unlike [add contact](/api-reference/endpoint/recipients/contacts/create-contact) (which is strict and `409`s on conflict), this is a create-or-update: it creates the primary if absent, updates the existing primary in place if the address differs (which resets `verified_at`), or no-ops if it already matches — always `200`.
+
+💡 This is the one call a **server-side** sync needs to keep a recipient's primary email current — no list-then-diff. Sync it server-side so the address never rides a browser request.

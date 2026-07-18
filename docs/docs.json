@@ -76,10 +76,22 @@
                                 "pages": [
                                     "api-reference/endpoint/recipients/contacts/list-contacts",
                                     "api-reference/endpoint/recipients/contacts/create-contact",
+                                    "api-reference/endpoint/recipients/contacts/set-primary-contact",
                                     "api-reference/endpoint/recipients/contacts/update-contact",
                                     "api-reference/endpoint/recipients/contacts/delete-contact"
                                 ]
                             }
+                        ]
+                    },
+                    {
+                        "group": "Project Preferences",
+                        "pages": [
+                            "api-reference/endpoint/preferences/list-project-preferences",
+                            "api-reference/endpoint/preferences/create-project-preference",
+                            "api-reference/endpoint/preferences/upsert-project-preferences",
+                            "api-reference/endpoint/preferences/get-project-preference",
+                            "api-reference/endpoint/preferences/update-project-preference",
+                            "api-reference/endpoint/preferences/delete-project-preference"
                         ]
                     }
                 ]

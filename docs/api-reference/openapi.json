@@ -605,6 +605,78 @@
                         "BearerAuthWithAPIKeyWithEitherScope": []
                     }
                 ]
+            },
+            "put": {
+                "summary": "Set the primary contact",
+                "operationId": "setPrimaryRecipientContact",
+                "tags": ["Contacts"],
+                "description": "Idempotently ensure an address is the recipient's **primary** contact for a medium — create it if absent, update the existing primary in place if the address differs (which resets `verified_at`), or no-op if it already matches. Returns the resulting primary contact (`200`) either way, so a \"keep the primary email current\" sync is a single call.\n\n💡 Sync this **server-side** so the address never rides a browser request.",
+                "parameters": [
+                    {
+                        "name": "recipient_id",
+                        "in": "path",
+                        "required": true,
+                        "schema": { "type": "string" },
+                        "description": "The unique identifier of the recipient."
+                    }
+                ],
+                "requestBody": {
+                    "required": true,
+                    "content": {
+                        "application/json": {
+                            "schema": {
+                                "$ref": "#/components/schemas/SetPrimaryContactPayload"
+                            }
+                        }
+                    }
+                },
+                "x-codeSamples": [
+                    {
+                        "lang": "curl",
+                        "source": "curl -X PUT https://api.bodhveda.com/recipients/recipient_123/contacts \\\n  -H \"Authorization: Bearer bv_xxxxxxxxx\" \\\n  -H \"Content-Type: application/json\" \\\n  -d '{\n    \"medium\": \"email\",\n    \"address\": \"alice@example.com\"\n  }'"
+                    }
+                ],
+                "responses": {
+                    "200": {
+                        "description": "The resulting primary contact.",
+                        "content": {
+                            "application/json": {
+                                "examples": {
+                                    "Primary set": {
+                                        "summary": "Primary Contact Response",
+                                        "value": {
+                                            "message": "Primary contact set",
+                                            "data": {
+                                                "id": 1,
+                                                "medium": "email",
+                                                "address": "alice@example.com",
+                                                "is_primary": true,
+                                                "verified_at": null,
+                                                "created_at": "2025-11-07T05:31:56Z",
+                                                "updated_at": "2025-11-07T05:31:56Z"
+                                            }
+                                        }
+                                    }
+                                }
+                            }
+                        }
+                    },
+                    "409": {
+                        "description": "The target address is already a different contact for this recipient and medium.",
+                        "content": {
+                            "application/json": {
+                                "schema": {
+                                    "$ref": "#/components/schemas/ErrorResponse"
+                                }
+                            }
+                        }
+                    }
+                },
+                "security": [
+                    {
+                        "BearerAuthWithAPIKeyWithEitherScope": []
+                    }
+                ]
             }
         },
         "/recipients/{recipient_id}/contacts/{contact_id}": {
@@ -1247,6 +1319,339 @@
                     }
                 ]
             }
+        },
+        "/preferences": {
+            "get": {
+                "summary": "List the project preference catalog",
+                "operationId": "listProjectPreferences",
+                "tags": ["Project Preferences"],
+                "description": "List every entry in the project's preference **catalog**. The project is taken from the API key. Requires a `Full access` key.",
+                "responses": {
+                    "200": {
+                        "description": "The project's catalog.",
+                        "content": {
+                            "application/json": {
+                                "examples": {
+                                    "Catalog": {
+                                        "summary": "Catalog Response",
+                                        "value": {
+                                            "data": [
+                                                {
+                                                    "id": 12,
+                                                    "project_id": 1,
+                                                    "target": { "channel": "digest", "topic": "none", "event": "sent" },
+                                                    "medium": "email",
+                                                    "default_enabled": true,
+                                                    "label": "Daily digest",
+                                                    "created_at": "2025-11-07T05:31:56Z",
+                                                    "updated_at": "2025-11-07T05:31:56Z"
+                                                }
+                                            ]
+                                        }
+                                    }
+                                }
+                            }
+                        }
+                    }
+                },
+                "security": [
+                    {
+                        "BearerAuthWithAPIKeyWithFullAcessScope": []
+                    }
+                ]
+            },
+            "post": {
+                "summary": "Create a catalog entry",
+                "operationId": "createProjectPreference",
+                "tags": ["Project Preferences"],
+                "description": "Create a single catalog entry. **Strict**: an entry for the same `(channel, topic, event, medium)` returns `409`. Use `PATCH /preferences/{preference_id}` to change an existing entry, or `PUT /preferences` to set a whole catalog.",
+                "requestBody": {
+                    "required": true,
+                    "content": {
+                        "application/json": {
+                            "schema": {
+                                "$ref": "#/components/schemas/CreateProjectPreferencePayload"
+                            }
+                        }
+                    }
+                },
+                "x-codeSamples": [
+                    {
+                        "lang": "curl",
+                        "source": "curl -X POST https://api.bodhveda.com/preferences \\\n  -H \"Authorization: Bearer bv_xxxxxxxxx\" \\\n  -H \"Content-Type: application/json\" \\\n  -d '{\n    \"channel\": \"digest\",\n    \"topic\": \"none\",\n    \"event\": \"sent\",\n    \"medium\": \"email\",\n    \"label\": \"Daily digest\",\n    \"default_enabled\": true\n  }'"
+                    }
+                ],
+                "responses": {
+                    "201": {
+                        "description": "Catalog entry created.",
+                        "content": {
+                            "application/json": {
+                                "examples": {
+                                    "Created": {
+                                        "summary": "Created Response",
+                                        "value": {
+                                            "message": "Project preference created",
+                                            "data": {
+                                                "id": 12,
+                                                "project_id": 1,
+                                                "target": { "channel": "digest", "topic": "none", "event": "sent" },
+                                                "medium": "email",
+                                                "default_enabled": true,
+                                                "label": "Daily digest",
+                                                "created_at": "2025-11-07T05:31:56Z",
+                                                "updated_at": "2025-11-07T05:31:56Z"
+                                            }
+                                        }
+                                    }
+                                }
+                            }
+                        }
+                    },
+                    "409": {
+                        "description": "An entry for this `(channel, topic, event, medium)` already exists.",
+                        "content": {
+                            "application/json": {
+                                "schema": {
+                                    "$ref": "#/components/schemas/ErrorResponse"
+                                }
+                            }
+                        }
+                    }
+                },
+                "security": [
+                    {
+                        "BearerAuthWithAPIKeyWithFullAcessScope": []
+                    }
+                ]
+            },
+            "put": {
+                "summary": "Bulk upsert the catalog",
+                "operationId": "upsertProjectPreferences",
+                "tags": ["Project Preferences"],
+                "description": "Declaratively merge a whole catalog in one call — the primitive for a one-off \"set up my project's preferences\" script. Each item is upserted by its natural key (`channel, topic, event, medium`): new entries are inserted, existing ones have their label and default updated. Entries **not** in the array are left untouched, unless `prune=true`.\n\nReturns the full resulting catalog.",
+                "parameters": [
+                    {
+                        "name": "prune",
+                        "in": "query",
+                        "required": false,
+                        "schema": { "type": "boolean", "default": false },
+                        "description": "When `true`, catalog entries absent from the array are **deleted**, making the array the entire desired catalog. Pruning un-catalogs a `(target, medium)`, which turns a non-`in_app` medium off for recipients relying on the default — so it is opt-in."
+                    }
+                ],
+                "requestBody": {
+                    "required": true,
+                    "content": {
+                        "application/json": {
+                            "schema": {
+                                "type": "array",
+                                "items": {
+                                    "$ref": "#/components/schemas/CreateProjectPreferencePayload"
+                                }
+                            }
+                        }
+                    }
+                },
+                "x-codeSamples": [
+                    {
+                        "lang": "curl",
+                        "source": "curl -X PUT https://api.bodhveda.com/preferences \\\n  -H \"Authorization: Bearer bv_xxxxxxxxx\" \\\n  -H \"Content-Type: application/json\" \\\n  -d '[\n    { \"channel\": \"digest\", \"topic\": \"none\", \"event\": \"sent\", \"medium\": \"email\", \"label\": \"Daily digest\", \"default_enabled\": true }\n  ]'"
+                    }
+                ],
+                "responses": {
+                    "200": {
+                        "description": "The full resulting catalog.",
+                        "content": {
+                            "application/json": {
+                                "examples": {
+                                    "Upserted": {
+                                        "summary": "Upserted Response",
+                                        "value": {
+                                            "message": "Project preferences upserted",
+                                            "data": [
+                                                {
+                                                    "id": 12,
+                                                    "project_id": 1,
+                                                    "target": { "channel": "digest", "topic": "none", "event": "sent" },
+                                                    "medium": "email",
+                                                    "default_enabled": true,
+                                                    "label": "Daily digest",
+                                                    "created_at": "2025-11-07T05:31:56Z",
+                                                    "updated_at": "2025-11-07T05:31:56Z"
+                                                }
+                                            ]
+                                        }
+                                    }
+                                }
+                            }
+                        }
+                    }
+                },
+                "security": [
+                    {
+                        "BearerAuthWithAPIKeyWithFullAcessScope": []
+                    }
+                ]
+            }
+        },
+        "/preferences/{preference_id}": {
+            "get": {
+                "summary": "Get a catalog entry",
+                "operationId": "getProjectPreference",
+                "tags": ["Project Preferences"],
+                "description": "Retrieve a single catalog entry by ID.",
+                "parameters": [
+                    {
+                        "name": "preference_id",
+                        "in": "path",
+                        "required": true,
+                        "schema": { "type": "integer" },
+                        "description": "The catalog entry's ID."
+                    }
+                ],
+                "responses": {
+                    "200": {
+                        "description": "The catalog entry.",
+                        "content": {
+                            "application/json": {
+                                "examples": {
+                                    "Entry": {
+                                        "summary": "Entry Response",
+                                        "value": {
+                                            "data": {
+                                                "id": 12,
+                                                "project_id": 1,
+                                                "target": { "channel": "digest", "topic": "none", "event": "sent" },
+                                                "medium": "email",
+                                                "default_enabled": true,
+                                                "label": "Daily digest",
+                                                "created_at": "2025-11-07T05:31:56Z",
+                                                "updated_at": "2025-11-07T05:31:56Z"
+                                            }
+                                        }
+                                    }
+                                }
+                            }
+                        }
+                    },
+                    "404": {
+                        "description": "No catalog entry with this ID.",
+                        "content": {
+                            "application/json": {
+                                "schema": {
+                                    "$ref": "#/components/schemas/ErrorResponse"
+                                }
+                            }
+                        }
+                    }
+                },
+                "security": [
+                    {
+                        "BearerAuthWithAPIKeyWithFullAcessScope": []
+                    }
+                ]
+            },
+            "patch": {
+                "summary": "Update a catalog entry",
+                "operationId": "updateProjectPreference",
+                "tags": ["Project Preferences"],
+                "description": "Update a catalog entry's label and default. The natural key (`channel`/`topic`/`event`/`medium`) is immutable.",
+                "parameters": [
+                    {
+                        "name": "preference_id",
+                        "in": "path",
+                        "required": true,
+                        "schema": { "type": "integer" },
+                        "description": "The catalog entry's ID."
+                    }
+                ],
+                "requestBody": {
+                    "required": true,
+                    "content": {
+                        "application/json": {
+                            "schema": {
+                                "$ref": "#/components/schemas/UpdateProjectPreferencePayload"
+                            }
+                        }
+                    }
+                },
+                "responses": {
+                    "200": {
+                        "description": "The updated catalog entry.",
+                        "content": {
+                            "application/json": {
+                                "examples": {
+                                    "Updated": {
+                                        "summary": "Updated Response",
+                                        "value": {
+                                            "message": "Project preference updated",
+                                            "data": {
+                                                "id": 12,
+                                                "project_id": 1,
+                                                "target": { "channel": "digest", "topic": "none", "event": "sent" },
+                                                "medium": "email",
+                                                "default_enabled": false,
+                                                "label": "Weekly digest",
+                                                "created_at": "2025-11-07T05:31:56Z",
+                                                "updated_at": "2025-11-07T06:00:00Z"
+                                            }
+                                        }
+                                    }
+                                }
+                            }
+                        }
+                    },
+                    "404": {
+                        "description": "No catalog entry with this ID.",
+                        "content": {
+                            "application/json": {
+                                "schema": {
+                                    "$ref": "#/components/schemas/ErrorResponse"
+                                }
+                            }
+                        }
+                    }
+                },
+                "security": [
+                    {
+                        "BearerAuthWithAPIKeyWithFullAcessScope": []
+                    }
+                ]
+            },
+            "delete": {
+                "summary": "Delete a catalog entry",
+                "operationId": "deleteProjectPreference",
+                "tags": ["Project Preferences"],
+                "description": "Delete a catalog entry, un-cataloging the `(target, medium)`.",
+                "parameters": [
+                    {
+                        "name": "preference_id",
+                        "in": "path",
+                        "required": true,
+                        "schema": { "type": "integer" },
+                        "description": "The catalog entry's ID."
+                    }
+                ],
+                "responses": {
+                    "200": {
+                        "description": "Catalog entry deleted."
+                    },
+                    "404": {
+                        "description": "No catalog entry with this ID.",
+                        "content": {
+                            "application/json": {
+                                "schema": {
+                                    "$ref": "#/components/schemas/ErrorResponse"
+                                }
+                            }
+                        }
+                    }
+                },
+                "security": [
+                    {
+                        "BearerAuthWithAPIKeyWithFullAcessScope": []
+                    }
+                ]
+            }
         }
     },
     "components": {
@@ -1554,6 +1959,89 @@
                         "description": "Set or unset this contact as the primary for its medium."
                     }
                 }
+            },
+            "SetPrimaryContactPayload": {
+                "type": "object",
+                "properties": {
+                    "medium": {
+                        "type": "string",
+                        "description": "The delivery transport. Only `email` is exercised today.",
+                        "enum": ["email", "sms", "web_push", "mobile_push"]
+                    },
+                    "address": {
+                        "type": "string",
+                        "description": "The address to make primary. For email it must contain `@` and is stored lowercased."
+                    }
+                },
+                "required": ["medium", "address"]
+            },
+            "ProjectPreference": {
+                "type": "object",
+                "description": "A project-level preference — one entry in the project's **catalog**. The catalog declares which `(target, medium)` pairs the project may send and the default a recipient inherits until they set a preference of their own.",
+                "properties": {
+                    "id": {
+                        "type": "integer",
+                        "description": "Unique identifier for the catalog entry."
+                    },
+                    "project_id": { "type": "integer" },
+                    "target": { "$ref": "#/components/schemas/Target" },
+                    "medium": {
+                        "type": "string",
+                        "description": "The medium this catalog entry gates.",
+                        "enum": ["in_app", "email"]
+                    },
+                    "default_enabled": {
+                        "type": "boolean",
+                        "description": "The project-level default for this `(target, medium)`: whether a recipient who has set no preference of their own is delivered to."
+                    },
+                    "label": {
+                        "type": "string",
+                        "description": "Human-readable label for the catalog entry."
+                    },
+                    "created_at": { "type": "string", "format": "date-time" },
+                    "updated_at": { "type": "string", "format": "date-time" }
+                }
+            },
+            "CreateProjectPreferencePayload": {
+                "type": "object",
+                "properties": {
+                    "channel": {
+                        "type": "string",
+                        "description": "Broad category (e.g. \"digest\")."
+                    },
+                    "topic": {
+                        "type": "string",
+                        "description": "Subcategory. `any` matches all topics under the channel/event; `none` is the base channel/event."
+                    },
+                    "event": {
+                        "type": "string",
+                        "description": "Event that triggers the notification (e.g. \"sent\")."
+                    },
+                    "medium": {
+                        "type": "string",
+                        "description": "The medium this catalog entry gates. Defaults to `in_app`.",
+                        "enum": ["in_app", "email"],
+                        "default": "in_app"
+                    },
+                    "label": {
+                        "type": "string",
+                        "description": "Human-readable label."
+                    },
+                    "default_enabled": {
+                        "type": "boolean",
+                        "description": "The project-level default for recipients who have set no preference of their own."
+                    }
+                },
+                "required": ["channel", "topic", "event", "label", "default_enabled"]
+            },
+            "UpdateProjectPreferencePayload": {
+                "type": "object",
+                "description": "Updates a catalog entry's label and default. The natural key (`channel`/`topic`/`event`/`medium`) is immutable.",
+                "properties": {
+                    "label": { "type": "string" },
+                    "default_enabled": { "type": "boolean" }
+                },
+                "required": ["label", "default_enabled"]
             }
         }
     }
