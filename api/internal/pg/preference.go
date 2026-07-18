@@ -129,6 +129,97 @@ func (r *PreferenceRepo) DeleteProjectPreference(ctx context.Context, projectID 
 	return nil
 }
 
+// UpsertProjectPreferences merges a whole set of catalog entries in one
+// transaction and returns the resulting project-level catalog.
+//
+// Each entry is upserted by its natural key via ON CONFLICT on project_pref_unique
+// — the partial unique index over (project_id, channel, topic, event, medium)
+// WHERE recipient_external_id IS NULL (migration 20260712130000). The conflict
+// target's WHERE mirrors that partial index so only project-level rows collide;
+// recipient rows share the columns but a different index and are never touched.
+//
+// With prune, project-level rows whose natural key is absent from the set are
+// deleted, making the set the entire desired catalog. Pruning un-catalogs a
+// (target, medium), which flips a non-in_app medium off for anyone relying on
+// the catalog default — hence it is opt-in and merge is the default. The whole
+// thing runs in a transaction so a partial catalog is never observable.
+func (r *PreferenceRepo) UpsertProjectPreferences(ctx context.Context, projectID int, prefs []*entity.Preference, prune bool) ([]*entity.Preference, error) {
+	var result []*entity.Preference
+
+	err := dbx.WithTx(ctx, r.pool, func(tx pgx.Tx) error {
+		upsertSQL := `
+			INSERT INTO preference (project_id, recipient_external_id, channel, topic, event, medium, label, enabled, created_at, updated_at)
+			VALUES ($1, NULL, $2, $3, $4, $5, $6, $7, now(), now())
+			ON CONFLICT (project_id, channel, topic, event, medium)
+			WHERE recipient_external_id IS NULL
+			DO UPDATE SET
+				label = EXCLUDED.label,
+				enabled = EXCLUDED.enabled,
+				updated_at = now()
+		`
+
+		channels := make([]string, len(prefs))
+		topics := make([]string, len(prefs))
+		events := make([]string, len(prefs))
+		mediums := make([]string, len(prefs))
+		for i, p := range prefs {
+			channels[i], topics[i], events[i], mediums[i] = p.Channel, p.Topic, p.Event, p.Medium
+			if _, err := tx.Exec(ctx, upsertSQL, projectID, p.Channel, p.Topic, p.Event, p.Medium, p.Label, p.Enabled); err != nil {
+				return fmt.Errorf("upsert preference: %w", err)
+			}
+		}
+
+		if prune {
+			// Remove project-level rows whose natural key is not in the set. Scoped
+			// to recipient_external_id IS NULL so a recipient's own rows survive.
+			pruneSQL := `
+				DELETE FROM preference
+				WHERE project_id = $1
+				  AND recipient_external_id IS NULL
+				  AND (channel, topic, event, medium) NOT IN (
+				      SELECT channel, topic, event, medium
+				      FROM unnest($2::text[], $3::text[], $4::text[], $5::text[]) AS t(channel, topic, event, medium)
+				  )
+			`
+			if _, err := tx.Exec(ctx, pruneSQL, projectID, channels, topics, events, mediums); err != nil {
+				return fmt.Errorf("prune preferences: %w", err)
+			}
+		}
+
+		readSQL := `
+			SELECT id, project_id, recipient_external_id, channel, topic, event, medium, label, enabled, created_at, updated_at
+			FROM preference
+			WHERE project_id = $1 AND recipient_external_id IS NULL
+			ORDER BY channel, topic, event, medium
+		`
+		rows, err := tx.Query(ctx, readSQL, projectID)
+		if err != nil {
+			return fmt.Errorf("read catalog: %w", err)
+		}
+		defer rows.Close()
+
+		catalog := []*entity.Preference{}
+		for rows.Next() {
+			var p entity.Preference
+			if err := rows.Scan(&p.ID, &p.ProjectID, &p.RecipientExtID, &p.Channel, &p.Topic, &p.Event, &p.Medium, &p.Label, &p.Enabled, &p.CreatedAt, &p.UpdatedAt); err != nil {
+				return fmt.Errorf("scan: %w", err)
+			}
+			catalog = append(catalog, &p)
+		}
+		if err := rows.Err(); err != nil {
+			return fmt.Errorf("rows error: %w", err)
+		}
+
+		result = catalog
+		return nil
+	})
+	if err != nil {
+		return nil, err
+	}
+
+	return result, nil
+}
+
 func (r *PreferenceRepo) ListPreferences(ctx context.Context, projectID int, kind enum.PreferenceKind) ([]*entity.Preference, error) {
 	prefs, _, err := r.findPreferences(ctx, repository.SearchPreferencePayload{
 		Filters: repository.PreferenceSearchFilter{

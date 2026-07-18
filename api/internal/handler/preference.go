@@ -3,6 +3,7 @@ package handler
 import (
 	"errors"
 	"net/http"
+	"strconv"
 	"strings"
 
 	"github.com/mudgallabs/bodhveda/internal/middleware"
@@ -86,6 +87,42 @@ func CreateProjectPreferenceAPI(s *service.PreferenceService) http.HandlerFunc {
 		}
 
 		httpx.SuccessResponse(w, r, http.StatusCreated, "Project preference created", result)
+	}
+}
+
+// UpsertProjectPreferencesAPI is the declarative bulk catalog setup: the body is
+// an ARRAY of project preferences, merged by natural key. `?prune=true` also
+// removes catalog rows absent from the array (default: merge, leaving them).
+func UpsertProjectPreferencesAPI(s *service.PreferenceService) http.HandlerFunc {
+	return func(w http.ResponseWriter, r *http.Request) {
+		ctx := r.Context()
+		apiKey := middleware.GetAPIKeyFromContext(ctx)
+
+		var items []dto.CreateProjectPreferencePayload
+		if err := jsonx.DecodeJSONRequest(&items, r); err != nil {
+			httpx.MalformedJSONResponse(w, r, err)
+			return
+		}
+
+		// prune is optional; missing means merge (false). Only a malformed value
+		// is an error — QueryBool would reject an absent param.
+		prune := false
+		if raw := httpx.QueryStr(r, "prune"); raw != "" {
+			v, err := strconv.ParseBool(raw)
+			if err != nil {
+				httpx.BadRequestResponse(w, r, errors.New("Invalid 'prune' query param; expected true or false"))
+				return
+			}
+			prune = v
+		}
+
+		result, errKind, err := s.UpsertProjectPreferences(ctx, apiKey.ProjectID, items, prune)
+		if err != nil {
+			httpx.ServiceErrResponse(w, r, errKind, err)
+			return
+		}
+
+		httpx.SuccessResponse(w, r, http.StatusOK, "Project preferences upserted", result)
 	}
 }
 

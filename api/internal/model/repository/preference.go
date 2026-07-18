@@ -41,6 +41,14 @@ type PreferenceWriter interface {
 	// the project-level default). Scoped to project-level rows (recipient NULL)
 	// and to the project; returns tantra's ErrNotFound when no such row exists.
 	UpdateProjectPreference(ctx context.Context, projectID int, preferenceID int, label string, enabled bool) (*entity.Preference, error)
+	// UpsertProjectPreferences declaratively merges a set of catalog entries in a
+	// single transaction: each is upserted by its natural key (channel, topic,
+	// event, medium) — inserted if new, its label + default updated if it exists.
+	// When prune is false (the default, merge) catalog rows NOT in the set are
+	// left untouched; when prune is true they are also deleted, making the set the
+	// project's entire desired catalog. Returns the full resulting project-level
+	// catalog. Recipient rows are never touched.
+	UpsertProjectPreferences(ctx context.Context, projectID int, prefs []*entity.Preference, prune bool) ([]*entity.Preference, error)
 	// DeleteProjectPreference removes a catalog entry (a project-level row) by id,
 	// scoped to the project. Like GetProjectPreferenceByID it is confined to
 	// project-level rows, so a full-scope key deleting through the catalog surface

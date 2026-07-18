@@ -102,6 +102,9 @@ func initRouter() http.Handler {
 
 			r.Get("/", handler.ListProjectPreferencesAPI(app.APP.Service.Preference))
 			r.Post("/", handler.CreateProjectPreferenceAPI(app.APP.Service.Preference))
+			// Declarative bulk merge of the whole catalog (array body). ?prune=true
+			// also removes catalog rows absent from the array; default is merge.
+			r.Put("/", handler.UpsertProjectPreferencesAPI(app.APP.Service.Preference))
 
 			r.Route("/{preference_id}", func(r chi.Router) {
 				r.Get("/", handler.GetProjectPreferenceAPI(app.APP.Service.Preference))

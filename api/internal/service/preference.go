@@ -71,6 +71,54 @@ func (s *PreferenceService) ListProjectPreferencesForAPI(ctx context.Context, pr
 	return dtos, service.ErrNone, nil
 }
 
+// UpsertProjectPreferences declaratively merges a whole desired catalog in one
+// call — the primitive a "setup project preferences" script calls once with its
+// entire catalog. Each item is upserted by its natural key; with prune, catalog
+// rows absent from the set are removed too (merge is the default — see the repo
+// method for why prune is opt-in).
+//
+// An empty set is rejected: with merge it is a pointless no-op, and with prune
+// it would wipe the whole catalog — almost certainly a mistake. Deliberate
+// removals go through DELETE /preferences/{id}.
+func (s *PreferenceService) UpsertProjectPreferences(ctx context.Context, projectID int, items []dto.CreateProjectPreferencePayload, prune bool) ([]*dto.ProjectPreference, service.Error, error) {
+	if len(items) == 0 {
+		return nil, service.ErrInvalidInput, errors.New("At least one preference is required")
+	}
+
+	prefs := make([]*entity.Preference, 0, len(items))
+	for i := range items {
+		items[i].ProjectID = projectID
+		if err := items[i].Validate(); err != nil {
+			// Return the structured validation error as-is so it renders as a 422
+			// with per-field detail (httpx type-asserts InputValidationErrors).
+			return nil, service.ErrInvalidInput, err
+		}
+
+		prefs = append(prefs, entity.NewPreference(
+			&items[i].ProjectID,
+			nil,
+			items[i].Channel,
+			items[i].Topic,
+			items[i].Event,
+			items[i].Medium,
+			&items[i].Label,
+			items[i].Enabled,
+		))
+	}
+
+	result, err := s.repo.UpsertProjectPreferences(ctx, projectID, prefs, prune)
+	if err != nil {
+		return nil, service.ErrInternalServerError, fmt.Errorf("repo upsert project preferences: %w", err)
+	}
+
+	dtos := []*dto.ProjectPreference{}
+	for _, p := range result {
+		dtos = append(dtos, dto.FromPreferenceForProject(p))
+	}
+
+	return dtos, service.ErrNone, nil
+}
+
 // GetProjectPreference fetches one catalog entry by id, scoped to the project.
 // The repo confines the lookup to project-level rows, so an unknown id — or a
 // recipient-level row's id — is a 404.
