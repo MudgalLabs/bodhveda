@@ -53,6 +53,39 @@ func (s *RecipientContactService) Create(ctx context.Context, payload dto.Create
 	return dto.FromRecipientContact(contact), service.ErrNone, nil
 }
 
+// SetPrimary idempotently ensures an address is the recipient's primary contact
+// for a medium — the single-call "keep the primary email current" sync. It is a
+// create-or-update: 200 whether it inserted, promoted, updated, or no-op'd (see
+// the repo method for the four cases).
+func (s *RecipientContactService) SetPrimary(ctx context.Context, payload dto.SetPrimaryContactPayload) (*dto.RecipientContact, service.Error, error) {
+	if err := payload.Validate(); err != nil {
+		return nil, service.ErrInvalidInput, err
+	}
+
+	// A contact hangs off an existing recipient (FK). Check up-front so callers
+	// get a clean 404 rather than a foreign-key error.
+	exists, err := s.recipientRepo.Exists(ctx, payload.ProjectID, payload.RecipientExtID)
+	if err != nil {
+		return nil, service.ErrInternalServerError, fmt.Errorf("recipient exists check: %w", err)
+	}
+	if !exists {
+		return nil, service.ErrNotFound, fmt.Errorf("Recipient not found")
+	}
+
+	contact := entity.NewRecipientContact(payload.ProjectID, payload.RecipientExtID, enum.Medium(payload.Medium), payload.Address, true)
+	contact, err = s.repo.SetPrimaryContact(ctx, contact)
+	if err != nil {
+		if err == tantraRepo.ErrConflict {
+			// The target address is already a different contact for this recipient
+			// and medium — can't be made primary without displacing it explicitly.
+			return nil, service.ErrConflict, fmt.Errorf("Another contact already uses this address for this medium")
+		}
+		return nil, service.ErrInternalServerError, fmt.Errorf("recipient contact repo set primary: %w", err)
+	}
+
+	return dto.FromRecipientContact(contact), service.ErrNone, nil
+}
+
 func (s *RecipientContactService) List(ctx context.Context, projectID int, recipientExtID string) (*dto.ListRecipientContactsResult, service.Error, error) {
 	if projectID <= 0 || recipientExtID == "" {
 		return nil, service.ErrInvalidInput, fmt.Errorf("projectID and recipient id required")

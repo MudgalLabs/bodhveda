@@ -49,6 +49,40 @@ func CreateRecipientContact(s *service.RecipientContactService) http.HandlerFunc
 	}
 }
 
+// SetPrimaryRecipientContact is the idempotent "ensure this is the primary
+// contact for this medium" upsert (PUT). Create-or-update; 200 either way. It
+// lets a server-side sync keep a recipient's primary email current in one call
+// instead of list → diff → create/update.
+func SetPrimaryRecipientContact(s *service.RecipientContactService) http.HandlerFunc {
+	return func(w http.ResponseWriter, r *http.Request) {
+		ctx := r.Context()
+		apiKey := middleware.GetAPIKeyFromContext(ctx)
+
+		recipientExtID := strings.ToLower(httpx.ParamStr(r, "recipient_external_id"))
+		if recipientExtID == "" {
+			httpx.BadRequestResponse(w, r, errors.New("recipient_external_id required"))
+			return
+		}
+
+		var payload dto.SetPrimaryContactPayload
+		if err := jsonx.DecodeJSONRequest(&payload, r); err != nil {
+			httpx.MalformedJSONResponse(w, r, err)
+			return
+		}
+
+		payload.ProjectID = apiKey.ProjectID
+		payload.RecipientExtID = recipientExtID
+
+		result, errKind, err := s.SetPrimary(ctx, payload)
+		if err != nil {
+			httpx.ServiceErrResponse(w, r, errKind, err)
+			return
+		}
+
+		httpx.SuccessResponse(w, r, http.StatusOK, "Primary contact set", result)
+	}
+}
+
 func ListRecipientContacts(s *service.RecipientContactService) http.HandlerFunc {
 	return func(w http.ResponseWriter, r *http.Request) {
 		ctx := r.Context()

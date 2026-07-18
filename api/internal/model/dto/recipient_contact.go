@@ -136,6 +136,49 @@ func (p *UpdateRecipientContactPayload) Validate() error {
 	return nil
 }
 
+// SetPrimaryContactPayload is the body of the idempotent "ensure this is the
+// primary contact for this medium" upsert (PUT). Unlike CreateRecipientContactPayload
+// there is no is_primary field — setting the primary IS the operation.
+type SetPrimaryContactPayload struct {
+	ProjectID      int
+	RecipientExtID string
+
+	Medium  string `json:"medium"`
+	Address string `json:"address"`
+}
+
+func (p *SetPrimaryContactPayload) Validate() error {
+	var errs service.InputValidationErrors
+
+	if p.ProjectID <= 0 {
+		errs.Add(apires.NewApiError("Project is required", "Project ID must be a positive integer", "project_id", p.ProjectID))
+	}
+
+	if p.RecipientExtID == "" {
+		errs.Add(apires.NewApiError("Recipient is required", "Recipient ID cannot be empty", "recipient_id", p.RecipientExtID))
+	}
+
+	medium := enum.Medium(strings.TrimSpace(p.Medium))
+	if !medium.ValidContactMedium() {
+		errs.Add(apires.NewApiError("Invalid medium", "Medium must be one of: email, sms, web_push, mobile_push", "medium", p.Medium))
+	} else {
+		p.Medium = string(medium)
+	}
+
+	p.Address = normalizeAddress(medium, p.Address)
+	if p.Address == "" {
+		errs.Add(apires.NewApiError("Address is required", "Address cannot be empty", "address", p.Address))
+	} else if medium == enum.MediumEmail && !strings.Contains(p.Address, "@") {
+		errs.Add(apires.NewApiError("Invalid email address", "Email address must contain '@'", "address", p.Address))
+	}
+
+	if len(errs) > 0 {
+		return errs
+	}
+
+	return nil
+}
+
 type ListRecipientContactsResult struct {
 	Contacts []*RecipientContact `json:"contacts"`
 }

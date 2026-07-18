@@ -142,10 +142,13 @@ func initRouter() http.Handler {
 				})
 
 				r.Route("/contacts", func(r chi.Router) {
-					// POST/GET/PATCH are allowed for full OR recipient-scoped keys
+					// POST/PUT/GET/PATCH are allowed for full OR recipient-scoped keys
 					// (like preferences). DELETE has the highest blast radius on a
 					// stolen recipient key, so it requires full scope.
 					r.Post("/", handler.CreateRecipientContact(app.APP.Service.RecipientContact))
+					// PUT = idempotent "ensure this is the primary contact for this
+					// medium" (create-or-update). Lets a server sync be one call.
+					r.Put("/", handler.SetPrimaryRecipientContact(app.APP.Service.RecipientContact))
 					r.Get("/", handler.ListRecipientContacts(app.APP.Service.RecipientContact))
 
 					r.Route("/{contact_id}", func(r chi.Router) {
