@@ -24,6 +24,7 @@ import {
     OPEN_SOFT_SIGNAL_COPY,
     deliveryOutcomeText,
 } from "@/features/notification/delivery_copy";
+import { RecipientLink } from "@/features/recipient/recipient_link";
 import { StatusTag } from "@/components/status_tag";
 import { targetToString } from "@/lib/utils";
 
@@ -79,7 +80,9 @@ export function DeliveryDetailDialog({
                     </DialogTitle>
                     <DialogDescription>
                         {targetToString(notification.target)} &middot;{" "}
-                        {notification.recipient_id}
+                        <RecipientLink
+                            recipientID={notification.recipient_id}
+                        />
                     </DialogDescription>
                 </DialogHeader>
 

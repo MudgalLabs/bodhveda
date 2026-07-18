@@ -36,6 +36,7 @@ import {
 } from "@/features/preference/preference_type";
 import { DeleteProjectPreferenceModal } from "../components/delete_project_preference_modal";
 import { TargetInfoTooltip } from "@/components/target_info_tooltip";
+import { RecipientLink } from "@/features/recipient/recipient_link";
 import { targetToString } from "@/lib/utils";
 
 interface ProjectPreferenceListProps {
@@ -236,6 +237,9 @@ const recipientPreferenceColumns: ColumnDef<RecipientPreference>[] = [
     {
         accessorKey: "recipient_id",
         header: () => <DataTableColumnHeader title="Recipient ID" />,
+        cell: ({ row }) => (
+            <RecipientLink recipientID={row.original.recipient_id} />
+        ),
     },
     {
         accessorKey: "medium",
