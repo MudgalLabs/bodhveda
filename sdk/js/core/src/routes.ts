@@ -3,6 +3,17 @@ export const ROUTES = {
         send: "/notifications/send",
     },
 
+    // Project-scoped preference CATALOG (project comes from the API key). Distinct
+    // from recipients.preferences, which is a single recipient's own toggles.
+    preferences: {
+        list: "/preferences",
+        create: "/preferences",
+        upsertMany: "/preferences",
+        get: (preferenceID: number) => `/preferences/${preferenceID}`,
+        update: (preferenceID: number) => `/preferences/${preferenceID}`,
+        delete: (preferenceID: number) => `/preferences/${preferenceID}`,
+    },
+
     recipients: {
         create: "/recipients",
         createBatch: "/recipients/batch",
@@ -41,6 +52,8 @@ export const ROUTES = {
             list: (recipientID: string) =>
                 `/recipients/${encodeURIComponent(recipientID)}/contacts`,
             create: (recipientID: string) =>
+                `/recipients/${encodeURIComponent(recipientID)}/contacts`,
+            setPrimary: (recipientID: string) =>
                 `/recipients/${encodeURIComponent(recipientID)}/contacts`,
             update: (recipientID: string, contactID: number) =>
                 `/recipients/${encodeURIComponent(

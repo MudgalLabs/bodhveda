@@ -4,7 +4,7 @@ Official React SDK for Bodhveda.
 
 It extends the core `@bodhveda/js` SDK to provide you with hooks to make it easy to build custom notification UX with React.
 
-> This package re-exports everything from the core [`@bodhveda/js`](https://www.npmjs.com/package/@bodhveda/js) SDK, including the email/contacts types. The hooks here cover the recipient **inbox** (in-app notifications and preferences). Email delivery, recipient contacts, and provider configuration are server-side concerns — use the core SDK for those (email addresses should never ride a browser request).
+> This package re-exports everything from the core [`@bodhveda/js`](https://www.npmjs.com/package/@bodhveda/js) SDK, including the email/contacts types. The hooks here cover the recipient **inbox** (in-app notifications and preferences). Email delivery, recipient contacts, the project preference catalog, and provider configuration are server-side concerns — use the core SDK for those (email addresses and full-access keys should never ride a browser request).
 
 > This SDK uses [TanStack Query](https://tanstack.com/query/v5/docs/framework/react/overview) to manage Bodhveda API state for you - including caching and invalidation as well. You will need to add `@tanstack/react-query` and wrap your React app with `QueryClientProvider` and then put `BodhvedaProvider` inside it so that `@bodhveda/react` can use the ReactQuery's `QueryClient`.
 

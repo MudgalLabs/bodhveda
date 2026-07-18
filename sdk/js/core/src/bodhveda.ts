@@ -27,6 +27,13 @@ import {
     ListRecipientContactsResponse,
     UpdateRecipientContactRequest,
     UpdateRecipientContactResponse,
+    SetPrimaryContactRequest,
+    SetPrimaryContactResponse,
+    ProjectPreference,
+    CreateProjectPreferenceRequest,
+    UpdateProjectPreferenceRequest,
+    UpsertProjectPreferenceItem,
+    UpsertProjectPreferencesOptions,
 } from "./types";
 import { ROUTES } from "./routes";
 
@@ -49,6 +56,12 @@ interface BodhvedaClient {
      * Provides access to recipient-related methods.
      */
     recipients: RecipientsClient;
+    /**
+     * Provides access to the project preference CATALOG (project-scoped by the
+     * API key). Distinct from `recipients.preferences`, which manages a single
+     * recipient's own toggles.
+     */
+    preferences: ProjectPreferencesClient;
 }
 
 /**
@@ -57,6 +70,7 @@ interface BodhvedaClient {
 export class Bodhveda implements BodhvedaClient {
     notifications: NotificationsClient;
     recipients: RecipientsClient;
+    preferences: ProjectPreferencesClient;
 
     /**
      * Creates an instance of the Bodhveda SDK.
@@ -87,6 +101,7 @@ export class Bodhveda implements BodhvedaClient {
 
         this.notifications = new Notifications(client);
         this.recipients = new Recipients(client);
+        this.preferences = new ProjectPreferences(client);
     }
 }
 
@@ -456,6 +471,20 @@ interface RecipientsContactsClient {
     ): Promise<CreateRecipientContactResponse>;
 
     /**
+     * Ensures an address is the recipient's PRIMARY contact for a medium
+     * (idempotent create-or-update). Use this for a server-side sync that keeps
+     * a recipient's primary email current — it is a single call, unlike
+     * {@link create} which rejects (409) when the contact already exists.
+     * @param recipientID - The unique identifier of the recipient.
+     * @param req - The medium and address to make primary.
+     * @returns The resulting primary contact.
+     */
+    setPrimary(
+        recipientID: string,
+        req: SetPrimaryContactRequest
+    ): Promise<SetPrimaryContactResponse>;
+
+    /**
      * Updates a recipient's contact by contact ID.
      * @param recipientID - The unique identifier of the recipient.
      * @param contactID - The unique identifier of the contact.
@@ -509,6 +538,17 @@ class RecipientsContacts implements RecipientsContactsClient {
         return response.data as CreateRecipientContactResponse;
     }
 
+    async setPrimary(
+        recipientID: string,
+        req: SetPrimaryContactRequest
+    ): Promise<SetPrimaryContactResponse> {
+        const response = await this.client.put(
+            ROUTES.recipients.contacts.setPrimary(recipientID),
+            req
+        );
+        return response.data as SetPrimaryContactResponse;
+    }
+
     async update(
         recipientID: string,
         contactID: number,
@@ -525,5 +565,135 @@ class RecipientsContacts implements RecipientsContactsClient {
         await this.client.delete(
             ROUTES.recipients.contacts.delete(recipientID, contactID)
         );
+    }
+}
+
+/**
+ * Interface for managing the project preference CATALOG — the project-level
+ * entries that declare which (target, medium) pairs the project may send and the
+ * default a recipient inherits. Project-scoped by the API key.
+ *
+ * Not to be confused with `recipients.preferences`, which manages one
+ * recipient's own toggles.
+ */
+interface ProjectPreferencesClient {
+    /**
+     * Lists the project's catalog.
+     * @returns The catalog entries.
+     */
+    list(): Promise<ProjectPreference[]>;
+
+    /**
+     * Retrieves a single catalog entry by ID.
+     * @param preferenceID - The catalog entry's ID.
+     * @returns The catalog entry.
+     */
+    get(preferenceID: number): Promise<ProjectPreference>;
+
+    /**
+     * Creates a single catalog entry. Strict — rejects with a 409 when an entry
+     * for the same (channel, topic, event, medium) already exists. To change an
+     * existing entry use {@link update}; to declaratively set a whole catalog use
+     * {@link upsertMany}.
+     * @param req - The catalog entry to create.
+     * @returns The created catalog entry.
+     */
+    create(req: CreateProjectPreferenceRequest): Promise<ProjectPreference>;
+
+    /**
+     * Updates a catalog entry's label and default. The natural key
+     * (channel/topic/event/medium) is immutable.
+     * @param preferenceID - The catalog entry's ID.
+     * @param req - The fields to update.
+     * @returns The updated catalog entry.
+     */
+    update(
+        preferenceID: number,
+        req: UpdateProjectPreferenceRequest
+    ): Promise<ProjectPreference>;
+
+    /**
+     * Deletes a catalog entry (un-catalogs the (target, medium)).
+     * @param preferenceID - The catalog entry's ID.
+     */
+    delete(preferenceID: number): Promise<void>;
+
+    /**
+     * Declaratively merges a whole catalog in one call — the primitive for a
+     * one-off "set up my project's preferences" script. Each item is upserted by
+     * its natural key (new inserted, existing label + default updated). By default
+     * entries absent from the array are left untouched; pass `{ prune: true }` to
+     * also delete them, making the array the entire desired catalog.
+     * @param prefs - The desired catalog entries.
+     * @param options - Set `prune: true` to remove entries absent from the array.
+     * @returns The full resulting catalog.
+     */
+    upsertMany(
+        prefs: UpsertProjectPreferenceItem[],
+        options?: UpsertProjectPreferencesOptions
+    ): Promise<ProjectPreference[]>;
+}
+
+/**
+ * Class for managing the project preference catalog.
+ */
+class ProjectPreferences implements ProjectPreferencesClient {
+    client: AxiosInstance;
+
+    /**
+     * Creates an instance of the ProjectPreferences class.
+     * @param client - The Axios client instance.
+     */
+    constructor(client: AxiosInstance) {
+        this.client = client;
+    }
+
+    async list(): Promise<ProjectPreference[]> {
+        const response = await this.client.get(ROUTES.preferences.list);
+        return response.data as ProjectPreference[];
+    }
+
+    async get(preferenceID: number): Promise<ProjectPreference> {
+        const response = await this.client.get(
+            ROUTES.preferences.get(preferenceID)
+        );
+        return response.data as ProjectPreference;
+    }
+
+    async create(
+        req: CreateProjectPreferenceRequest
+    ): Promise<ProjectPreference> {
+        const response = await this.client.post(
+            ROUTES.preferences.create,
+            req
+        );
+        return response.data as ProjectPreference;
+    }
+
+    async update(
+        preferenceID: number,
+        req: UpdateProjectPreferenceRequest
+    ): Promise<ProjectPreference> {
+        const response = await this.client.patch(
+            ROUTES.preferences.update(preferenceID),
+            req
+        );
+        return response.data as ProjectPreference;
+    }
+
+    async delete(preferenceID: number): Promise<void> {
+        await this.client.delete(ROUTES.preferences.delete(preferenceID));
+    }
+
+    async upsertMany(
+        prefs: UpsertProjectPreferenceItem[],
+        options?: UpsertProjectPreferencesOptions
+    ): Promise<ProjectPreference[]> {
+        const response = await this.client.put(
+            ROUTES.preferences.upsertMany,
+            prefs,
+            options?.prune ? { params: { prune: true } } : undefined
+        );
+        return response.data as ProjectPreference[];
     }
 }

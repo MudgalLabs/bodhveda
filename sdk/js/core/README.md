@@ -13,6 +13,7 @@ It offers a simpler way to work with Bodhveda APIs in both browser and server en
     -   [Recipient Notifications](#recipient-notifications)
     -   [Recipient Preferences](#recipient-preferences)
     -   [Recipient Contacts](#recipient-contacts)
+-   [Project Preferences](#project-preferences)
 -   [License](#license)
 
 ## Installation
@@ -231,6 +232,25 @@ await bodhveda.recipients.contacts.create("user-123", {
 });
 ```
 
+`create` is strict — it rejects with a `409` when the contact already exists. To
+keep a recipient's primary address current from a server without a
+list-then-diff, use `setPrimary` instead.
+
+### Set the primary contact
+
+Idempotently ensure an address is the recipient's **primary** contact for a
+medium — create it if absent, update the existing primary in place if the
+address differs (which resets verification), or no-op if it already matches.
+Returns the resulting primary contact (`200`) in every case, so a "keep the
+primary email current" sync is a single call.
+
+```typescript
+await bodhveda.recipients.contacts.setPrimary("user-123", {
+    medium: "email",
+    address: "alice@example.com",
+});
+```
+
 ### List contacts
 
 ```typescript
@@ -251,6 +271,82 @@ Requires a `Full access` API key.
 
 ```typescript
 await bodhveda.recipients.contacts.delete("user-123", 1);
+```
+
+---
+
+## Project Preferences
+
+The **project preference catalog** declares which `(target, medium)` pairs your
+project may send, and the default a recipient inherits until they set a
+preference of their own. This is different from
+[Recipient Preferences](#recipient-preferences), which are a single recipient's
+own toggles — manage the catalog with `bodhveda.preferences`.
+
+Requires a `Full access` API key, and is a **server-side** concern. The project
+is taken from the API key.
+
+### List the catalog
+
+```typescript
+const catalog = await bodhveda.preferences.list();
+```
+
+### Create a catalog entry
+
+Strict — rejects with a `409` when an entry for the same
+`(channel, topic, event, medium)` already exists. `medium` defaults to `in_app`
+when omitted.
+
+```typescript
+const entry = await bodhveda.preferences.create({
+    channel: "digest",
+    topic: "none",
+    event: "sent",
+    medium: "email",
+    label: "Daily digest",
+    default_enabled: true,
+});
+```
+
+### Get / update / delete an entry
+
+The natural key (`channel`/`topic`/`event`/`medium`) is immutable — `update`
+changes only the label and default.
+
+```typescript
+const entry = await bodhveda.preferences.get(123);
+
+await bodhveda.preferences.update(123, {
+    label: "Weekly digest",
+    default_enabled: false,
+});
+
+// Un-catalogs the (target, medium).
+await bodhveda.preferences.delete(123);
+```
+
+### Set up a whole catalog at once
+
+`upsertMany` declaratively merges an entire catalog in one call — the primitive
+for a one-off "set up my project's preferences" script. Each item is upserted by
+its natural key (new inserted, existing label + default updated). Entries **not**
+in the array are left untouched.
+
+```typescript
+await bodhveda.preferences.upsertMany([
+    { channel: "digest", topic: "none", event: "sent", medium: "email", label: "Daily digest", default_enabled: true },
+    { channel: "posts", topic: "any", event: "new_comment", medium: "email", label: "Comments", default_enabled: true },
+]);
+```
+
+Pass `{ prune: true }` to also **delete** entries absent from the array, making
+it the entire desired catalog. Pruning un-catalogs a `(target, medium)`, which
+turns a non-`in_app` medium off for recipients relying on the catalog default —
+so it is opt-in.
+
+```typescript
+await bodhveda.preferences.upsertMany(desiredCatalog, { prune: true });
 ```
 
 ---

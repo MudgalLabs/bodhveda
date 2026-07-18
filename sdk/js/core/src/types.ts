@@ -344,6 +344,79 @@ export interface CheckPreferenceResponse {
 }
 
 /**
+ * A project-level preference — one entry in the project's CATALOG. The catalog
+ * declares which (target, medium) pairs a project may send, and supplies the
+ * default a recipient inherits until they override it with a toggle of their own.
+ *
+ * This is distinct from {@link Preference}, which is one recipient's RESOLVED
+ * state. Manage the catalog with `bodhveda.preferences`; manage a recipient's
+ * own toggles with `bodhveda.recipients.preferences`.
+ */
+export interface ProjectPreference {
+    id: number;
+    project_id: number;
+    target: Target;
+    /** The medium this catalog entry gates (`in_app` or `email`). */
+    medium: PreferenceMedium;
+    /**
+     * The project-level default for this (target, medium): whether a recipient
+     * who has expressed no preference of their own is delivered to.
+     */
+    default_enabled: boolean;
+    label: string;
+    created_at: string;
+    updated_at: string;
+}
+
+/**
+ * Request to create ONE catalog entry. Strict: creating an entry whose
+ * (channel, topic, event, medium) already exists rejects with a 409 — use
+ * {@link ProjectPreferencesClient.update} to change an existing entry, or
+ * {@link ProjectPreferencesClient.upsertMany} to declaratively merge a whole
+ * catalog.
+ */
+export interface CreateProjectPreferenceRequest {
+    channel: string;
+    topic: string;
+    event: string;
+    /** Defaults to `in_app` when omitted. */
+    medium?: PreferenceMedium;
+    label: string;
+    default_enabled: boolean;
+}
+
+/**
+ * Request to update a catalog entry. The natural key
+ * (channel/topic/event/medium) is immutable, so only the label and default
+ * change.
+ */
+export interface UpdateProjectPreferenceRequest {
+    label: string;
+    default_enabled: boolean;
+}
+
+/**
+ * One item of a declarative bulk upsert — the same shape as
+ * {@link CreateProjectPreferenceRequest}.
+ */
+export interface UpsertProjectPreferenceItem
+    extends CreateProjectPreferenceRequest {}
+
+/**
+ * Options for {@link ProjectPreferencesClient.upsertMany}.
+ */
+export interface UpsertProjectPreferencesOptions {
+    /**
+     * When `true`, catalog entries NOT present in the array are DELETED, making
+     * the array the project's entire desired catalog. Default `false` (merge):
+     * absent entries are left untouched. Pruning un-catalogs a (target, medium),
+     * which turns a non-in_app medium off for recipients relying on the catalog
+     * default — hence it is opt-in.
+     */
+    prune?: boolean;
+}
+
+/**
  * A delivery transport a recipient contact can be registered for. Only `email`
  * is exercised today; the rest are reserved for future transports.
  */
@@ -396,3 +469,19 @@ export interface UpdateRecipientContactRequest {
  * Represents the response after updating a recipient contact.
  */
 export interface UpdateRecipientContactResponse extends RecipientContact {}
+
+/**
+ * Request to ensure a primary contact for a medium — the body of
+ * {@link RecipientsContactsClient.setPrimary}. Idempotent create-or-update:
+ * creates the primary if absent, updates the existing primary's address if it
+ * differs (which resets verification), or no-ops if it already matches.
+ */
+export interface SetPrimaryContactRequest {
+    medium: Medium;
+    address: string;
+}
+
+/**
+ * Represents the response after setting a primary contact.
+ */
+export interface SetPrimaryContactResponse extends RecipientContact {}
