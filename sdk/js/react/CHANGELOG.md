@@ -1,5 +1,15 @@
 # Changelog
 
+## 0.5.0
+
+-   Bumped in lockstep with core `@bodhveda/js@0.5.0`, which makes direct sends
+    fully asynchronous and adds `bodhveda.notifications.get(id)` to read a
+    notification's resolved in-app status and email delivery outcome. This package
+    re-exports the updated `Notification` type (now with `status` / `email`), but
+    `notifications.get` is a **server-side** concern (full-access key) — so there
+    are **no new hooks** here, and nothing should call it from a browser.
+-   Depends on `@bodhveda/js@^0.5.0`. No API change in this package itself.
+
 ## 0.4.0
 
 -   Bumped in lockstep with core `@bodhveda/js@0.4.0`, which adds the project

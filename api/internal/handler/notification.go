@@ -37,6 +37,31 @@ func SendNotification(s *service.NotificationService) http.HandlerFunc {
 	}
 }
 
+// GetNotification (developer API) returns one notification by id, scoped to the
+// API key's project, with its email delivery outcome attached. It is the
+// read-by-id counterpart to the now-async send — the caller polls it to learn the
+// resolved in-app status and whether the email sent/delivered/bounced.
+func GetNotification(s *service.NotificationService) http.HandlerFunc {
+	return func(w http.ResponseWriter, r *http.Request) {
+		ctx := r.Context()
+		apiKey := middleware.GetAPIKeyFromContext(ctx)
+
+		notificationID, err := httpx.ParamInt(r, "notification_id")
+		if err != nil {
+			httpx.BadRequestResponse(w, r, errors.New("Invalid notification ID"))
+			return
+		}
+
+		notification, errKind, err := s.GetNotification(ctx, apiKey.ProjectID, notificationID)
+		if err != nil {
+			httpx.ServiceErrResponse(w, r, errKind, err)
+			return
+		}
+
+		httpx.SuccessResponse(w, r, http.StatusOK, "", notification)
+	}
+}
+
 func SendNotificationConsole(s *service.NotificationService) http.HandlerFunc {
 	return func(w http.ResponseWriter, r *http.Request) {
 		ctx := r.Context()

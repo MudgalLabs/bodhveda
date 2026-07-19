@@ -75,7 +75,7 @@ does no templating: you render the subject/HTML/text yourself and pass the resul
 
 Email fires only when the `(target, email)` pair is cataloged, the recipient's email
 preference is enabled, and the recipient has a primary email
-[contact](#recipient-contacts). Per-medium outcomes are returned in `resp.Deliveries`.
+[contact](#recipient-contacts).
 
 ```go
 recipientID := "user-123"
@@ -89,7 +89,25 @@ resp, _ := client.Notifications.Send(ctx, &bodhveda.SendNotificationRequest{
         HTML:    "<h1>Your daily digest</h1><p>3 new follow-ups today.</p>",
     },
 })
-// resp.Notification (in-app) and resp.Deliveries (per-medium email outcome)
+// resp.Notification.ID — the send is accepted (Status "enqueued"); the email is
+// resolved asynchronously. Read the outcome back with Notifications.Get below.
+```
+
+### Get a notification (check the outcome)
+
+The send is **asynchronous**: it accepts the notification and returns its id
+(`Status: "enqueued"`), then the worker resolves in-app delivery and the email.
+Fetch the notification by id to see the resolved in-app `Status` and, when the send
+included an `Email` block, the email delivery outcome on `Email`.
+
+```go
+n, _ := client.Notifications.Get(ctx, resp.Notification.ID)
+
+n.Status // "delivered" | "muted" | "quota_exceeded" | "failed" | "enqueued"
+if n.Email != nil {
+    n.Email.Status      // "pending" | "sent" | "delivered" | "bounced" | ...
+    n.Email.DeliveredAt // *time.Time
+}
 ```
 
 ---

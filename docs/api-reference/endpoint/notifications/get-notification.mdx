@@ -1,0 +1,15 @@
+---
+title: "Retrieve notification"
+openapi: "GET /notifications/{notification_id}"
+---
+
+Retrieve a single notification by the `id` returned from [send a notification](/api-reference/endpoint/notifications/send-notification).
+
+Because sending is **asynchronous**, this is how you learn what actually happened to a send:
+
+-   `status` — the **in-app** outcome. `enqueued` right after the send, then `delivered`, `muted` (preferences disallow), `quota_exceeded`, or `failed`.
+-   `email` — the **email** outcome, present only when the send included an `email` block. It has its own lifecycle: `pending` → `sent` (provider accepted) → `delivered` / `bounced` / `complained` (from provider webhooks), or `failed` / `muted` / `no_contact`.
+
+<Tip>
+    Poll this endpoint after a send to confirm email delivery. `email.delivered_at` is set once the provider confirms delivery; `email.bounced_at` / `email.complained_at` flag problems.
+</Tip>

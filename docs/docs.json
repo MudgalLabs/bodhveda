@@ -43,7 +43,8 @@
                     {
                         "group": "Notifications",
                         "pages": [
-                            "api-reference/endpoint/notifications/send-notification"
+                            "api-reference/endpoint/notifications/send-notification",
+                            "api-reference/endpoint/notifications/get-notification"
                         ]
                     },
                     {

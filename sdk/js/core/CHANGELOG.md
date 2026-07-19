@@ -1,5 +1,27 @@
 # Changelog
 
+## 0.5.0
+
+Direct sends are now fully asynchronous, and there is a new way to read a
+notification back.
+
+-   **New `bodhveda.notifications.get(notificationId)`** — retrieve a single
+    notification by the id returned from `send()`. It carries the resolved in-app
+    `status` and, when the send included an `email` block, the email delivery
+    outcome on `notification.email` (`status`, `sent_at`, `delivered_at`,
+    `bounced_at`, …). This mirrors the send/lookup pattern of transactional email
+    APIs: `send()` accepts the notification and returns its id; `get()` tells you
+    what happened to it.
+-   **`Notification` gains `status`, `completed_at?`, and `email?`.** `status` is
+    the in-app outcome (`enqueued` → `delivered` / `muted` / `quota_exceeded` /
+    `failed`); `email` is the per-medium email outcome described above. Additive —
+    existing fields are unchanged.
+-   **`SendNotificationResponse.deliveries` is deprecated and no longer
+    populated.** A direct send now returns as soon as the notification is accepted
+    (`status: "enqueued"`); preference gating, billing, and the entire email
+    fan-out run in the worker. Read the outcome back with `notifications.get()`
+    instead. The `notification` (with its id) is still returned on send.
+
 ## 0.4.0
 
 Additive — no breaking changes to existing methods.

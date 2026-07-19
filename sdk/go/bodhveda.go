@@ -61,6 +61,12 @@ func NewClient(apiKey string, opts *ClientOptions) *Client {
 type NotificationsService interface {
 	// Send sends a notification.
 	Send(ctx context.Context, req *SendNotificationRequest) (*SendNotificationResponse, error)
+
+	// Get retrieves a single notification by its id. The send API is asynchronous
+	// and returns a notification id after accepting the send (Status "enqueued");
+	// use this to read back the resolved in-app status and, when the send included
+	// an email block, the email delivery outcome (Notification.Email).
+	Get(ctx context.Context, notificationID int) (*GetNotificationResponse, error)
 }
 
 // Notifications implements NotificationsService.
@@ -71,6 +77,12 @@ type Notifications struct {
 func (notifications *Notifications) Send(ctx context.Context, req *SendNotificationRequest) (*SendNotificationResponse, error) {
 	var resp SendNotificationResponse
 	err := notifications.client.Do(ctx, "POST", routes.NotificationsSend, req, &resp)
+	return &resp, err
+}
+
+func (notifications *Notifications) Get(ctx context.Context, notificationID int) (*GetNotificationResponse, error) {
+	var resp GetNotificationResponse
+	err := notifications.client.Do(ctx, "GET", routes.NotificationsGet(notificationID), nil, &resp)
 	return &resp, err
 }
 

@@ -90,6 +90,10 @@ func initRouter() http.Handler {
 			r.Use(middleware.VerifyAPIKeyHasFullScope)
 
 			r.Post("/send", handler.SendNotification(app.APP.Service.Notification))
+			// Read-by-id: the send is fully async (returns a notification id after
+			// one INSERT), so callers poll this to learn the resolved in-app status
+			// and the email delivery outcome. Mirrors Resend's GET /emails/{id}.
+			r.Get("/{notification_id}", handler.GetNotification(app.APP.Service.Notification))
 		})
 
 		// Project preference (catalog) CRUD. Full-scope only — the catalog

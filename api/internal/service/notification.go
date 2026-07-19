@@ -6,6 +6,7 @@ import (
 	"errors"
 	"fmt"
 	"net/http"
+	"time"
 
 	"github.com/hibiken/asynq"
 	"github.com/mudgallabs/bodhveda/internal/email"
@@ -99,11 +100,10 @@ func (s *NotificationService) Send(ctx context.Context, userID int, payload dto.
 
 	var message string
 	if payload.IsDirect() {
-		if result.Notification != nil {
-			message = fmt.Sprintf("Direct notification sent successfully to recipient %s.", result.Notification.RecipientExtID)
-		} else {
-			message = "No notification was sent. Recipient's preferences do not allow delivery."
-		}
+		// The notification row always exists at this point; preference gating,
+		// billing, and email fan-out are resolved asynchronously by the worker.
+		// Read the outcome back via GET /notifications/{id}.
+		message = fmt.Sprintf("Direct notification queued for delivery to recipient %s.", result.Notification.RecipientExtID)
 	} else if payload.IsBroadcast() {
 		if result.Broadcast != nil {
 			message = "Broadcast notification sent successfully. It will be delivered to all elligible recipients."
@@ -113,17 +113,14 @@ func (s *NotificationService) Send(ctx context.Context, userID int, payload dto.
 	return result, message, service.ErrNone, nil
 }
 
+// sendDirectNotification is the request-path half of a direct send. It does the
+// minimum that has to be synchronous — a single notification INSERT so the API
+// can return a real notification id — then enqueues the notification:delivery
+// job that carries everything else. Recipient upsert, in-app gating/billing, and
+// the entire email fan-out all run in the worker (see DeliverDirectNotification),
+// so throughput is bounded by one INSERT + one enqueue rather than the old chain
+// of recipient upsert + several email-gate lookups on the hot path.
 func (s *NotificationService) sendDirectNotification(ctx context.Context, userID int, payload dto.SendNotificationPayload) (*dto.Notification, []*dto.NotificationDelivery, error) {
-	// This is to ensure that we can send notifications to recipients that are not yet created.
-	_, _, err := s.recipientService.CreateIfNotExists(ctx, dto.CreateRecipientPayload{
-		ProjectID:  payload.ProjectID,
-		ExternalID: *payload.RecipientExtID,
-	})
-
-	if err != nil {
-		return nil, nil, fmt.Errorf("create recipient: %w", err)
-	}
-
 	var channel, topic, event string
 	if payload.Target != nil {
 		channel = payload.Target.Channel
@@ -131,6 +128,9 @@ func (s *NotificationService) sendDirectNotification(ctx context.Context, userID
 		event = payload.Target.Event
 	}
 
+	// The notification row references the recipient by external-id string, not a
+	// FK, so it can be inserted before the recipient row exists — the worker
+	// upserts the recipient. external_id is already lowercased by payload.Validate.
 	notification := entity.NewNotification(
 		payload.ProjectID,
 		*payload.RecipientExtID,
@@ -141,13 +141,20 @@ func (s *NotificationService) sendDirectNotification(ctx context.Context, userID
 		event,
 	)
 
-	notification, err = s.repo.Create(ctx, notification)
+	notification, err := s.repo.Create(ctx, notification)
 	if err != nil {
 		return nil, nil, fmt.Errorf("create notification: %w", err)
 	}
 
-	// In-app delivery (the inbox write) — byte-for-byte unchanged.
-	taskPayload, err := json.Marshal(dto.NotificationDeliveryTaskPayload{UserID: userID, Notification: notification})
+	// One job does the rest: recipient upsert, in-app inbox write (gating +
+	// billing), and email fan-out. The email block rides along so the worker can
+	// resolve it — email outcomes are async now and are read back via
+	// GET /notifications/{id}, not returned inline.
+	taskPayload, err := json.Marshal(dto.NotificationDeliveryTaskPayload{
+		UserID:       userID,
+		Notification: notification,
+		Email:        payload.Email,
+	})
 	if err != nil {
 		return nil, nil, fmt.Errorf("marshal notification delivery task payload: %w", err)
 	}
@@ -159,24 +166,81 @@ func (s *NotificationService) sendDirectNotification(ctx context.Context, userID
 		return nil, nil, fmt.Errorf("enqueue notification delivery task: %w", err)
 	}
 
-	// Email fan-out (additional medium, DIRECT-only). Presence of the `email`
-	// block is the sender's intent signal; catalog + per-medium preference +
-	// primary contact + configured provider gate the actual send. A failure here
-	// NEVER rejects the send (old doc #19) — the outcome is recorded on a
-	// notification_delivery row and returned to the caller.
-	var deliveries []*dto.NotificationDelivery
-	if payload.HasEmail() {
-		delivery, ferr := s.fanOutEmail(ctx, notification, payload.Email)
-		if ferr != nil {
-			// Best-effort: log and continue. The send still succeeded in-app.
-			logger.Get().Errorf("email fan-out for notification %d: %v", notification.ID, ferr)
+	// Deliveries resolve asynchronously in the worker now — nothing to return here.
+	return dto.FromNotification(notification), nil, nil
+}
+
+// DeliverDirectNotification is the worker-path half of a direct send, run by the
+// notification:delivery job. It carries all the work moved off the request path:
+//
+//  1. upsert the recipient (so it exists for the inbox / recipient list),
+//  2. gate the in-app inbox write on preferences + billing and set the status,
+//  3. fan out email (best-effort — a failure here never fails the job).
+//
+// Returning a non-nil error lets Asynq retry the whole job (MaxRetry). A quota
+// rejection is NOT an error — it is a terminal status on the notification row.
+func (s *NotificationService) DeliverDirectNotification(ctx context.Context, payload dto.NotificationDeliveryTaskPayload) error {
+	notification := payload.Notification
+
+	// 1. Ensure the recipient exists. Moved off the request path — a send to a
+	//    not-yet-created recipient still auto-creates it, just in the worker.
+	_, _, err := s.recipientService.CreateIfNotExists(ctx, dto.CreateRecipientPayload{
+		ProjectID:  notification.ProjectID,
+		ExternalID: notification.RecipientExtID,
+	})
+	if err != nil {
+		return fmt.Errorf("create recipient: %w", err)
+	}
+
+	// 2. In-app delivery (the inbox write). Gate on the in_app medium (deliver
+	//    unless muted), then meter usage. Logic is byte-for-byte the old worker.
+	shouldDeliver, err := s.preferenceRepo.ShouldDirectNotificationBeDelivered(ctx, notification.ProjectID, notification.RecipientExtID, dto.TargetFromNotification(notification), enum.MediumInApp)
+	if err != nil {
+		return err
+	}
+
+	if !shouldDeliver {
+		notification.Status = enum.NotificationStatusMuted
+	} else {
+		event := dto.UsageEvent{
+			UserID:    payload.UserID,
+			ProjectID: notification.ProjectID,
+			Metric:    entity.MetricNotifications,
+			Amount:    1,
 		}
-		if delivery != nil {
-			deliveries = append(deliveries, dto.FromNotificationDelivery(delivery))
+
+		err := s.billingService.CheckAndConsumeUsage(ctx, event)
+		if err != nil {
+			if errors.Is(err, enum.ErrQuotaExceeded) {
+				notification.Status = enum.NotificationStatusQuotaExceeded
+			} else {
+				return fmt.Errorf("check and consume usage: %w", err)
+			}
+		} else {
+			notification.Status = enum.NotificationStatusDelivered
 		}
 	}
 
-	return dto.FromNotification(notification), deliveries, nil
+	now := time.Now().UTC()
+	notification.CompletedAt = &now
+	notification.UpdatedAt = now
+
+	if err := s.repo.Update(ctx, notification); err != nil {
+		return fmt.Errorf("update notification: %w", err)
+	}
+
+	// 3. Email fan-out (additional medium, DIRECT-only). Presence of the `email`
+	//    block is the sender's intent signal; catalog + per-medium preference +
+	//    primary contact + configured provider gate the actual send. Independent
+	//    of the in-app outcome above, and a failure here NEVER fails the job (old
+	//    doc #19) — the outcome is recorded on a notification_delivery row.
+	if payload.Email != nil {
+		if _, ferr := s.fanOutEmail(ctx, notification, payload.Email); ferr != nil {
+			logger.Get().Errorf("email fan-out for notification %d: %v", notification.ID, ferr)
+		}
+	}
+
+	return nil
 }
 
 // fanOutEmail resolves whether email may fire for a direct send and records the
@@ -437,6 +501,34 @@ func (s *NotificationService) ProjectAnalytics(ctx context.Context, filters *dto
 		Email:   *email,
 		Targets: targets,
 	}, service.ErrNone, nil
+}
+
+// GetNotification returns a single notification by id, scoped to the project, with
+// its email-medium delivery outcome attached (nil when the send carried no email).
+//
+// This is the read-by-id counterpart to the now-fully-async send: the send API
+// returns a notification id after one INSERT, and the caller polls this endpoint
+// to learn the resolved in-app status and — via Email — whether the email was
+// sent/delivered/bounced. It mirrors Resend's GET /emails/{id} (return an id on
+// send, look up last_event later). Scoped by projectID so a key cannot read a
+// notification belonging to another project.
+func (s *NotificationService) GetNotification(ctx context.Context, projectID, notificationID int) (*dto.Notification, service.Error, error) {
+	if projectID <= 0 {
+		return nil, service.ErrInvalidInput, fmt.Errorf("projectID required")
+	}
+	if notificationID <= 0 {
+		return nil, service.ErrInvalidInput, fmt.Errorf("notificationID required")
+	}
+
+	notification, err := s.repo.Get(ctx, projectID, notificationID)
+	if err != nil {
+		if errors.Is(err, tantraRepo.ErrNotFound) {
+			return nil, service.ErrNotFound, fmt.Errorf("notification not found")
+		}
+		return nil, service.ErrInternalServerError, fmt.Errorf("get notification: %w", err)
+	}
+
+	return dto.FromNotification(notification), service.ErrNone, nil
 }
 
 // ListNotificationDeliveries returns the full delivery records for one

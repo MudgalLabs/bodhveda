@@ -15,6 +15,7 @@ import {
     CheckPreferenceResponse,
     SendNotificationRequest,
     SendNotificationResponse,
+    GetNotificationResponse,
     CreateRecipientRequest,
     CreateRecipientResponse,
     CreateRecipientsBatchRequest,
@@ -115,6 +116,16 @@ interface NotificationsClient {
      * @returns The response from the API.
      */
     send(req: SendNotificationRequest): Promise<SendNotificationResponse>;
+
+    /**
+     * Retrieves a single notification by its id. The send API is asynchronous and
+     * returns a notification id after accepting the send (status `enqueued`); use
+     * this to read back the resolved in-app status and, when the send included an
+     * email block, the email delivery outcome ({@link Notification.email}).
+     * @param notificationID - The notification id returned by {@link send}.
+     * @returns The notification with its resolved status and email outcome.
+     */
+    get(notificationID: number): Promise<GetNotificationResponse>;
 }
 
 /**
@@ -136,6 +147,13 @@ class Notifications implements NotificationsClient {
     ): Promise<SendNotificationResponse> {
         const response = await this.client.post(ROUTES.notifications.send, req);
         return response.data as SendNotificationResponse;
+    }
+
+    async get(notificationID: number): Promise<GetNotificationResponse> {
+        const response = await this.client.get(
+            ROUTES.notifications.get(notificationID)
+        );
+        return response.data as GetNotificationResponse;
     }
 }
 

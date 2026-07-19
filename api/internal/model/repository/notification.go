@@ -16,6 +16,10 @@ type NotificationRepository interface {
 }
 
 type NotificationReader interface {
+	// Get returns one notification by id, scoped to the project, with its
+	// email-medium delivery outcome attached (nil when there was no email send).
+	// Returns tantra repository.ErrNotFound when no such row exists in the project.
+	Get(ctx context.Context, projectID, id int) (*entity.Notification, error)
 	Overview(ctx context.Context, projectID int) (*dto.NotificationsOverviewResult, error)
 	ListForRecipient(ctx context.Context, projectID int, recipientExtID string, cursor *query.Cursor) ([]*entity.Notification, *query.Cursor, error)
 	UnreadCountForRecipient(ctx context.Context, projectID int, recipientExtID string) (int, error)

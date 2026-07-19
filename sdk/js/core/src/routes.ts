@@ -1,6 +1,7 @@
 export const ROUTES = {
     notifications: {
         send: "/notifications/send",
+        get: (notificationID: number) => `/notifications/${notificationID}`,
     },
 
     // Project-scoped preference CATALOG (project comes from the API key). Distinct

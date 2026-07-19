@@ -2,6 +2,7 @@ package pg
 
 import (
 	"context"
+	"errors"
 	"fmt"
 	"strings"
 	"time"
@@ -14,6 +15,7 @@ import (
 	"github.com/mudgallabs/bodhveda/internal/model/repository"
 	"github.com/mudgallabs/tantra/dbx"
 	"github.com/mudgallabs/tantra/query"
+	tantraRepo "github.com/mudgallabs/tantra/repository"
 )
 
 type NotificationRepo struct {
@@ -56,6 +58,48 @@ func (r *NotificationRepo) Create(ctx context.Context, notification *entity.Noti
 	}
 
 	return &newNotification, nil
+}
+
+func (r *NotificationRepo) Get(ctx context.Context, projectID, id int) (*entity.Notification, error) {
+	sql := `
+		SELECT id, project_id, recipient_external_id, payload, broadcast_id, channel, topic, event,
+		       read_at, opened_at, created_at, updated_at, completed_at, status
+		FROM notification
+		WHERE id = $1 AND project_id = $2
+	`
+
+	var n entity.Notification
+	err := r.db.QueryRow(ctx, sql, id, projectID).Scan(&n.ID, &n.ProjectID, &n.RecipientExtID,
+		&n.Payload, &n.BroadcastID, &n.Channel, &n.Topic, &n.Event, &n.ReadAt, &n.OpenedAt,
+		&n.CreatedAt, &n.UpdatedAt, &n.CompletedAt, &n.Status)
+	if err != nil {
+		if errors.Is(err, pgx.ErrNoRows) {
+			return nil, tantraRepo.ErrNotFound
+		}
+		return nil, fmt.Errorf("query notification: %w", err)
+	}
+
+	// Attach the email-medium delivery outcome (the reason to fetch by id at all —
+	// the caller wants to know whether the email sent/delivered/bounced). Same
+	// bounded projection as ListNotifications; provider_response is excluded (it is
+	// served per-notification via ListForNotification). No row => no email send.
+	deliverySQL := `
+		SELECT status, failure_reason, attempt, provider, provider_message_id,
+		       address_snapshot, sent_at, delivered_at, bounced_at, complained_at, opened_at, clicked_at
+		FROM notification_delivery
+		WHERE medium = 'email' AND notification_id = $1
+	`
+	var d entity.NotificationEmailDelivery
+	derr := r.db.QueryRow(ctx, deliverySQL, n.ID).Scan(&d.Status, &d.FailureReason, &d.Attempt,
+		&d.Provider, &d.ProviderMessageID, &d.AddressSnapshot, &d.SentAt, &d.DeliveredAt,
+		&d.BouncedAt, &d.ComplainedAt, &d.OpenedAt, &d.ClickedAt)
+	if derr == nil {
+		n.Email = &d
+	} else if !errors.Is(derr, pgx.ErrNoRows) {
+		return nil, fmt.Errorf("query email delivery: %w", derr)
+	}
+
+	return &n, nil
 }
 
 func (r *NotificationRepo) BatchCreateTx(ctx context.Context, tx pgx.Tx, notifications []*entity.Notification) error {

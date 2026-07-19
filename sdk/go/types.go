@@ -31,8 +31,37 @@ type Notification struct {
 	BroadcastID    *int              `json:"broadcast_id"`
 	Target         Target            `json:"target"`
 	State          NotificationState `json:"state"`
-	CreatedAt      time.Time         `json:"created_at"`
-	UpdatedAt      time.Time         `json:"updated_at"`
+	// Status is the in-app delivery outcome, resolved asynchronously by the
+	// worker: "enqueued" (accepted, not yet processed), "delivered", "muted"
+	// (preferences disallow), "quota_exceeded", or "failed".
+	Status string `json:"status"`
+	// CompletedAt is when the worker finished processing this notification.
+	CompletedAt *time.Time `json:"completed_at,omitempty"`
+	CreatedAt   time.Time  `json:"created_at"`
+	UpdatedAt   time.Time  `json:"updated_at"`
+	// Email is the email-medium delivery outcome, present only when the send
+	// included an Email block. Populated by Notifications.Get; nil on the
+	// recipient inbox feed. Use it to learn whether the email sent/delivered/bounced.
+	Email *NotificationEmailDelivery `json:"email,omitempty"`
+}
+
+// NotificationEmailDelivery is the email-medium delivery outcome attached to a
+// notification. Its lifecycle is independent of the in-app Status: "pending" →
+// "sent" (provider accepted) → "delivered" / "bounced" / "complained" (from
+// provider webhooks), or "failed" / "muted" / "no_contact".
+type NotificationEmailDelivery struct {
+	Status            string     `json:"status"`
+	FailureReason     *string    `json:"failure_reason,omitempty"`
+	Attempt           int        `json:"attempt"`
+	Provider          *string    `json:"provider,omitempty"`
+	ProviderMessageID *string    `json:"provider_message_id,omitempty"`
+	AddressSnapshot   *string    `json:"address_snapshot,omitempty"`
+	SentAt            *time.Time `json:"sent_at,omitempty"`
+	DeliveredAt       *time.Time `json:"delivered_at,omitempty"`
+	BouncedAt         *time.Time `json:"bounced_at,omitempty"`
+	ComplainedAt      *time.Time `json:"complained_at,omitempty"`
+	OpenedAt          *time.Time `json:"opened_at,omitempty"`
+	ClickedAt         *time.Time `json:"clicked_at,omitempty"`
 }
 
 // Broadcast represents a broadcast.
@@ -317,10 +346,18 @@ type NotificationDelivery struct {
 type SendNotificationResponse struct {
 	Notification *Notification `json:"notification"`
 	Broadcast    *Broadcast    `json:"broadcast"`
-	// Deliveries carries per-medium delivery outcomes for a direct send (email).
-	// A partial-medium failure never rejects the send — the outcome is here.
+	// Deliveries is DEPRECATED and no longer populated. The send is fully
+	// asynchronous — the notification is accepted (Status "enqueued") and every
+	// medium, including email, is resolved later by the worker. Read the resolved
+	// in-app status and the email outcome back with Notifications.Get (see
+	// Notification.Email).
 	Deliveries []*NotificationDelivery `json:"deliveries,omitempty"`
 }
+
+// GetNotificationResponse is the response of Notifications.Get: a single
+// notification with its resolved in-app Status and, when the send included an
+// email block, its Email delivery outcome.
+type GetNotificationResponse = Notification
 
 // ListNotificationsRequest represents the request parameters for listing notifications.
 type ListNotificationsRequest struct {

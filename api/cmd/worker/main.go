@@ -39,7 +39,7 @@ func main() {
 	asynqMux := asynq.NewServeMux()
 
 	asynqMux.Handle(task.TaskTypeNotificationDelivery, processor.NewNotificationDeliveryProcessor(
-		app.DB, app.APP.Repository.Notification, app.APP.Repository.Preference, app.APP.Service.Billing,
+		app.APP.Service.Notification,
 	))
 
 	asynqMux.Handle(task.TaskTypeEmailDelivery, processor.NewEmailDeliveryProcessor(

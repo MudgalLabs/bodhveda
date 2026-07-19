@@ -647,6 +647,11 @@ type PrepareBroadcastBatchesPayload struct {
 type NotificationDeliveryTaskPayload struct {
 	UserID       int
 	Notification *entity.Notification
+	// Email carries the send's email block, if any. The whole email fan-out
+	// (gate + contact lookup + delivery-row insert + provider enqueue) runs in
+	// the worker now, not on the request path — so the send API returns after a
+	// single notification INSERT. Nil when the send carried no email block.
+	Email *EmailContent
 }
 
 type BroadcastDeliveryTaskPayload struct {

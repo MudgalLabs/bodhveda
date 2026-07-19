@@ -1,5 +1,29 @@
 # Changelog
 
+## v0.5.0
+
+Feature parity with `@bodhveda/js` / `@bodhveda/react` `0.5.0`. Direct sends are
+now fully asynchronous, and there is a new way to read a notification back.
+
+-   **`client.Notifications.Get(ctx, notificationID)`** — retrieve a single
+    notification by the id returned from `Send`. It carries the resolved in-app
+    `Status` and, when the send included an `Email` block, the email delivery
+    outcome on `Notification.Email` (`Status`, `SentAt`, `DeliveredAt`, `BouncedAt`,
+    …). `Send` accepts the notification and returns its id; `Get` tells you what
+    happened to it.
+-   **`Notification` gains `Status`, `CompletedAt`, and `Email`.** `Status` is the
+    in-app outcome (`enqueued` → `delivered` / `muted` / `quota_exceeded` /
+    `failed`); `Email` is the per-medium email outcome (type
+    `NotificationEmailDelivery`). Additive — existing fields are unchanged.
+-   **`SendNotificationResponse.Deliveries` is deprecated and no longer
+    populated.** A direct send now returns as soon as the notification is accepted
+    (`Status: "enqueued"`); preference gating, billing, and the entire email
+    fan-out run in the worker. Read the outcome back with `Notifications.Get`
+    instead. The `Notification` (with its id) is still returned on send.
+
+This release lands as `v0.5.0`, back in lockstep with JS/React — the `0.4.1` patch
+lead existed only to route around the immutable `v0.4.0` placeholder tag.
+
 ## v0.4.1
 
 Feature parity with `@bodhveda/js` / `@bodhveda/react` `0.4.0` — the new 0.4.0

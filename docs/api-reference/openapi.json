@@ -55,7 +55,7 @@
                                     "Direct notification": {
                                         "summary": "Direct Notification Response",
                                         "value": {
-                                            "message": "Direct notification sent successfully to recipient recipient_123.",
+                                            "message": "Direct notification queued for delivery to recipient recipient_123.",
                                             "data": {
                                                 "notification": {
                                                     "id": 42069,
@@ -73,7 +73,8 @@
                                                     "read": false,
                                                     "opened": false,
                                                     "created_at": "2025-11-07T05:31:56Z",
-                                                    "updated_at": "2025-11-07T05:31:56Z"
+                                                    "updated_at": "2025-11-07T05:31:56Z",
+                                                    "status": "enqueued"
                                                 },
                                                 "broadcast": null
                                             }
@@ -155,6 +156,132 @@
                 "security": [
                     {
                         "BearerAuthWithAPIKeyWithFullAcessScope": []
+                    }
+                ]
+            }
+        },
+        "/notifications/{notification_id}": {
+            "get": {
+                "summary": "Retrieve a notification.",
+                "operationId": "getNotification",
+                "tags": [
+                    "Notifications"
+                ],
+                "description": "Retrieve a single notification by its id.\n\nSending is **asynchronous**: the [send endpoint](/api-reference/endpoint/notifications/send-notification) accepts the notification and returns its id with `status: \"enqueued\"`, then a worker resolves in-app delivery and — when the send included an `email` block — the email. Poll this endpoint to read the resolved in-app `status` and the email delivery outcome on `email` (whether it was `sent`, `delivered`, `bounced`, …).",
+                "parameters": [
+                    {
+                        "name": "notification_id",
+                        "in": "path",
+                        "required": true,
+                        "schema": {
+                            "type": "integer"
+                        },
+                        "description": "The unique identifier of the notification (the `id` returned by the send endpoint)."
+                    }
+                ],
+                "responses": {
+                    "200": {
+                        "description": "Notification found",
+                        "content": {
+                            "application/json": {
+                                "examples": {
+                                    "In-app only": {
+                                        "summary": "Direct send, in-app only (delivered)",
+                                        "value": {
+                                            "data": {
+                                                "id": 42069,
+                                                "recipient_id": "recipient_123",
+                                                "payload": {
+                                                    "title": "Elon, Zuck and others commented on your post."
+                                                },
+                                                "broadcast_id": null,
+                                                "target": {
+                                                    "channel": "posts",
+                                                    "topic": "post_id_123",
+                                                    "event": "new_comment"
+                                                },
+                                                "read": false,
+                                                "opened": false,
+                                                "status": "delivered",
+                                                "completed_at": "2025-11-07T05:31:57Z",
+                                                "created_at": "2025-11-07T05:31:56Z",
+                                                "updated_at": "2025-11-07T05:31:57Z"
+                                            }
+                                        }
+                                    },
+                                    "With email": {
+                                        "summary": "Direct send with email (delivered)",
+                                        "value": {
+                                            "data": {
+                                                "id": 42070,
+                                                "recipient_id": "recipient_123",
+                                                "payload": {
+                                                    "title": "Your daily digest is ready."
+                                                },
+                                                "broadcast_id": null,
+                                                "target": {
+                                                    "channel": "digest",
+                                                    "topic": "none",
+                                                    "event": "sent"
+                                                },
+                                                "read": false,
+                                                "opened": false,
+                                                "status": "delivered",
+                                                "completed_at": "2025-11-07T05:31:57Z",
+                                                "created_at": "2025-11-07T05:31:56Z",
+                                                "updated_at": "2025-11-07T05:31:57Z",
+                                                "email": {
+                                                    "status": "delivered",
+                                                    "attempt": 1,
+                                                    "provider": "resend",
+                                                    "provider_message_id": "re_abc123",
+                                                    "address_snapshot": "john@example.com",
+                                                    "sent_at": "2025-11-07T05:31:57Z",
+                                                    "delivered_at": "2025-11-07T05:32:03Z"
+                                                }
+                                            }
+                                        }
+                                    }
+                                }
+                            }
+                        }
+                    },
+                    "404": {
+                        "description": "Notification not found",
+                        "content": {
+                            "application/json": {
+                                "examples": {
+                                    "Not found": {
+                                        "summary": "Notification Not Found",
+                                        "value": {
+                                            "message": "notification not found"
+                                        }
+                                    }
+                                }
+                            }
+                        }
+                    }
+                },
+                "security": [
+                    {
+                        "BearerAuthWithAPIKeyWithFullAcessScope": []
+                    }
+                ],
+                "x-codeSamples": [
+                    {
+                        "lang": "curl",
+                        "label": "cURL",
+                        "source": "curl https://api.bodhveda.com/notifications/42069 \\\n  -H \"Authorization: Bearer bv_xxxxxxxxx\" "
+                    },
+                    {
+                        "lang": "javascript",
+                        "label": "JavaScript",
+                        "source": "import { Bodhveda } from \"@bodhveda/js\";\n\nconst bodhveda = new Bodhveda(\"bv_xxxxxxxxx\");\n\nconst notification = await bodhveda.notifications.get(42069);\n\n// notification.status      -> \"delivered\" | \"muted\" | \"quota_exceeded\" | ...\n// notification.email?.status -> \"sent\" | \"delivered\" | \"bounced\" | ..."
+                    },
+                    {
+                        "lang": "go",
+                        "label": "Go",
+                        "source": "import (\n    \"context\"\n\n    bodhveda \"github.com/MudgalLabs/bodhveda/sdk/go\"\n)\n\nctx := context.Background()\nclient := bodhveda.NewClient(\"bv_xxxxxxxxx\", nil)\n\nnotification, _ := client.Notifications.Get(ctx, 42069)\n\n// notification.Status -> \"delivered\" | \"muted\" | ...\n// notification.Email  -> nil unless the send included an email block"
                     }
                 ]
             }
@@ -2333,10 +2460,11 @@
                     },
                     "deliveries": {
                         "type": "array",
-                        "description": "Per-medium delivery outcomes for a **direct** send (email in v1). In-app is intentionally absent — its outcome lives on the `notification` object.",
+                        "description": "**Deprecated and no longer populated.** The send is fully asynchronous — the notification is accepted (`status: \"enqueued\"`) and every medium, including email, is resolved later by the worker. Read the resolved in-app status and the email outcome back with the [retrieve-a-notification](/api-reference/endpoint/notifications/get-notification) endpoint (see `notification.email`).",
                         "items": {
                             "$ref": "#/components/schemas/NotificationDelivery"
-                        }
+                        },
+                        "deprecated": true
                     }
                 }
             },
@@ -2378,6 +2506,32 @@
                     "updated_at": {
                         "type": "string",
                         "format": "date-time"
+                    },
+                    "status": {
+                        "type": "string",
+                        "description": "The in-app delivery outcome, resolved **asynchronously** after the send is accepted. `enqueued` immediately on send; then one of `delivered`, `muted` (preferences disallow), `quota_exceeded`, or `failed`.",
+                        "enum": [
+                            "enqueued",
+                            "delivered",
+                            "muted",
+                            "quota_exceeded",
+                            "failed"
+                        ]
+                    },
+                    "completed_at": {
+                        "type": "string",
+                        "format": "date-time",
+                        "nullable": true,
+                        "description": "When the worker finished processing this notification across all mediums. `null` until then."
+                    },
+                    "email": {
+                        "allOf": [
+                            {
+                                "$ref": "#/components/schemas/NotificationEmailDelivery"
+                            }
+                        ],
+                        "nullable": true,
+                        "description": "The email-medium delivery outcome, present only when the send included an `email` block. Absent on the recipient inbox feed; populated by the retrieve-a-notification endpoint."
                     }
                 }
             },
@@ -2642,6 +2796,77 @@
                     "label",
                     "default_enabled"
                 ]
+            },
+            "NotificationEmailDelivery": {
+                "type": "object",
+                "description": "The email-medium delivery outcome attached to a notification. Its lifecycle is independent of the in-app `status`.",
+                "properties": {
+                    "status": {
+                        "type": "string",
+                        "enum": [
+                            "pending",
+                            "sent",
+                            "delivered",
+                            "bounced",
+                            "complained",
+                            "failed",
+                            "muted",
+                            "no_contact"
+                        ],
+                        "description": "`pending` (queued to the provider) → `sent` (accepted) → `delivered`/`bounced`/`complained` (from provider webhooks), or `failed`/`muted`/`no_contact`."
+                    },
+                    "failure_reason": {
+                        "type": "string",
+                        "description": "Set when the email did not send, e.g. `not_cataloged`, `preference_disabled`, `provider_not_configured`."
+                    },
+                    "attempt": {
+                        "type": "integer",
+                        "description": "Number of send attempts made by the worker."
+                    },
+                    "provider": {
+                        "type": "string",
+                        "description": "The email provider that handled the send, e.g. `resend`."
+                    },
+                    "provider_message_id": {
+                        "type": "string",
+                        "description": "The provider's message id, for correlating with provider dashboards/webhooks."
+                    },
+                    "address_snapshot": {
+                        "type": "string",
+                        "description": "The address the email was sent to, captured at send time."
+                    },
+                    "sent_at": {
+                        "type": "string",
+                        "format": "date-time",
+                        "nullable": true
+                    },
+                    "delivered_at": {
+                        "type": "string",
+                        "format": "date-time",
+                        "nullable": true
+                    },
+                    "bounced_at": {
+                        "type": "string",
+                        "format": "date-time",
+                        "nullable": true
+                    },
+                    "complained_at": {
+                        "type": "string",
+                        "format": "date-time",
+                        "nullable": true
+                    },
+                    "opened_at": {
+                        "type": "string",
+                        "format": "date-time",
+                        "nullable": true,
+                        "description": "Soft signal — provider open tracking is unreliable. The in-app `read` state is the trustworthy signal."
+                    },
+                    "clicked_at": {
+                        "type": "string",
+                        "format": "date-time",
+                        "nullable": true
+                    }
+                }
             }
         }
     }

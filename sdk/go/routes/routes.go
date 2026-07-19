@@ -8,6 +8,7 @@ import (
 
 var (
 	NotificationsSend = "/notifications/send"
+	NotificationsGet  = func(notificationID int) string { return "/notifications/" + strconv.Itoa(notificationID) }
 
 	// Project preference CATALOG (project-scoped by the API key). Distinct from
 	// the per-recipient preference routes below, which are one recipient's own

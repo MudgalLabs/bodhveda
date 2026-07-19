@@ -95,9 +95,44 @@ export interface Notification {
     payload: unknown;
     target: Target;
     state: NotificationState;
+    /**
+     * The in-app delivery outcome, resolved asynchronously by the worker:
+     * `enqueued` (accepted, not yet processed), `delivered`, `muted`
+     * (preferences disallow), `quota_exceeded`, or `failed`.
+     */
+    status: string;
     broadcast_id: number | null;
+    /** When the worker finished processing this notification (all mediums). */
+    completed_at?: string;
     created_at: string;
     updated_at: string;
+    /**
+     * The email-medium delivery outcome, present only when the send included an
+     * `email` block. Populated by {@link NotificationsClient.get}; absent on the
+     * recipient inbox feed. Use it to learn whether the email sent/delivered/bounced.
+     */
+    email?: NotificationEmailDelivery;
+}
+
+/**
+ * The email-medium delivery outcome attached to a notification. Its lifecycle is
+ * independent of the in-app `status`: `pending` → `sent` (provider accepted) →
+ * `delivered` / `bounced` / `complained` (from provider webhooks), or `failed` /
+ * `muted` / `no_contact`.
+ */
+export interface NotificationEmailDelivery {
+    status: string;
+    failure_reason?: string;
+    attempt: number;
+    provider?: string;
+    provider_message_id?: string;
+    address_snapshot?: string;
+    sent_at?: string;
+    delivered_at?: string;
+    bounced_at?: string;
+    complained_at?: string;
+    opened_at?: string;
+    clicked_at?: string;
 }
 
 /**
@@ -235,11 +270,21 @@ export interface SendNotificationResponse {
     notification: Notification | null;
     broadcast: Broadcast | null;
     /**
-     * Per-medium delivery outcomes for a direct send (email). A partial-medium
-     * failure never rejects the send — the outcome is reported here.
+     * @deprecated The send is fully asynchronous — the notification is accepted
+     * (status `enqueued`) and every medium, including email, is resolved later by
+     * the worker. This field is therefore no longer populated on a send response.
+     * Read the resolved in-app status and the email outcome back with
+     * {@link NotificationsClient.get} (see {@link Notification.email}).
      */
     deliveries?: NotificationDelivery[];
 }
+
+/**
+ * The response of {@link NotificationsClient.get}: a single notification with its
+ * resolved in-app {@link Notification.status} and, when the send included an
+ * email block, its {@link Notification.email} delivery outcome.
+ */
+export type GetNotificationResponse = Notification;
 
 /**
  * Represents a request to list notifications.

@@ -8,10 +8,15 @@ Send a **direct** notification to a specific recipient or send a **broadcast** t
 -   **Direct**: If `recipient_id` is set, `target` is optional.
 -   **Broadcast**: If `recipient_id` is null, `target` is required.
 
+<Note>
+    Sending is **asynchronous**. A direct send returns as soon as the notification is accepted — the response carries the notification `id` with `status: "enqueued"`. Preference gating, quota, and email are all resolved by a background worker. Read the resolved outcome back with [retrieve a notification](/api-reference/endpoint/notifications/get-notification).
+</Note>
+
 ## Delivering email
 
 Include the optional typed `email` block (`subject`, `html`, `text`) to also send an **email**. Its presence is your "email is eligible" signal — omit it and no email is sent (there is no fallback that derives an email from `payload`). See [mediums](/docs/concepts/mediums) for the full model.
 
 -   **Direct sends only.** An `email` block on a broadcast returns `400`.
 -   **No templating.** You render the subject/HTML/text yourself (e.g. with `@react-email`) and pass the result. `text` is optional and derived from `html` when omitted.
--   Email fires only when the `(target, email)` pair is cataloged, the recipient's email preference is enabled, and the recipient has a **primary email** [contact](/api-reference/endpoint/recipients/contacts/create-contact). Otherwise the send still succeeds and the per-medium outcome is reported in the `deliveries` array.
+-   Email fires only when the `(target, email)` pair is cataloged, the recipient's email preference is enabled, and the recipient has a **primary email** [contact](/api-reference/endpoint/recipients/contacts/create-contact). Otherwise the send still succeeds and the email is skipped.
+-   The email is delivered by a background worker, so its outcome is **not** on the send response. Read it back on the notification's `email` field via [retrieve a notification](/api-reference/endpoint/notifications/get-notification).

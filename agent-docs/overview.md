@@ -301,9 +301,15 @@ a UI must not offer them as filters.
 
 API enqueues, worker consumes. Task types (`job/task/task.go`):
 
-- `notification:delivery` — one direct send's inbox write. `ShouldDirectNotificationBeDelivered`
-  → if muted, status `muted`; else `billingService.CheckAndConsumeUsage` (`quota_exceeded`
-  if over) → else `delivered`.
+- `notification:delivery` — the entire worker-path of one direct send. The request path now
+  does the minimum that must be synchronous (a single `notification` INSERT so the API can
+  return a real id) and enqueues this job for everything else, via
+  `NotificationService.DeliverDirectNotification`: (1) **recipient upsert**
+  (`CreateIfNotExists` — moved off the hot path; the `notification` row references the
+  recipient by external-id string, not a FK, so it can be inserted first), (2) the **in-app
+  inbox write** — `ShouldDirectNotificationBeDelivered` → if muted, status `muted`; else
+  `billingService.CheckAndConsumeUsage` (`quota_exceeded` if over) → else `delivered`, and
+  (3) the **email fan-out** (below). A failure returns an error so Asynq retries the whole job.
 - `email:delivery` — one email. Enqueued **only from the direct-send path**, never
   broadcast. Loads project email settings **fresh** and decrypts per-send, so the provider
   secret never rides through Redis and key rotation is respected. Sends via the Resend
@@ -315,11 +321,13 @@ API enqueues, worker consumes. Task types (`job/task/task.go`):
   the last batch marks the broadcast `completed`.
 - `recipient:delete_data`, `project:delete_data` — async cascading cleanup.
 
-**The email fan-out (`fanOutEmail` in `service/notification.go`) is SYNCHRONOUS on the send
-path; the worker only UPDATES the row.** Every outcome is resolved and the row inserted
-up-front — terminal skips never enqueue — which is what lets the send return **200 with
-per-medium statuses** in `deliveries[]`. Gate order, each recorded as a *visible delivery
-outcome* rather than an error:
+**The email fan-out (`fanOutEmail` in `service/notification.go`) runs in the WORKER now**, as
+step 3 of `notification:delivery` — no longer on the send path. It still resolves every
+outcome and inserts the `notification_delivery` row itself (terminal skips never enqueue an
+`email:delivery`); it just does so asynchronously. Because the outcome is no longer resolved
+before the response, **the send response no longer carries `deliveries[]`** — the caller reads
+the email outcome back via `GET /notifications/{id}` (the `email` block on the notification).
+Gate order, each recorded as a *visible delivery outcome* rather than an error:
 
 1. preference/catalog fails ⇒ `muted` (+ `failure_reason` `not_cataloged` vs
    `preference_disabled`)
@@ -327,9 +335,9 @@ outcome* rather than an error:
 3. no primary email contact ⇒ `no_contact`
 4. all pass ⇒ `pending`, enqueue `email:delivery`
 
-**A failed email fan-out NEVER rejects the send** — errors are logged, not propagated; the
-direct send still returns 200 with the in-app notification. Partial-medium failure ⇒ 200
-with per-delivery statuses, never an atomic reject.
+**A failed email fan-out NEVER fails the job** — errors are logged, not propagated; the in-app
+outcome and email outcome are independent. The send itself returns **200 with the notification
+id and status `enqueued`**; in-app gating, billing, and email all resolve later in the worker.
 
 `make up` runs **asynqmon** on `:7755` (dev-only, absent from prod on purpose).
 `make dev` runs api + worker + console in a tmux session, each hot-reloading.

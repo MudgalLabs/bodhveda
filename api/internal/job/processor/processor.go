@@ -31,23 +31,18 @@ func currentAttempt(ctx context.Context) int {
 	return 1
 }
 
+// NotificationDeliveryProcessor runs a direct send's worker-path work: recipient
+// upsert, the in-app inbox write (preference gate + billing), and email fan-out.
+// The request path only inserts the notification row + enqueues this job, so all
+// of that logic lives in the service (NotificationService.DeliverDirectNotification)
+// and the processor is a thin adapter over it.
 type NotificationDeliveryProcessor struct {
-	db               *pgxpool.Pool
-	notificationRepo repository.NotificationRepository
-	preferenceRepo   repository.PreferenceRepository
-	billingService   *service.BillingService
+	notificationService *service.NotificationService
 }
 
-func NewNotificationDeliveryProcessor(
-	db *pgxpool.Pool,
-	notificationRepo repository.NotificationRepository, preferenceRepo repository.PreferenceRepository,
-	billingService *service.BillingService,
-) *NotificationDeliveryProcessor {
+func NewNotificationDeliveryProcessor(notificationService *service.NotificationService) *NotificationDeliveryProcessor {
 	return &NotificationDeliveryProcessor{
-		db:               db,
-		notificationRepo: notificationRepo,
-		preferenceRepo:   preferenceRepo,
-		billingService:   billingService,
+		notificationService: notificationService,
 	}
 }
 
@@ -59,48 +54,11 @@ func (processor *NotificationDeliveryProcessor) ProcessTask(ctx context.Context,
 		return err
 	}
 
-	notification := payload.Notification
-
-	// The worker's delivery step is the in-app inbox write; gate it on the
-	// in_app medium (preserves legacy behavior: deliver unless muted).
-	shouldDeliver, err := processor.preferenceRepo.ShouldDirectNotificationBeDelivered(ctx, notification.ProjectID, notification.RecipientExtID, dto.TargetFromNotification(notification), enum.MediumInApp)
-	if err != nil {
+	if err := processor.notificationService.DeliverDirectNotification(ctx, payload); err != nil {
 		return err
 	}
 
-	if !shouldDeliver {
-		notification.Status = enum.NotificationStatusMuted
-	} else {
-		event := dto.UsageEvent{
-			UserID:    payload.UserID,
-			ProjectID: notification.ProjectID,
-			Metric:    entity.MetricNotifications,
-			Amount:    1,
-		}
-
-		err := processor.billingService.CheckAndConsumeUsage(ctx, event)
-		if err != nil {
-			if errors.Is(err, enum.ErrQuotaExceeded) {
-				notification.Status = enum.NotificationStatusQuotaExceeded
-			} else {
-				err = fmt.Errorf("check and consume usage: %w", err)
-				logger.Get().Error(err)
-				return err
-			}
-		} else {
-			notification.Status = enum.NotificationStatusDelivered
-		}
-	}
-
-	now := time.Now().UTC()
-	notification.CompletedAt = &now
-
-	err = processor.notificationRepo.Update(ctx, notification)
-	if err != nil {
-		return fmt.Errorf("update notification: %w", err)
-	}
-
-	logger.Get().Infof("NotificationDeliveryProcessor: Successfully completed notification %d", notification.ID)
+	logger.Get().Infof("NotificationDeliveryProcessor: Successfully completed notification %d", payload.Notification.ID)
 
 	return nil
 }

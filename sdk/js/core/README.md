@@ -64,7 +64,7 @@ Bodhveda does no templating: you render the subject/HTML/text yourself (e.g. wit
 
 Email fires only when the `(target, email)` pair is cataloged, the recipient's email
 preference is enabled, and the recipient has a primary email
-[contact](#recipient-contacts). Per-medium outcomes are returned in `deliveries`.
+[contact](#recipient-contacts).
 
 ```typescript
 const res = await bodhveda.notifications.send({
@@ -76,7 +76,23 @@ const res = await bodhveda.notifications.send({
         html: "<h1>Your daily digest</h1><p>3 new follow-ups today.</p>",
     },
 });
-// res.notification (in-app) and res.deliveries (per-medium email outcome)
+// res.notification.id — the send is accepted (status "enqueued"); the email is
+// resolved asynchronously. Read the outcome back with notifications.get() below.
+```
+
+### Get a notification (check the outcome)
+
+The send is **asynchronous**: it accepts the notification and returns its id
+(`status: "enqueued"`), then the worker resolves in-app delivery and the email.
+Fetch the notification by id to see the resolved in-app `status` and, when the send
+included an `email` block, the email delivery outcome on `notification.email`.
+
+```typescript
+const notification = await bodhveda.notifications.get(res.notification!.id);
+
+notification.status; // "delivered" | "muted" | "quota_exceeded" | "failed" | "enqueued"
+notification.email?.status; // "pending" | "sent" | "delivered" | "bounced" | ...
+notification.email?.delivered_at;
 ```
 
 ---
