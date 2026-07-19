@@ -8,6 +8,7 @@ import { client, API_ROUTES, APIRes } from "@/lib/api";
 import {
     ProjectPreference,
     CreateProjectPreferencePayload,
+    UpdateProjectPreferencePayload,
     PreferenceKind,
     RecipientPreference,
     RecipientPreferenceTargetStatesResult,
@@ -124,6 +125,34 @@ export function useCreateProjectPreference(
                 predicate: (query) =>
                     Array.isArray(query.queryKey) &&
                     query.queryKey[0] === getProjectPreferencesKey()[0],
+            });
+            onSuccess?.(...args);
+        },
+        ...rest,
+    });
+}
+
+export function useUpdateProjectPreference(
+    projectID: string,
+    options: AnyUseMutationOptions = {}
+) {
+    const { onSuccess, ...rest } = options;
+    const queryClient = useQueryClient();
+
+    return useMutation<
+        APIRes<ProjectPreference>,
+        unknown,
+        { preferenceID: number; payload: UpdateProjectPreferencePayload }
+    >({
+        mutationFn: ({ preferenceID, payload }) => {
+            return client.patch(
+                API_ROUTES.project.preferences.update(projectID, preferenceID),
+                payload
+            );
+        },
+        onSuccess: (...args) => {
+            queryClient.invalidateQueries({
+                queryKey: getProjectPreferencesKey(projectID),
             });
             onSuccess?.(...args);
         },

@@ -13,6 +13,7 @@ import {
     ErrorMessage,
     formatDate,
     formatNumber,
+    IconEdit,
     IconEllipsis,
     IconInfo,
     IconPlus,
@@ -35,6 +36,7 @@ import {
     RecipientPreference,
 } from "@/features/preference/preference_type";
 import { DeleteProjectPreferenceModal } from "../components/delete_project_preference_modal";
+import { EditProjectPreferenceModal } from "../components/edit_project_preference_modal";
 import { TargetInfoTooltip } from "@/components/target_info_tooltip";
 import { RecipientLink } from "@/features/recipient/recipient_link";
 import { targetToString } from "@/lib/utils";
@@ -132,7 +134,13 @@ function ActionCell({ preference }: { preference: ProjectPreference }) {
     const projectID = useGetProjectIDFromParams();
 
     const [dropdownOpen, setDropdownOpen] = useState(false);
+    const [editOpen, setEditOpen] = useState(false);
     const [deleteOpen, setDeleteOpen] = useState(false);
+
+    const handleOpenEdit = () => {
+        setDropdownOpen(false);
+        setEditOpen(true);
+    };
 
     const handleOpenDeleteConfirm = () => {
         setDropdownOpen(false);
@@ -150,6 +158,13 @@ function ActionCell({ preference }: { preference: ProjectPreference }) {
 
                 <DropdownMenuContent>
                     <DropdownMenuItem asChild>
+                        <Button variant="ghost" onClick={handleOpenEdit}>
+                            <IconEdit size={16} />
+                            Edit
+                        </Button>
+                    </DropdownMenuItem>
+
+                    <DropdownMenuItem asChild>
                         <Button
                             variant="destructive"
                             onClick={handleOpenDeleteConfirm}
@@ -160,6 +175,15 @@ function ActionCell({ preference }: { preference: ProjectPreference }) {
                     </DropdownMenuItem>
                 </DropdownMenuContent>
             </DropdownMenu>
+
+            {editOpen && (
+                <EditProjectPreferenceModal
+                    open={editOpen}
+                    setOpen={setEditOpen}
+                    projectID={projectID}
+                    preference={preference}
+                />
+            )}
 
             {deleteOpen && (
                 <DeleteProjectPreferenceModal

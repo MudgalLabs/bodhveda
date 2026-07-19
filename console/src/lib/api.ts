@@ -106,6 +106,8 @@ export const API_ROUTES = {
                 `/console/projects/${projectId}/preferences`,
             create: (projectId: string | number) =>
                 `/console/projects/${projectId}/preferences`,
+            update: (projectId: string | number, prefenceID: number) =>
+                `/console/projects/${projectId}/preferences/${prefenceID}`,
             delete: (projectId: string | number, prefenceID: number) =>
                 `/console/projects/${projectId}/preferences/${prefenceID}`,
         },

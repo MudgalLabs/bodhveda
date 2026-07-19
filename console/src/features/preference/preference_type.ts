@@ -42,6 +42,13 @@ export interface CreateProjectPreferencePayload {
     medium: PreferenceMedium;
 }
 
+// Only the mutable fields of a catalog entry. The natural key (channel, topic,
+// event, medium) is immutable server-side, so an edit changes just these two.
+export interface UpdateProjectPreferencePayload {
+    label: string;
+    default_enabled: boolean;
+}
+
 export interface RecipientPreference {
     id: number;
     target: Target;

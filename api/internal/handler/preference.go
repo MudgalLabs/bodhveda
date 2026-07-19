@@ -46,6 +46,41 @@ func CreateProjectPreference(s *service.PreferenceService) http.HandlerFunc {
 	}
 }
 
+// UpdateProjectPreference is the console's catalog edit (project_id in path).
+// Only the mutable fields change — label and the project-level default — since
+// the natural key (channel, topic, event, medium) is immutable. It reuses the
+// same service method as the Developer API's UpdateProjectPreferenceAPI.
+func UpdateProjectPreference(s *service.PreferenceService) http.HandlerFunc {
+	return func(w http.ResponseWriter, r *http.Request) {
+		ctx := r.Context()
+		projectID, err := httpx.ParamInt(r, "project_id")
+		if err != nil {
+			httpx.BadRequestResponse(w, r, errors.New("Invalid project ID"))
+			return
+		}
+
+		preferenceID, err := httpx.ParamInt(r, "preference_id")
+		if err != nil {
+			httpx.BadRequestResponse(w, r, errors.New("Invalid preference ID"))
+			return
+		}
+
+		var payload dto.UpdateProjectPreferencePayload
+		if err := jsonx.DecodeJSONRequest(&payload, r); err != nil {
+			httpx.MalformedJSONResponse(w, r, err)
+			return
+		}
+
+		result, errKind, err := s.UpdateProjectPreference(ctx, projectID, preferenceID, payload)
+		if err != nil {
+			httpx.ServiceErrResponse(w, r, errKind, err)
+			return
+		}
+
+		httpx.SuccessResponse(w, r, http.StatusOK, "Project preference updated", result)
+	}
+}
+
 // The handlers below (…API suffix) are the Developer API's project-preference
 // (catalog) CRUD. They are project-scoped by the API key — there is no
 // project_id in the path — mirroring the rest of the Developer API. The console

@@ -226,6 +226,7 @@ func initRouter() http.Handler {
 					r.Post("/", handler.CreateProjectPreference(app.APP.Service.Preference))
 
 					r.Route("/{preference_id}", func(r chi.Router) {
+						r.Patch("/", handler.UpdateProjectPreference(app.APP.Service.Preference))
 						r.Delete("/", handler.DeletePreference(app.APP.Service.Preference))
 					})
 				})
