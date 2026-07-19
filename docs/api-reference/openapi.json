@@ -1472,7 +1472,7 @@
                                         "type": "array",
                                         "description": "Array of notification IDs to update. If omitted, applies to all.",
                                         "items": {
-                                            "type": "string"
+                                            "type": "integer"
                                         }
                                     },
                                     "state": {
@@ -1499,8 +1499,8 @@
                             },
                             "example": {
                                 "ids": [
-                                    "notif_123",
-                                    "notif_456"
+                                    123,
+                                    456
                                 ],
                                 "state": {
                                     "read": true
@@ -1583,15 +1583,15 @@
                                         "type": "array",
                                         "description": "Array of notification IDs to delete. If omitted, all will be deleted.",
                                         "items": {
-                                            "type": "string"
+                                            "type": "integer"
                                         }
                                     }
                                 }
                             },
                             "example": {
                                 "ids": [
-                                    "notif_123",
-                                    "notif_456"
+                                    123,
+                                    456
                                 ]
                             }
                         }
