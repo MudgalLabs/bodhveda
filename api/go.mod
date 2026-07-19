@@ -4,11 +4,11 @@ go 1.25.0
 
 require (
 	github.com/go-chi/chi v1.5.5
-	github.com/go-chi/chi/v5 v5.2.2
+	github.com/go-chi/chi/v5 v5.2.4
 	github.com/go-chi/cors v1.2.2
 	github.com/go-chi/httprate v0.15.0
 	github.com/hibiken/asynq v0.25.1
-	github.com/jackc/pgx/v5 v5.7.5
+	github.com/jackc/pgx/v5 v5.9.2
 	github.com/joho/godotenv v1.5.1
 	github.com/mudgallabs/tantra v0.2.1
 	go.uber.org/zap v1.27.0
