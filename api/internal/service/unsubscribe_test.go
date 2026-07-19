@@ -50,8 +50,8 @@ func TestUnsubscribeService_EndToEnd(t *testing.T) {
 	// Catalog the (target, email) medium at the project level so email is eligible
 	// to deliver before the unsubscribe (non-in_app defaults to NOT deliver unless
 	// cataloged — the catalog gate).
-	label := "Digest email"
-	catalog := entity.NewPreference(&projectID, nil, target.Channel, target.Topic, target.Event, string(enum.MediumEmail), &label, true)
+	name := "Digest email"
+	catalog := entity.NewPreference(&projectID, nil, target.Channel, target.Topic, target.Event, string(enum.MediumEmail), &name, nil, true)
 	if _, err := preferenceRepo.Create(ctx, catalog); err != nil {
 		t.Fatalf("seed catalog preference: %v", err)
 	}

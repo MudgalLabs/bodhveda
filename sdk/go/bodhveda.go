@@ -317,8 +317,8 @@ type ProjectPreferencesService interface {
 	// UpsertMany.
 	Create(ctx context.Context, req *CreateProjectPreferenceRequest) (*ProjectPreference, error)
 
-	// Update updates a catalog entry's label and default. The natural key
-	// (channel/topic/event/medium) is immutable.
+	// Update updates a catalog entry's name, description and default. The natural
+	// key (channel/topic/event/medium) is immutable.
 	Update(ctx context.Context, preferenceID int64, req *UpdateProjectPreferenceRequest) (*ProjectPreference, error)
 
 	// Delete deletes a catalog entry (un-catalogs the (target, medium)).
@@ -326,7 +326,8 @@ type ProjectPreferencesService interface {
 
 	// UpsertMany declaratively merges a whole catalog in one call — the primitive
 	// for a one-off "set up my project's preferences" script. Each item is upserted
-	// by its natural key (new inserted, existing label + default updated). By
+	// by its natural key (new inserted, existing name + description + default
+	// updated). By
 	// default entries absent from the slice are left untouched; pass
 	// UpsertProjectPreferencesOptions{Prune: true} to also delete them, making the
 	// slice the entire desired catalog.

@@ -25,7 +25,9 @@ export interface ProjectPreference {
     id: number;
     target: Target;
     medium: PreferenceMedium;
-    label: string;
+    name: string;
+    /** Optional longer blurb; null when unset. */
+    description: string | null;
     default_enabled: boolean;
     created_at: string;
     updated_at: string;
@@ -34,7 +36,9 @@ export interface ProjectPreference {
 }
 
 export interface CreateProjectPreferencePayload {
-    label: string;
+    name: string;
+    /** Optional; omitted or blank stores no description. */
+    description?: string;
     default_enabled: boolean;
     channel: string;
     event: string | null;
@@ -43,9 +47,11 @@ export interface CreateProjectPreferencePayload {
 }
 
 // Only the mutable fields of a catalog entry. The natural key (channel, topic,
-// event, medium) is immutable server-side, so an edit changes just these two.
+// event, medium) is immutable server-side, so an edit changes just these.
 export interface UpdateProjectPreferencePayload {
-    label: string;
+    name: string;
+    /** Optional; omitted or blank clears the description. */
+    description?: string;
     default_enabled: boolean;
 }
 
@@ -84,8 +90,10 @@ export type PreferenceSource =
 export interface RecipientPreferenceTargetState {
     target: Target & {
         medium: PreferenceMedium;
-        /** The catalog entry's label. Omitted by the API when unset. */
-        label?: string;
+        /** The catalog entry's name. Omitted by the API when unset. */
+        name?: string;
+        /** The catalog entry's optional description, when it has one. */
+        description?: string;
     };
     state: {
         /** The resolved decision. Agrees with the send path's gating. */

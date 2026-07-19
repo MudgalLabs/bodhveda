@@ -60,9 +60,10 @@ func TestPreferenceCatalogCRUD(t *testing.T) {
 
 	// Seed a catalog entry (project-level row) via the same Create the create
 	// endpoint uses.
-	label := "Daily digest"
+	name := "Daily digest"
+	description := "Receive a daily digest email."
 	created, err := repo.Create(ctx, entity.NewPreference(
-		&projectID, nil, "digest", "none", "sent", "email", &label, true,
+		&projectID, nil, "digest", "none", "sent", "email", &name, &description, true,
 	))
 	if err != nil {
 		t.Fatalf("Create catalog entry: %v", err)
@@ -71,7 +72,7 @@ func TestPreferenceCatalogCRUD(t *testing.T) {
 	// And a recipient-level row for the SAME target/medium — this is what the
 	// scoping assertions below must never touch.
 	recipientRow, err := repo.Create(ctx, entity.NewPreference(
-		&projectID, &extID, "digest", "none", "sent", "email", nil, false,
+		&projectID, &extID, "digest", "none", "sent", "email", nil, nil, false,
 	))
 	if err != nil {
 		t.Fatalf("Create recipient row: %v", err)
@@ -82,8 +83,11 @@ func TestPreferenceCatalogCRUD(t *testing.T) {
 		if err != nil {
 			t.Fatalf("get: %v", err)
 		}
-		if got.Label == nil || *got.Label != "Daily digest" || got.Medium != "email" || !got.Enabled {
+		if got.Name == nil || *got.Name != "Daily digest" || got.Medium != "email" || !got.Enabled {
 			t.Fatalf("wrong row: %+v", got)
+		}
+		if got.Description == nil || *got.Description != "Receive a daily digest email." {
+			t.Fatalf("description not persisted: %+v", got)
 		}
 	})
 
@@ -99,13 +103,17 @@ func TestPreferenceCatalogCRUD(t *testing.T) {
 		}
 	})
 
-	t.Run("UpdateProjectPreference changes label + default and returns the row", func(t *testing.T) {
-		updated, err := repo.UpdateProjectPreference(ctx, projectID, created.ID, "Weekly digest", false)
+	t.Run("UpdateProjectPreference changes name + description + default and returns the row", func(t *testing.T) {
+		newDescription := "Receive a weekly digest email."
+		updated, err := repo.UpdateProjectPreference(ctx, projectID, created.ID, "Weekly digest", &newDescription, false)
 		if err != nil {
 			t.Fatalf("update: %v", err)
 		}
-		if updated.Label == nil || *updated.Label != "Weekly digest" || updated.Enabled {
+		if updated.Name == nil || *updated.Name != "Weekly digest" || updated.Enabled {
 			t.Fatalf("update did not apply: %+v", updated)
+		}
+		if updated.Description == nil || *updated.Description != "Receive a weekly digest email." {
+			t.Fatalf("update did not apply description: %+v", updated)
 		}
 		// Natural key is unchanged.
 		if updated.Channel != "digest" || updated.Topic != "none" || updated.Event != "sent" || updated.Medium != "email" {
@@ -114,7 +122,7 @@ func TestPreferenceCatalogCRUD(t *testing.T) {
 	})
 
 	t.Run("UpdateProjectPreference 404s for a recipient-level row's id", func(t *testing.T) {
-		if _, err := repo.UpdateProjectPreference(ctx, projectID, recipientRow.ID, "x", true); err != tantraRepo.ErrNotFound {
+		if _, err := repo.UpdateProjectPreference(ctx, projectID, recipientRow.ID, "x", nil, true); err != tantraRepo.ErrNotFound {
 			t.Fatalf("catalog update reached a recipient row: got %v, want ErrNotFound", err)
 		}
 	})

@@ -304,7 +304,8 @@ const entry = await bodhveda.preferences.create({
     topic: "none",
     event: "sent",
     medium: "email",
-    label: "Daily digest",
+    name: "Daily digest",
+    description: "Receive a daily summary of activity.",
     default_enabled: true,
 });
 ```
@@ -312,13 +313,14 @@ const entry = await bodhveda.preferences.create({
 ### Get / update / delete an entry
 
 The natural key (`channel`/`topic`/`event`/`medium`) is immutable — `update`
-changes only the label and default.
+changes only the name, description and default.
 
 ```typescript
 const entry = await bodhveda.preferences.get(123);
 
 await bodhveda.preferences.update(123, {
-    label: "Weekly digest",
+    name: "Weekly digest",
+    description: "Receive a weekly summary of activity.",
     default_enabled: false,
 });
 
@@ -330,13 +332,13 @@ await bodhveda.preferences.delete(123);
 
 `upsertMany` declaratively merges an entire catalog in one call — the primitive
 for a one-off "set up my project's preferences" script. Each item is upserted by
-its natural key (new inserted, existing label + default updated). Entries **not**
-in the array are left untouched.
+its natural key (new inserted, existing name + description + default updated).
+Entries **not** in the array are left untouched.
 
 ```typescript
 await bodhveda.preferences.upsertMany([
-    { channel: "digest", topic: "none", event: "sent", medium: "email", label: "Daily digest", default_enabled: true },
-    { channel: "posts", topic: "any", event: "new_comment", medium: "email", label: "Comments", default_enabled: true },
+    { channel: "digest", topic: "none", event: "sent", medium: "email", name: "Daily digest", default_enabled: true },
+    { channel: "posts", topic: "any", event: "new_comment", medium: "email", name: "Comments", default_enabled: true },
 ]);
 ```
 

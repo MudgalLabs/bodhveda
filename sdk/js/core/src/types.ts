@@ -16,12 +16,15 @@ export type PreferenceMedium = "in_app" | "email";
 /**
  * Represents a preference target, extending the Target interface.
  */
-export interface TargetWithLabel extends Target {
+export interface TargetWithName extends Target {
     /**
      * The medium this preference applies to (`in_app` or `email`).
      */
     medium?: PreferenceMedium;
-    label?: string;
+    /** The catalog entry's name, present only when this target is cataloged. */
+    name?: string;
+    /** The catalog entry's optional description, when it has one. */
+    description?: string;
 }
 
 /**
@@ -71,7 +74,7 @@ export interface ResolvedPreferenceState {
  * Represents a resolved preference with a target and state.
  */
 export interface Preference {
-    target: TargetWithLabel;
+    target: TargetWithName;
     state: ResolvedPreferenceState;
 }
 
@@ -319,7 +322,7 @@ export interface SetPreferenceRequest {
  * Represents the response after setting a preference.
  */
 export interface SetPreferenceResponse {
-    target: TargetWithLabel;
+    target: TargetWithName;
     state: PreferenceState;
 }
 
@@ -339,7 +342,7 @@ export interface CheckPreferenceRequest {
  * cataloged, or stored at all — any (channel, topic, event) resolves.
  */
 export interface CheckPreferenceResponse {
-    target: TargetWithLabel;
+    target: TargetWithName;
     state: ResolvedPreferenceState;
 }
 
@@ -363,7 +366,9 @@ export interface ProjectPreference {
      * who has expressed no preference of their own is delivered to.
      */
     default_enabled: boolean;
-    label: string;
+    name: string;
+    /** Optional longer blurb for this catalog entry; `null` when unset. */
+    description: string | null;
     created_at: string;
     updated_at: string;
 }
@@ -381,17 +386,24 @@ export interface CreateProjectPreferenceRequest {
     event: string;
     /** Defaults to `in_app` when omitted. */
     medium?: PreferenceMedium;
-    label: string;
+    name: string;
+    /**
+     * Optional longer blurb (e.g. "Receive notifications about new products,
+     * features, and more."). Omitted stores no description.
+     */
+    description?: string;
     default_enabled: boolean;
 }
 
 /**
  * Request to update a catalog entry. The natural key
- * (channel/topic/event/medium) is immutable, so only the label and default
- * change.
+ * (channel/topic/event/medium) is immutable, so only the name, description and
+ * default change.
  */
 export interface UpdateProjectPreferenceRequest {
-    label: string;
+    name: string;
+    /** Optional; omitted clears the description. */
+    description?: string;
     default_enabled: boolean;
 }
 

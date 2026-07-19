@@ -183,14 +183,15 @@ gets a `no_contact` delivery outcome, not an error.**
 
 ### Preferences (`preference` table) — two levels × medium
 
-- **Project-level** (`recipient_external_id NULL`, `label NOT NULL`) — the **catalog** of
+- **Project-level** (`recipient_external_id NULL`, `name NOT NULL`) — the **catalog** of
   subscribable `(target, medium)` pairs. A broadcast requires one to exist for its target.
-- **Recipient-level** (`recipient_external_id NOT NULL`, `label NULL`) — per-recipient
+  A catalog entry also carries an optional `description` (nullable) alongside its `name`.
+- **Recipient-level** (`recipient_external_id NOT NULL`, `name NULL`) — per-recipient
   opt-in/opt-out per medium.
 - Uniqueness is enforced by two partial unique indexes, both with **`medium` appended**
-  (`recipient_pref_unique`, `project_pref_unique`); a CHECK enforces the label/recipient
-  XOR. Those indexes are why the set-based resolver below can use LEFT JOINs safely: each
-  cascade rung matches ≤1 row.
+  (`recipient_pref_unique`, `project_pref_unique`); a CHECK enforces the name/recipient
+  XOR (and a second CHECK confines `description` to project-level rows). Those indexes are
+  why the set-based resolver below can use LEFT JOINs safely: each cascade rung matches ≤1 row.
 
 **Resolution cascade** (`pg/preference.go`) — the authority on what a send does:
 
@@ -1101,7 +1102,7 @@ REUSE, do NOT re-derive (all verified against the code in 9.2):
 - **Read path — `GET /console/projects/{project_id}/recipients/{recipient_external_id}/preferences`
   ALREADY EXISTS** (added in 9.2, `GetRecipientPreferencesConsole` → service
   `GetRecipientProjectPreferences`). It returns the RESOLVED view you need:
-  `{preferences: [{target: {channel, topic, event, medium, label?}, state: {enabled, inherited}}]}`
+  `{preferences: [{target: {channel, topic, event, medium, name?, description?}, state: {enabled, inherited}}]}`
   — the project catalog overlaid with the recipient's overrides. Do NOT drop to
   `ListPreferencesForRecipient` (raw stored rows, no catalog context); the service method already
   uses it internally. Console hook: `useGetRecipientPreferences` (`preference_hooks.ts`); types:
@@ -1230,7 +1231,7 @@ console typechecks, lints (2 pre-existing unrelated warnings), and builds; the g
 - **New DTO type rather than widening `PreferenceState`.** `dto.ResolvedPreferenceState` is separate
   because `PreferenceState` rides the Dev API's preference responses — adding `cataloged`/`source`
   there would have leaked console fields onto that public surface (the same boundary as the big one
-  above). `PreferenceTarget` *is* reused (it already carries `medium` + `label`).
+  above). `PreferenceTarget` *is* reused (it already carries `medium` + `name` + `description`).
 - **`enum.ActiveMediums()` added** (list form of the existing `Active()`), so the resolver
   enumerates mediums from the enum rather than hardcoding the in_app/email pair — when web_push
   becomes active, the grid follows. Only Active mediums get toggles, as scoped.
@@ -1336,8 +1337,8 @@ including a real send.
   consulted the `topic='any'` fallbacks, and its step-3 default returned `enabled=true` for **every**
   medium — so an email target that could never fire reported as subscribed. Measured live before/after
   on `brandnew/none/evt`: email `true` → **`false`**; `in_app` stays `true`. Its response gains
-  `cataloged`, and now carries the catalog `label` for cataloged pairs (the old code explicitly
-  nulled it); both additive.
+  `cataloged`, and now carries the catalog `name` (+ optional `description`) for cataloged pairs
+  (the old code explicitly nulled it); both additive.
   - **How it got in, worth remembering:** its step-3 carried a comment asserting *"This must match
     the delivery default in ShouldDirectNotificationBeDelivered, which delivers when no preference is
     found."* That was TRUE when in_app was the only medium. **Phase 2 made the default

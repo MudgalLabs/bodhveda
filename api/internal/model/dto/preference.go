@@ -31,14 +31,16 @@ func validateMedium(m enum.Medium) (apires.ApiError, bool) {
 }
 
 type ProjectPreference struct {
-	ID        int       `json:"id"`
-	ProjectID int       `json:"project_id"`
-	Target    Target    `json:"target"`
-	Medium    string    `json:"medium"`
-	Enabled   bool      `json:"default_enabled"`
-	Label     string    `json:"label"`
-	CreatedAt time.Time `json:"created_at"`
-	UpdatedAt time.Time `json:"updated_at"`
+	ID        int    `json:"id"`
+	ProjectID int    `json:"project_id"`
+	Target    Target `json:"target"`
+	Medium    string `json:"medium"`
+	Enabled   bool   `json:"default_enabled"`
+	Name      string `json:"name"`
+	// Description is optional; null when the catalog entry has no blurb.
+	Description *string   `json:"description"`
+	CreatedAt   time.Time `json:"created_at"`
+	UpdatedAt   time.Time `json:"updated_at"`
 }
 
 type CreateProjectPreferencePayload struct {
@@ -49,9 +51,23 @@ type CreateProjectPreferencePayload struct {
 	Event   string `json:"event"`
 	// Medium defaults to in_app when omitted. A project preference is a catalog
 	// entry: it declares that this (target, medium) may fire.
-	Medium  string `json:"medium"`
-	Label   string `json:"label"`
-	Enabled bool   `json:"default_enabled"`
+	Medium string `json:"medium"`
+	Name   string `json:"name"`
+	// Description is optional (e.g. "Receive notifications about new products,
+	// features, and more."). Omitted or blank stores NULL.
+	Description string `json:"description"`
+	Enabled     bool   `json:"default_enabled"`
+}
+
+// normalizeDescription trims a request-supplied description and maps blank to
+// nil, so an omitted or whitespace-only description stores NULL rather than an
+// empty string.
+func normalizeDescription(d string) *string {
+	d = strings.TrimSpace(d)
+	if d == "" {
+		return nil
+	}
+	return &d
 }
 
 func (p *CreateProjectPreferencePayload) Validate() error {
@@ -78,8 +94,8 @@ func (p *CreateProjectPreferencePayload) Validate() error {
 		errs.Add(apires.NewApiError("Topic is required", "Topic cannot be empty", "topic", p.Topic))
 	}
 
-	if p.Label == "" {
-		errs.Add(apires.NewApiError("Label is required", "Label cannot be empty", "label", p.Label))
+	if p.Name == "" {
+		errs.Add(apires.NewApiError("Name is required", "Name cannot be empty", "name", p.Name))
 	}
 
 	if len(errs) > 0 {
@@ -89,20 +105,28 @@ func (p *CreateProjectPreferencePayload) Validate() error {
 	return nil
 }
 
+// DescriptionPtr normalizes the request-supplied description into the nullable
+// value stored on the entity (blank → nil).
+func (p *CreateProjectPreferencePayload) DescriptionPtr() *string {
+	return normalizeDescription(p.Description)
+}
+
 // UpdateProjectPreferencePayload updates the mutable fields of a catalog entry
-// (its label and its project-level default). The natural key (channel, topic,
-// event, medium) is immutable — changing it would be a delete + create, not an
-// update — so it is deliberately absent here.
+// (its name, description and its project-level default). The natural key
+// (channel, topic, event, medium) is immutable — changing it would be a delete +
+// create, not an update — so it is deliberately absent here.
 type UpdateProjectPreferencePayload struct {
-	Label   string `json:"label"`
-	Enabled bool   `json:"default_enabled"`
+	Name string `json:"name"`
+	// Description is optional; omitted or blank clears it (stores NULL).
+	Description string `json:"description"`
+	Enabled     bool   `json:"default_enabled"`
 }
 
 func (p *UpdateProjectPreferencePayload) Validate() error {
 	var errs service.InputValidationErrors
 
-	if p.Label == "" {
-		errs.Add(apires.NewApiError("Label is required", "Label cannot be empty", "label", p.Label))
+	if p.Name == "" {
+		errs.Add(apires.NewApiError("Name is required", "Name cannot be empty", "name", p.Name))
 	}
 
 	if len(errs) > 0 {
@@ -110,6 +134,12 @@ func (p *UpdateProjectPreferencePayload) Validate() error {
 	}
 
 	return nil
+}
+
+// DescriptionPtr normalizes the request-supplied description into the nullable
+// value stored on the entity (blank → nil, which clears an existing one).
+func (p *UpdateProjectPreferencePayload) DescriptionPtr() *string {
+	return normalizeDescription(p.Description)
 }
 
 func FromPreferenceForProject(e *entity.Preference) *ProjectPreference {
@@ -125,11 +155,12 @@ func FromPreferenceForProject(e *entity.Preference) *ProjectPreference {
 			Topic:   e.Topic,
 			Event:   e.Event,
 		},
-		Medium:    e.Medium,
-		Enabled:   e.Enabled,
-		Label:     *e.Label,
-		CreatedAt: e.CreatedAt,
-		UpdatedAt: e.UpdatedAt,
+		Medium:      e.Medium,
+		Enabled:     e.Enabled,
+		Name:        *e.Name,
+		Description: e.Description,
+		CreatedAt:   e.CreatedAt,
+		UpdatedAt:   e.UpdatedAt,
 	}
 }
 
@@ -240,8 +271,11 @@ func FromProjectPreferenceList(list []*entity.ProjectPreferenceListItem) []*Proj
 
 type PreferenceTarget struct {
 	Target
-	Medium string  `json:"medium"`
-	Label  *string `json:"label,omitempty"`
+	Medium string `json:"medium"`
+	// Name and Description are the catalog entry's, present only when this
+	// (target, medium) is cataloged (Description only when it has one).
+	Name        *string `json:"name,omitempty"`
+	Description *string `json:"description,omitempty"`
 }
 
 // PreferenceState is the state of a preference row that was just WRITTEN — it
@@ -322,8 +356,9 @@ func resolvedPreferenceTarget(e *entity.ResolvedPreference) PreferenceTarget {
 			Topic:   e.Topic,
 			Event:   e.Event,
 		},
-		Medium: e.Medium,
-		Label:  e.Label,
+		Medium:      e.Medium,
+		Name:        e.Name,
+		Description: e.Description,
 	}
 }
 
@@ -402,8 +437,9 @@ func PreferenceTargetDTOFromPreference(e *entity.Preference) PreferenceTarget {
 			Topic:   e.Topic,
 			Event:   e.Event,
 		},
-		Medium: e.Medium,
-		Label:  e.Label,
+		Medium:      e.Medium,
+		Name:        e.Name,
+		Description: e.Description,
 	}
 }
 

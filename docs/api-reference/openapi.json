@@ -10,7 +10,9 @@
             "post": {
                 "summary": "Send a notification (direct or broadcast)",
                 "operationId": "sendNotification",
-                "tags": ["Notifications"],
+                "tags": [
+                    "Notifications"
+                ],
                 "description": "Start sending notifications through Bodhveda API.",
                 "requestBody": {
                     "required": true,
@@ -25,11 +27,23 @@
                 "x-codeSamples": [
                     {
                         "lang": "curl",
-                        "source": "curl -X POST https://api.bodhveda.com/notifications/send \\\n  -H \"Authorization: Bearer bv_xxxxxxxxx\" \\\n  -H \"Content-Type: application/json\" \\\n  -d '{\n    \"recipient_id\": \"recipient_123\",\n    \"target\": {\n      \"channel\": \"posts\",\n      \"topic\": \"post_id_123\",\n      \"event\": \"new_comment\"\n    },\n    \"payload\": {\n      \"title\": \"Elon, Zuck and others commented on your post.\",\n      \"post_url\": \"/posts/post_id_123#comments\"\n    }\n  }'"
+                        "label": "cURL",
+                        "source": "curl -X POST https://api.bodhveda.com/notifications/send \\\n  -H \"Authorization: Bearer bv_xxxxxxxxx\" \\\n  -H \"Content-Type: application/json\" \\\n  -d '{\n    \"recipient_id\": \"recipient_123\",\n    \"target\": {\n      \"channel\": \"posts\",\n      \"topic\": \"post_id_123\",\n      \"event\": \"new_comment\"\n    },\n    \"payload\": {\n      \"title\": \"Elon, Zuck and others commented on your post.\",\n      \"post_url\": \"/posts/post_id_123#comments\"\n    }\n  }' "
                     },
                     {
                         "lang": "curl",
-                        "source": "# Direct send fanned out to inbox + email.\n# The `email` block makes email eligible (direct sends only).\ncurl -X POST https://api.bodhveda.com/notifications/send \\\n  -H \"Authorization: Bearer bv_xxxxxxxxx\" \\\n  -H \"Content-Type: application/json\" \\\n  -d '{\n    \"recipient_id\": \"recipient_123\",\n    \"target\": {\n      \"channel\": \"digest\",\n      \"topic\": \"none\",\n      \"event\": \"sent\"\n    },\n    \"payload\": {\n      \"title\": \"Your daily digest is ready.\"\n    },\n    \"email\": {\n      \"subject\": \"Your daily digest\",\n      \"html\": \"<h1>Your daily digest</h1><p>3 new follow-ups today.</p>\",\n      \"text\": \"Your daily digest\\n3 new follow-ups today.\"\n    }\n  }'"
+                        "label": "cURL — with email",
+                        "source": "# Direct send fanned out to inbox + email.\n# The `email` block makes email eligible (direct sends only).\ncurl -X POST https://api.bodhveda.com/notifications/send \\\n  -H \"Authorization: Bearer bv_xxxxxxxxx\" \\\n  -H \"Content-Type: application/json\" \\\n  -d '{\n    \"recipient_id\": \"recipient_123\",\n    \"target\": {\n      \"channel\": \"digest\",\n      \"topic\": \"none\",\n      \"event\": \"sent\"\n    },\n    \"payload\": {\n      \"title\": \"Your daily digest is ready.\"\n    },\n    \"email\": {\n      \"subject\": \"Your daily digest\",\n      \"html\": \"<h1>Your daily digest</h1><p>3 new follow-ups today.</p>\",\n      \"text\": \"Your daily digest\\n3 new follow-ups today.\"\n    }\n  }' "
+                    },
+                    {
+                        "lang": "javascript",
+                        "label": "JavaScript",
+                        "source": "import { Bodhveda } from \"@bodhveda/js\";\n\nconst bodhveda = new Bodhveda(\"bv_xxxxxxxxx\");\n\nconst res = await bodhveda.notifications.send({\n    recipient_id: \"recipient_123\",\n    target: { channel: \"posts\", topic: \"post_id_123\", event: \"new_comment\" },\n    payload: {\n        title: \"Elon, Zuck and others commented on your post.\",\n        post_url: \"/posts/post_id_123#comments\",\n    },\n});\n// res.notification (direct) or res.broadcast, plus res.deliveries for email."
+                    },
+                    {
+                        "lang": "go",
+                        "label": "Go",
+                        "source": "import (\n    \"context\"\n    \"encoding/json\"\n\n    bodhveda \"github.com/MudgalLabs/bodhveda/sdk/go\"\n)\n\nctx := context.Background()\nclient := bodhveda.NewClient(\"bv_xxxxxxxxx\", nil)\n\nrecipientID := \"recipient_123\"\npayload, _ := json.Marshal(map[string]any{\n    \"title\":    \"Elon, Zuck and others commented on your post.\",\n    \"post_url\": \"/posts/post_id_123#comments\",\n})\nres, _ := client.Notifications.Send(ctx, &bodhveda.SendNotificationRequest{\n    RecipientID: &recipientID,\n    Target:      &bodhveda.Target{Channel: \"posts\", Topic: \"post_id_123\", Event: \"new_comment\"},\n    Payload:     payload,\n})\n// res.Notification (direct) or res.Broadcast, plus res.Deliveries for email."
                     }
                 ],
                 "responses": {
@@ -149,7 +163,9 @@
             "post": {
                 "summary": "Create a recipient",
                 "operationId": "createRecipient",
-                "tags": ["Recipients"],
+                "tags": [
+                    "Recipients"
+                ],
                 "description": "Create a new recipient.",
                 "requestBody": {
                     "required": true,
@@ -164,7 +180,18 @@
                 "x-codeSamples": [
                     {
                         "lang": "curl",
-                        "source": "curl -X POST https://api.bodhveda.com/recipients \\\n  -H \"Authorization: Bearer bv_xxxxxxxxx\" \\\n  -H \"Content-Type: application/json\" \\\n  -d '{\n    \"id\": \"recipient_123\",\n    \"name\": \"Alice Johnson\"\n  }'"
+                        "label": "cURL",
+                        "source": "curl -X POST https://api.bodhveda.com/recipients \\\n  -H \"Authorization: Bearer bv_xxxxxxxxx\" \\\n  -H \"Content-Type: application/json\" \\\n  -d '{\n    \"id\": \"recipient_123\",\n    \"name\": \"Alice Johnson\"\n  }' "
+                    },
+                    {
+                        "lang": "javascript",
+                        "label": "JavaScript",
+                        "source": "import { Bodhveda } from \"@bodhveda/js\";\n\nconst bodhveda = new Bodhveda(\"bv_xxxxxxxxx\");\n\nconst recipient = await bodhveda.recipients.create({\n    id: \"recipient_123\",\n    name: \"Alice Johnson\",\n});"
+                    },
+                    {
+                        "lang": "go",
+                        "label": "Go",
+                        "source": "import (\n    \"context\"\n\n    bodhveda \"github.com/MudgalLabs/bodhveda/sdk/go\"\n)\n\nctx := context.Background()\nclient := bodhveda.NewClient(\"bv_xxxxxxxxx\", nil)\n\nname := \"Alice Johnson\"\nrecipient, _ := client.Recipients.Create(ctx, &bodhveda.CreateRecipientRequest{\n    ID:   \"recipient_123\",\n    Name: &name,\n})"
                     }
                 ],
                 "responses": {
@@ -216,7 +243,9 @@
             "post": {
                 "summary": "Create up to 100 recipients at once.",
                 "operationId": "batchCreateRecipients",
-                "tags": ["Recipients"],
+                "tags": [
+                    "Recipients"
+                ],
                 "description": "Create up to 100 recipients at once.",
                 "requestBody": {
                     "required": true,
@@ -232,7 +261,9 @@
                                         }
                                     }
                                 },
-                                "required": ["recipients"]
+                                "required": [
+                                    "recipients"
+                                ]
                             }
                         }
                     }
@@ -240,7 +271,18 @@
                 "x-codeSamples": [
                     {
                         "lang": "curl",
-                        "source": "curl -X POST https://api.bodhveda.com/recipients/batch \\\n  -H \"Authorization: Bearer bv_xxxxxxxxx\" \\\n  -H \"Content-Type: application/json\" \\\n  -d '{\n    \"recipients\": [\n      { \"id\": \"recipient_123\", \"name\": \"Alice Johnson\" },\n      { \"id\": \"recipient_456\", \"name\": \"Bob Smith\" },\n      { \"name\": \"Bob Smith\" }    ]\n  }'"
+                        "label": "cURL",
+                        "source": "curl -X POST https://api.bodhveda.com/recipients/batch \\\n  -H \"Authorization: Bearer bv_xxxxxxxxx\" \\\n  -H \"Content-Type: application/json\" \\\n  -d '{\n    \"recipients\": [\n      { \"id\": \"recipient_123\", \"name\": \"Alice Johnson\" },\n      { \"id\": \"recipient_456\", \"name\": \"Bob Smith\" }\n    ]\n  }' "
+                    },
+                    {
+                        "lang": "javascript",
+                        "label": "JavaScript",
+                        "source": "import { Bodhveda } from \"@bodhveda/js\";\n\nconst bodhveda = new Bodhveda(\"bv_xxxxxxxxx\");\n\nconst res = await bodhveda.recipients.createBatch({\n    recipients: [\n        { id: \"recipient_123\", name: \"Alice Johnson\" },\n        { id: \"recipient_456\", name: \"Bob Smith\" },\n    ],\n});\n// res.created, res.updated, res.failed"
+                    },
+                    {
+                        "lang": "go",
+                        "label": "Go",
+                        "source": "import (\n    \"context\"\n\n    bodhveda \"github.com/MudgalLabs/bodhveda/sdk/go\"\n)\n\nctx := context.Background()\nclient := bodhveda.NewClient(\"bv_xxxxxxxxx\", nil)\n\nalice, bob := \"Alice Johnson\", \"Bob Smith\"\nres, _ := client.Recipients.CreateBatch(ctx, &bodhveda.CreateRecipientsBatchRequest{\n    Recipients: []bodhveda.CreateRecipientRequest{\n        {ID: \"recipient_123\", Name: &alice},\n        {ID: \"recipient_456\", Name: &bob},\n    },\n})\n// res.Created, res.Updated, res.Failed"
                     }
                 ],
                 "responses": {
@@ -254,10 +296,14 @@
                                         "value": {
                                             "data": {
                                                 "created": [
-                                                    { "id": "recipient_123" }
+                                                    {
+                                                        "id": "recipient_123"
+                                                    }
                                                 ],
                                                 "updated": [
-                                                    { "id": "recipient_456" }
+                                                    {
+                                                        "id": "recipient_456"
+                                                    }
                                                 ],
                                                 "failed": [
                                                     {
@@ -292,14 +338,18 @@
             "get": {
                 "summary": "Retrieve a recipient.",
                 "operationId": "getRecipient",
-                "tags": ["Recipients"],
+                "tags": [
+                    "Recipients"
+                ],
                 "description": "Retrieve a recipient.",
                 "parameters": [
                     {
                         "name": "recipient_id",
                         "in": "path",
                         "required": true,
-                        "schema": { "type": "string" },
+                        "schema": {
+                            "type": "string"
+                        },
                         "description": "The unique identifier of the recipient."
                     }
                 ],
@@ -344,26 +394,58 @@
                     {
                         "BearerAuthWithAPIKeyWithFullAcessScope": []
                     }
+                ],
+                "x-codeSamples": [
+                    {
+                        "lang": "curl",
+                        "label": "cURL",
+                        "source": "curl https://api.bodhveda.com/recipients/recipient_123 \\\n  -H \"Authorization: Bearer bv_xxxxxxxxx\" "
+                    },
+                    {
+                        "lang": "javascript",
+                        "label": "JavaScript",
+                        "source": "import { Bodhveda } from \"@bodhveda/js\";\n\nconst bodhveda = new Bodhveda(\"bv_xxxxxxxxx\");\n\nconst recipient = await bodhveda.recipients.get(\"recipient_123\");"
+                    },
+                    {
+                        "lang": "go",
+                        "label": "Go",
+                        "source": "import (\n    \"context\"\n\n    bodhveda \"github.com/MudgalLabs/bodhveda/sdk/go\"\n)\n\nctx := context.Background()\nclient := bodhveda.NewClient(\"bv_xxxxxxxxx\", nil)\n\nrecipient, _ := client.Recipients.Get(ctx, \"recipient_123\")"
+                    }
                 ]
             },
             "patch": {
                 "summary": "Update a recipient",
                 "operationId": "updateRecipient",
-                "tags": ["Recipients"],
+                "tags": [
+                    "Recipients"
+                ],
                 "description": "Update the name of a recipient.",
                 "parameters": [
                     {
                         "name": "recipient_id",
                         "in": "path",
                         "required": true,
-                        "schema": { "type": "string" },
+                        "schema": {
+                            "type": "string"
+                        },
                         "description": "The unique identifier of the recipient."
                     }
                 ],
                 "x-codeSamples": [
                     {
                         "lang": "curl",
-                        "source": "curl -X PATCH https://api.bodhveda.com/recipients/recipient_123 \\\n  -H \"Authorization: Bearer bv_xxxxxxxxx\" \\\n  -H \"Content-Type: application/json\" \\\n  -d '{\n    \"name\": \"Elon Musk\"\n  }'"
+                        "label": "cURL",
+                        "source": "curl -X PATCH https://api.bodhveda.com/recipients/recipient_123 \\\n  -H \"Authorization: Bearer bv_xxxxxxxxx\" \\\n  -H \"Content-Type: application/json\" \\\n  -d '{\n    \"name\": \"Elon Musk\"\n  }' "
+                    },
+                    {
+                        "lang": "javascript",
+                        "label": "JavaScript",
+                        "source": "import { Bodhveda } from \"@bodhveda/js\";\n\nconst bodhveda = new Bodhveda(\"bv_xxxxxxxxx\");\n\nconst recipient = await bodhveda.recipients.update(\"recipient_123\", {\n    name: \"Elon Musk\",\n});"
+                    },
+                    {
+                        "lang": "go",
+                        "label": "Go",
+                        "source": "import (\n    \"context\"\n\n    bodhveda \"github.com/MudgalLabs/bodhveda/sdk/go\"\n)\n\nctx := context.Background()\nclient := bodhveda.NewClient(\"bv_xxxxxxxxx\", nil)\n\nname := \"Elon Musk\"\nrecipient, _ := client.Recipients.Update(ctx, \"recipient_123\", &bodhveda.UpdateRecipientRequest{\n    Name: &name,\n})"
                     }
                 ],
                 "requestBody": {
@@ -429,14 +511,18 @@
             "delete": {
                 "summary": "Delete a recipient",
                 "operationId": "deleteRecipient",
-                "tags": ["Recipients"],
+                "tags": [
+                    "Recipients"
+                ],
                 "description": "Remove an existing recipient.",
                 "parameters": [
                     {
                         "name": "recipient_id",
                         "in": "path",
                         "required": true,
-                        "schema": { "type": "string" },
+                        "schema": {
+                            "type": "string"
+                        },
                         "description": "The unique external ID of the recipient."
                     }
                 ],
@@ -476,6 +562,23 @@
                     {
                         "BearerAuthWithAPIKeyWithFullAcessScope": []
                     }
+                ],
+                "x-codeSamples": [
+                    {
+                        "lang": "curl",
+                        "label": "cURL",
+                        "source": "curl -X DELETE https://api.bodhveda.com/recipients/recipient_123 \\\n  -H \"Authorization: Bearer bv_xxxxxxxxx\" "
+                    },
+                    {
+                        "lang": "javascript",
+                        "label": "JavaScript",
+                        "source": "import { Bodhveda } from \"@bodhveda/js\";\n\nconst bodhveda = new Bodhveda(\"bv_xxxxxxxxx\");\n\nawait bodhveda.recipients.delete(\"recipient_123\");"
+                    },
+                    {
+                        "lang": "go",
+                        "label": "Go",
+                        "source": "import (\n    \"context\"\n\n    bodhveda \"github.com/MudgalLabs/bodhveda/sdk/go\"\n)\n\nctx := context.Background()\nclient := bodhveda.NewClient(\"bv_xxxxxxxxx\", nil)\n\nerr := client.Recipients.Delete(ctx, \"recipient_123\")"
+                    }
                 ]
             }
         },
@@ -483,14 +586,18 @@
             "get": {
                 "summary": "List a recipient's contacts",
                 "operationId": "listRecipientContacts",
-                "tags": ["Contacts"],
+                "tags": [
+                    "Contacts"
+                ],
                 "description": "List all of a recipient's per-medium contact addresses.",
                 "parameters": [
                     {
                         "name": "recipient_id",
                         "in": "path",
                         "required": true,
-                        "schema": { "type": "string" },
+                        "schema": {
+                            "type": "string"
+                        },
                         "description": "The unique identifier of the recipient."
                     }
                 ],
@@ -527,19 +634,40 @@
                     {
                         "BearerAuthWithAPIKeyWithEitherScope": []
                     }
+                ],
+                "x-codeSamples": [
+                    {
+                        "lang": "curl",
+                        "label": "cURL",
+                        "source": "curl https://api.bodhveda.com/recipients/recipient_123/contacts \\\n  -H \"Authorization: Bearer bv_xxxxxxxxx\" "
+                    },
+                    {
+                        "lang": "javascript",
+                        "label": "JavaScript",
+                        "source": "import { Bodhveda } from \"@bodhveda/js\";\n\nconst bodhveda = new Bodhveda(\"bv_xxxxxxxxx\");\n\nconst { contacts } = await bodhveda.recipients.contacts.list(\"recipient_123\");"
+                    },
+                    {
+                        "lang": "go",
+                        "label": "Go",
+                        "source": "import (\n    \"context\"\n\n    bodhveda \"github.com/MudgalLabs/bodhveda/sdk/go\"\n)\n\nctx := context.Background()\nclient := bodhveda.NewClient(\"bv_xxxxxxxxx\", nil)\n\nres, _ := client.Recipients.Contacts.List(ctx, \"recipient_123\")\n// res.Contacts"
+                    }
                 ]
             },
             "post": {
                 "summary": "Add a contact to a recipient",
                 "operationId": "createRecipientContact",
-                "tags": ["Contacts"],
+                "tags": [
+                    "Contacts"
+                ],
                 "description": "Register a per-medium contact address for a recipient. Email needs a **primary** email contact to receive email. A duplicate `(medium, address)`, or a second primary for the same `(recipient, medium)`, returns `409`.",
                 "parameters": [
                     {
                         "name": "recipient_id",
                         "in": "path",
                         "required": true,
-                        "schema": { "type": "string" },
+                        "schema": {
+                            "type": "string"
+                        },
                         "description": "The unique identifier of the recipient."
                     }
                 ],
@@ -556,7 +684,18 @@
                 "x-codeSamples": [
                     {
                         "lang": "curl",
-                        "source": "curl -X POST https://api.bodhveda.com/recipients/recipient_123/contacts \\\n  -H \"Authorization: Bearer bv_xxxxxxxxx\" \\\n  -H \"Content-Type: application/json\" \\\n  -d '{\n    \"medium\": \"email\",\n    \"address\": \"alice@example.com\",\n    \"is_primary\": true\n  }'"
+                        "label": "cURL",
+                        "source": "curl -X POST https://api.bodhveda.com/recipients/recipient_123/contacts \\\n  -H \"Authorization: Bearer bv_xxxxxxxxx\" \\\n  -H \"Content-Type: application/json\" \\\n  -d '{\n    \"medium\": \"email\",\n    \"address\": \"alice@example.com\",\n    \"is_primary\": true\n  }' "
+                    },
+                    {
+                        "lang": "javascript",
+                        "label": "JavaScript",
+                        "source": "import { Bodhveda } from \"@bodhveda/js\";\n\nconst bodhveda = new Bodhveda(\"bv_xxxxxxxxx\");\n\nconst contact = await bodhveda.recipients.contacts.create(\"recipient_123\", {\n    medium: \"email\",\n    address: \"alice@example.com\",\n    is_primary: true,\n});"
+                    },
+                    {
+                        "lang": "go",
+                        "label": "Go",
+                        "source": "import (\n    \"context\"\n\n    bodhveda \"github.com/MudgalLabs/bodhveda/sdk/go\"\n)\n\nctx := context.Background()\nclient := bodhveda.NewClient(\"bv_xxxxxxxxx\", nil)\n\ncontact, _ := client.Recipients.Contacts.Create(ctx, \"recipient_123\", &bodhveda.CreateRecipientContactRequest{\n    Medium:    bodhveda.MediumEmail,\n    Address:   \"alice@example.com\",\n    IsPrimary: true,\n})"
                     }
                 ],
                 "responses": {
@@ -609,14 +748,18 @@
             "put": {
                 "summary": "Set the primary contact",
                 "operationId": "setPrimaryRecipientContact",
-                "tags": ["Contacts"],
+                "tags": [
+                    "Contacts"
+                ],
                 "description": "Idempotently ensure an address is the recipient's **primary** contact for a medium — create it if absent, update the existing primary in place if the address differs (which resets `verified_at`), or no-op if it already matches. Returns the resulting primary contact (`200`) either way, so a \"keep the primary email current\" sync is a single call.\n\n💡 Sync this **server-side** so the address never rides a browser request.",
                 "parameters": [
                     {
                         "name": "recipient_id",
                         "in": "path",
                         "required": true,
-                        "schema": { "type": "string" },
+                        "schema": {
+                            "type": "string"
+                        },
                         "description": "The unique identifier of the recipient."
                     }
                 ],
@@ -633,7 +776,18 @@
                 "x-codeSamples": [
                     {
                         "lang": "curl",
-                        "source": "curl -X PUT https://api.bodhveda.com/recipients/recipient_123/contacts \\\n  -H \"Authorization: Bearer bv_xxxxxxxxx\" \\\n  -H \"Content-Type: application/json\" \\\n  -d '{\n    \"medium\": \"email\",\n    \"address\": \"alice@example.com\"\n  }'"
+                        "label": "cURL",
+                        "source": "curl -X PUT https://api.bodhveda.com/recipients/recipient_123/contacts \\\n  -H \"Authorization: Bearer bv_xxxxxxxxx\" \\\n  -H \"Content-Type: application/json\" \\\n  -d '{\n    \"medium\": \"email\",\n    \"address\": \"alice@example.com\"\n  }' "
+                    },
+                    {
+                        "lang": "javascript",
+                        "label": "JavaScript",
+                        "source": "import { Bodhveda } from \"@bodhveda/js\";\n\nconst bodhveda = new Bodhveda(\"bv_xxxxxxxxx\");\n\nconst contact = await bodhveda.recipients.contacts.setPrimary(\"recipient_123\", {\n    medium: \"email\",\n    address: \"alice@example.com\",\n});"
+                    },
+                    {
+                        "lang": "go",
+                        "label": "Go",
+                        "source": "import (\n    \"context\"\n\n    bodhveda \"github.com/MudgalLabs/bodhveda/sdk/go\"\n)\n\nctx := context.Background()\nclient := bodhveda.NewClient(\"bv_xxxxxxxxx\", nil)\n\ncontact, _ := client.Recipients.Contacts.SetPrimary(ctx, \"recipient_123\", &bodhveda.SetPrimaryContactRequest{\n    Medium:  bodhveda.MediumEmail,\n    Address: \"alice@example.com\",\n})"
                     }
                 ],
                 "responses": {
@@ -683,21 +837,27 @@
             "patch": {
                 "summary": "Update a recipient's contact",
                 "operationId": "updateRecipientContact",
-                "tags": ["Contacts"],
+                "tags": [
+                    "Contacts"
+                ],
                 "description": "Update a contact's address and/or primary flag. Provide at least one field. Changing the address resets the contact's verification.",
                 "parameters": [
                     {
                         "name": "recipient_id",
                         "in": "path",
                         "required": true,
-                        "schema": { "type": "string" },
+                        "schema": {
+                            "type": "string"
+                        },
                         "description": "The unique identifier of the recipient."
                     },
                     {
                         "name": "contact_id",
                         "in": "path",
                         "required": true,
-                        "schema": { "type": "integer" },
+                        "schema": {
+                            "type": "integer"
+                        },
                         "description": "The unique identifier of the contact."
                     }
                 ],
@@ -714,7 +874,18 @@
                 "x-codeSamples": [
                     {
                         "lang": "curl",
-                        "source": "curl -X PATCH https://api.bodhveda.com/recipients/recipient_123/contacts/1 \\\n  -H \"Authorization: Bearer bv_xxxxxxxxx\" \\\n  -H \"Content-Type: application/json\" \\\n  -d '{\n    \"address\": \"alice.new@example.com\"\n  }'"
+                        "label": "cURL",
+                        "source": "curl -X PATCH https://api.bodhveda.com/recipients/recipient_123/contacts/1 \\\n  -H \"Authorization: Bearer bv_xxxxxxxxx\" \\\n  -H \"Content-Type: application/json\" \\\n  -d '{\n    \"address\": \"alice.new@example.com\"\n  }' "
+                    },
+                    {
+                        "lang": "javascript",
+                        "label": "JavaScript",
+                        "source": "import { Bodhveda } from \"@bodhveda/js\";\n\nconst bodhveda = new Bodhveda(\"bv_xxxxxxxxx\");\n\nconst contact = await bodhveda.recipients.contacts.update(\"recipient_123\", 1, {\n    address: \"alice.new@example.com\",\n});"
+                    },
+                    {
+                        "lang": "go",
+                        "label": "Go",
+                        "source": "import (\n    \"context\"\n\n    bodhveda \"github.com/MudgalLabs/bodhveda/sdk/go\"\n)\n\nctx := context.Background()\nclient := bodhveda.NewClient(\"bv_xxxxxxxxx\", nil)\n\naddress := \"alice.new@example.com\"\ncontact, _ := client.Recipients.Contacts.Update(ctx, \"recipient_123\", 1, &bodhveda.UpdateRecipientContactRequest{\n    Address: &address,\n})"
                     }
                 ],
                 "responses": {
@@ -752,21 +923,27 @@
             "delete": {
                 "summary": "Delete a recipient's contact",
                 "operationId": "deleteRecipientContact",
-                "tags": ["Contacts"],
+                "tags": [
+                    "Contacts"
+                ],
                 "description": "Delete a recipient's contact. Requires an API key with **Full access** scope.",
                 "parameters": [
                     {
                         "name": "recipient_id",
                         "in": "path",
                         "required": true,
-                        "schema": { "type": "string" },
+                        "schema": {
+                            "type": "string"
+                        },
                         "description": "The unique identifier of the recipient."
                     },
                     {
                         "name": "contact_id",
                         "in": "path",
                         "required": true,
-                        "schema": { "type": "integer" },
+                        "schema": {
+                            "type": "integer"
+                        },
                         "description": "The unique identifier of the contact."
                     }
                 ],
@@ -791,6 +968,23 @@
                     {
                         "BearerAuthWithAPIKeyWithFullAcessScope": []
                     }
+                ],
+                "x-codeSamples": [
+                    {
+                        "lang": "curl",
+                        "label": "cURL",
+                        "source": "curl -X DELETE https://api.bodhveda.com/recipients/recipient_123/contacts/1 \\\n  -H \"Authorization: Bearer bv_xxxxxxxxx\" "
+                    },
+                    {
+                        "lang": "javascript",
+                        "label": "JavaScript",
+                        "source": "import { Bodhveda } from \"@bodhveda/js\";\n\nconst bodhveda = new Bodhveda(\"bv_xxxxxxxxx\");\n\nawait bodhveda.recipients.contacts.delete(\"recipient_123\", 1);"
+                    },
+                    {
+                        "lang": "go",
+                        "label": "Go",
+                        "source": "import (\n    \"context\"\n\n    bodhveda \"github.com/MudgalLabs/bodhveda/sdk/go\"\n)\n\nctx := context.Background()\nclient := bodhveda.NewClient(\"bv_xxxxxxxxx\", nil)\n\nerr := client.Recipients.Contacts.Delete(ctx, \"recipient_123\", 1)"
+                    }
                 ]
             }
         },
@@ -798,14 +992,18 @@
             "get": {
                 "summary": "List preferences for a recipient",
                 "operationId": "listRecipientPreferences",
-                "tags": ["Preferences"],
+                "tags": [
+                    "Preferences"
+                ],
                 "description": "Every `(target, medium)` known for this recipient, each with the state a send would **actually** act on.\n\n`state.enabled` is the **resolved** decision — the same answer the delivery path computes — not a raw stored row. Resolution walks, in order:\n\n1. the recipient's rule for the exact target,\n2. the recipient's `topic: any` rule for the channel/event,\n3. the project's rule for the exact target,\n4. the project's `topic: any` rule,\n5. the medium's **default**.\n\n**The default is per medium:** `in_app` delivers, every other medium does not. A `topic: none` target never takes an `any` rule.\n\nThe response covers every target in the project catalog **plus** any target this recipient has a rule of their own for, across the active mediums (`in_app` and `email`). So a recipient can have an entry for a `(target, medium)` you never cataloged — if they have an explicit rule for it, it is live, and this reports it.\n\nEach `state` carries:\n\n-   `enabled` — whether a send to this `(target, medium)` would deliver.\n-   `inherited` — `true` when the recipient has no rule of their own for this exact `(target, medium)`; the value came from elsewhere in the cascade. `false` means they set it explicitly.\n-   `cataloged` — whether a project-level rule exists for this exact `(target, medium)`. This is **context, not a gate**: an explicit recipient rule on an uncataloged pair still delivers, and `in_app` delivers by default with no catalog entry at all. Use it to decide what to render, never to predict delivery — `enabled` is the answer.",
                 "parameters": [
                     {
                         "name": "recipient_id",
                         "in": "path",
                         "required": true,
-                        "schema": { "type": "string" },
+                        "schema": {
+                            "type": "string"
+                        },
                         "description": "The unique identifier of the recipient."
                     }
                 ],
@@ -874,19 +1072,45 @@
                     {
                         "BearerAuthWithAPIKeyWithEitherScope": []
                     }
+                ],
+                "x-codeSamples": [
+                    {
+                        "lang": "curl",
+                        "label": "cURL",
+                        "source": "curl https://api.bodhveda.com/recipients/recipient_123/preferences \\\n  -H \"Authorization: Bearer bv_xxxxxxxxx\" "
+                    },
+                    {
+                        "lang": "javascript",
+                        "label": "JavaScript",
+                        "source": "import { Bodhveda } from \"@bodhveda/js\";\n\nconst bodhveda = new Bodhveda(\"bv_xxxxxxxxx\");\n\nconst { preferences } = await bodhveda.recipients.preferences.list(\"recipient_123\");"
+                    },
+                    {
+                        "lang": "go",
+                        "label": "Go",
+                        "source": "import (\n    \"context\"\n\n    bodhveda \"github.com/MudgalLabs/bodhveda/sdk/go\"\n)\n\nctx := context.Background()\nclient := bodhveda.NewClient(\"bv_xxxxxxxxx\", nil)\n\nres, _ := client.Recipients.Preferences.List(ctx, \"recipient_123\")\n// res.Preferences"
+                    },
+                    {
+                        "lang": "jsx",
+                        "label": "React",
+                        "source": "import { usePreferences } from \"@bodhveda/react\";\n\n// Requires a <BodhvedaProvider recipientID=\"recipient_123\"> higher in the tree.\nfunction Preferences() {\n    const { data, isLoading } = usePreferences();\n    if (isLoading) return null;\n    return <PreferenceList items={data.preferences} />;\n}"
+                    }
                 ]
             },
             "patch": {
                 "summary": "Set recipient's subscription state for a target",
                 "operationId": "setRecipientPreference",
-                "tags": ["Preferences"],
+                "tags": [
+                    "Preferences"
+                ],
                 "description": "Set a recipient's subscription state for a specific target.",
                 "parameters": [
                     {
                         "name": "recipient_id",
                         "in": "path",
                         "required": true,
-                        "schema": { "type": "string" },
+                        "schema": {
+                            "type": "string"
+                        },
                         "description": "The unique identifier of the recipient."
                     }
                 ],
@@ -903,7 +1127,10 @@
                                     "medium": {
                                         "type": "string",
                                         "description": "The medium this preference applies to. In-app and email are toggled independently for the same target. Defaults to `in_app` when omitted.",
-                                        "enum": ["in_app", "email"],
+                                        "enum": [
+                                            "in_app",
+                                            "email"
+                                        ],
                                         "default": "in_app"
                                     },
                                     "state": {
@@ -914,10 +1141,15 @@
                                                 "description": "Whether the recipient is subscribed to this target for this medium."
                                             }
                                         },
-                                        "required": ["enabled"]
+                                        "required": [
+                                            "enabled"
+                                        ]
                                     }
                                 },
-                                "required": ["target", "state"]
+                                "required": [
+                                    "target",
+                                    "state"
+                                ]
                             }
                         }
                     }
@@ -925,7 +1157,23 @@
                 "x-codeSamples": [
                     {
                         "lang": "curl",
-                        "source": "curl -X PATCH https://api.bodhveda.com/recipients/recipient_123/preferences \\\n  -H \"Authorization: Bearer bv_xxxxxxxxx\" \\\n  -H \"Content-Type: application/json\" \\\n  -d '{\n    \"target\": {\n      \"channel\": \"posts\",\n      \"topic\": \"post_id_123\",\n      \"event\": \"new_comment\"\n    },\n    \"medium\": \"email\",\n    \"state\": {\n      \"enabled\": false\n    }\n  }'"
+                        "label": "cURL",
+                        "source": "curl -X PATCH https://api.bodhveda.com/recipients/recipient_123/preferences \\\n  -H \"Authorization: Bearer bv_xxxxxxxxx\" \\\n  -H \"Content-Type: application/json\" \\\n  -d '{\n    \"target\": {\n      \"channel\": \"posts\",\n      \"topic\": \"post_id_123\",\n      \"event\": \"new_comment\"\n    },\n    \"medium\": \"email\",\n    \"state\": {\n      \"enabled\": false\n    }\n  }' "
+                    },
+                    {
+                        "lang": "javascript",
+                        "label": "JavaScript",
+                        "source": "import { Bodhveda } from \"@bodhveda/js\";\n\nconst bodhveda = new Bodhveda(\"bv_xxxxxxxxx\");\n\nconst pref = await bodhveda.recipients.preferences.set(\"recipient_123\", {\n    target: { channel: \"posts\", topic: \"post_id_123\", event: \"new_comment\" },\n    medium: \"email\",\n    state: { enabled: false },\n});"
+                    },
+                    {
+                        "lang": "go",
+                        "label": "Go",
+                        "source": "import (\n    \"context\"\n\n    bodhveda \"github.com/MudgalLabs/bodhveda/sdk/go\"\n)\n\nctx := context.Background()\nclient := bodhveda.NewClient(\"bv_xxxxxxxxx\", nil)\n\nreq := &bodhveda.SetPreferenceRequest{\n    Target: bodhveda.Target{Channel: \"posts\", Topic: \"post_id_123\", Event: \"new_comment\"},\n    Medium: bodhveda.MediumEmail,\n}\nreq.State.Enabled = false\npref, _ := client.Recipients.Preferences.Set(ctx, \"recipient_123\", req)"
+                    },
+                    {
+                        "lang": "jsx",
+                        "label": "React",
+                        "source": "import { useUpdatePreference } from \"@bodhveda/react\";\n\n// Requires a <BodhvedaProvider recipientID=\"recipient_123\"> higher in the tree.\nfunction Toggle() {\n    const { mutate } = useUpdatePreference();\n    return (\n        <button\n            onClick={() =>\n                mutate({\n                    target: { channel: \"posts\", topic: \"post_id_123\", event: \"new_comment\" },\n                    medium: \"email\",\n                    state: { enabled: false },\n                })\n            }\n        >\n            Unsubscribe\n        </button>\n    );\n}"
                     }
                 ],
                 "responses": {
@@ -967,35 +1215,45 @@
             "get": {
                 "summary": "Check recipient's subscription state for a target",
                 "operationId": "checkRecipientTargetSubscription",
-                "tags": ["Preferences"],
+                "tags": [
+                    "Preferences"
+                ],
                 "description": "Resolve a single `(target, medium)` for a recipient: whether a send would **actually** deliver.\n\n`state.enabled` is the resolved decision, computed by the same cascade the delivery path uses — the recipient's exact rule → the recipient's `topic: any` rule → the project's exact rule → the project's `topic: any` rule → the medium's default (`in_app` delivers, every other medium does not). A `topic: none` target never takes an `any` rule.\n\nThe target does **not** need to be in your catalog; any `(channel, topic, event)` resolves. `state.cataloged` reports whether a project-level rule exists for this exact `(target, medium)` — context, not a gate.",
                 "parameters": [
                     {
                         "name": "recipient_id",
                         "in": "path",
                         "required": true,
-                        "schema": { "type": "string" },
+                        "schema": {
+                            "type": "string"
+                        },
                         "description": "The unique identifier of the recipient."
                     },
                     {
                         "name": "channel",
                         "in": "query",
                         "required": true,
-                        "schema": { "type": "string" },
+                        "schema": {
+                            "type": "string"
+                        },
                         "description": "Channel to check."
                     },
                     {
                         "name": "topic",
                         "in": "query",
                         "required": true,
-                        "schema": { "type": "string" },
+                        "schema": {
+                            "type": "string"
+                        },
                         "description": "Topic to check."
                     },
                     {
                         "name": "event",
                         "in": "query",
                         "required": true,
-                        "schema": { "type": "string" },
+                        "schema": {
+                            "type": "string"
+                        },
                         "description": "Event to check."
                     },
                     {
@@ -1004,7 +1262,10 @@
                         "required": false,
                         "schema": {
                             "type": "string",
-                            "enum": ["in_app", "email"],
+                            "enum": [
+                                "in_app",
+                                "email"
+                            ],
                             "default": "in_app"
                         },
                         "description": "Which medium to check the subscription state for. Defaults to `in_app`."
@@ -1043,6 +1304,28 @@
                     {
                         "BearerAuthWithAPIKeyWithEitherScope": []
                     }
+                ],
+                "x-codeSamples": [
+                    {
+                        "lang": "curl",
+                        "label": "cURL",
+                        "source": "curl -G https://api.bodhveda.com/recipients/recipient_123/preferences/check \\\n  -H \"Authorization: Bearer bv_xxxxxxxxx\" \\\n  --data-urlencode \"channel=posts\" \\\n  --data-urlencode \"topic=post_id_123\" \\\n  --data-urlencode \"event=new_comment\" \\\n  --data-urlencode \"medium=email\" "
+                    },
+                    {
+                        "lang": "javascript",
+                        "label": "JavaScript",
+                        "source": "import { Bodhveda } from \"@bodhveda/js\";\n\nconst bodhveda = new Bodhveda(\"bv_xxxxxxxxx\");\n\nconst res = await bodhveda.recipients.preferences.check(\"recipient_123\", {\n    target: { channel: \"posts\", topic: \"post_id_123\", event: \"new_comment\" },\n    medium: \"email\",\n});\n// res.state.enabled"
+                    },
+                    {
+                        "lang": "go",
+                        "label": "Go",
+                        "source": "import (\n    \"context\"\n\n    bodhveda \"github.com/MudgalLabs/bodhveda/sdk/go\"\n)\n\nctx := context.Background()\nclient := bodhveda.NewClient(\"bv_xxxxxxxxx\", nil)\n\nres, _ := client.Recipients.Preferences.Check(ctx, \"recipient_123\", &bodhveda.CheckPreferenceRequest{\n    Target: bodhveda.Target{Channel: \"posts\", Topic: \"post_id_123\", Event: \"new_comment\"},\n    Medium: bodhveda.MediumEmail,\n})\n// res.State.Enabled"
+                    },
+                    {
+                        "lang": "jsx",
+                        "label": "React",
+                        "source": "import { useCheckPreference } from \"@bodhveda/react\";\n\n// Requires a <BodhvedaProvider recipientID=\"recipient_123\"> higher in the tree.\nfunction Subscribed() {\n    const { data } = useCheckPreference({\n        channel: \"posts\",\n        topic: \"post_id_123\",\n        event: \"new_comment\",\n    });\n    return <span>{data?.state.enabled ? \"Subscribed\" : \"Muted\"}</span>;\n}"
+                    }
                 ]
             }
         },
@@ -1050,28 +1333,36 @@
             "get": {
                 "summary": "List notifications for a recipient",
                 "operationId": "listRecipientNotifications",
-                "tags": ["Notifications"],
+                "tags": [
+                    "Notifications"
+                ],
                 "description": "Retrieve a paginated list of notifications for a recipient, ordered by most recent first.",
                 "parameters": [
                     {
                         "name": "recipient_id",
                         "in": "path",
                         "required": true,
-                        "schema": { "type": "string" },
+                        "schema": {
+                            "type": "string"
+                        },
                         "description": "The unique identifier of the recipient."
                     },
                     {
                         "name": "before",
                         "in": "query",
                         "required": false,
-                        "schema": { "type": "string" },
+                        "schema": {
+                            "type": "string"
+                        },
                         "description": "Returns results before the specified cursor. Use this to paginate backwards or fetch earlier items in the list."
                     },
                     {
                         "name": "after",
                         "in": "query",
                         "required": false,
-                        "schema": { "type": "string" },
+                        "schema": {
+                            "type": "string"
+                        },
                         "description": "Returns results after the specified cursor. Use this to paginate forwards or fetch newer items in the list."
                     },
                     {
@@ -1132,6 +1423,28 @@
                     {
                         "BearerAuthWithAPIKeyWithEitherScope": []
                     }
+                ],
+                "x-codeSamples": [
+                    {
+                        "lang": "curl",
+                        "label": "cURL",
+                        "source": "curl -G https://api.bodhveda.com/recipients/recipient_123/notifications \\\n  -H \"Authorization: Bearer bv_xxxxxxxxx\" \\\n  --data-urlencode \"limit=10\" "
+                    },
+                    {
+                        "lang": "javascript",
+                        "label": "JavaScript",
+                        "source": "import { Bodhveda } from \"@bodhveda/js\";\n\nconst bodhveda = new Bodhveda(\"bv_xxxxxxxxx\");\n\nconst res = await bodhveda.recipients.notifications.list(\"recipient_123\", {\n    limit: 10,\n});\n// res.notifications, res.cursor"
+                    },
+                    {
+                        "lang": "go",
+                        "label": "Go",
+                        "source": "import (\n    \"context\"\n\n    bodhveda \"github.com/MudgalLabs/bodhveda/sdk/go\"\n)\n\nctx := context.Background()\nclient := bodhveda.NewClient(\"bv_xxxxxxxxx\", nil)\n\nlimit := 10\nres, _ := client.Recipients.Notifications.List(ctx, \"recipient_123\", &bodhveda.ListNotificationsRequest{\n    Limit: &limit,\n})\n// res.Notifications, res.Cursor"
+                    },
+                    {
+                        "lang": "jsx",
+                        "label": "React",
+                        "source": "import { useNotifications } from \"@bodhveda/react\";\n\n// Requires a <BodhvedaProvider recipientID=\"recipient_123\"> higher in the tree.\nfunction Inbox() {\n    const { data, fetchNextPage, hasNextPage } = useNotifications({ limit: 10 });\n    return (\n        <ul>\n            {data?.notifications.map((n) => (\n                <li key={n.id}>{JSON.stringify(n.payload)}</li>\n            ))}\n        </ul>\n    );\n}"
+                    }
                 ]
             },
             "patch": {
@@ -1142,7 +1455,9 @@
                         "name": "recipient_id",
                         "in": "path",
                         "required": true,
-                        "schema": { "type": "string" },
+                        "schema": {
+                            "type": "string"
+                        },
                         "description": "Unique external identifier for the recipient."
                     }
                 ],
@@ -1156,7 +1471,9 @@
                                     "ids": {
                                         "type": "array",
                                         "description": "Array of notification IDs to update. If omitted, applies to all.",
-                                        "items": { "type": "string" }
+                                        "items": {
+                                            "type": "string"
+                                        }
                                     },
                                     "state": {
                                         "type": "object",
@@ -1171,14 +1488,23 @@
                                                 "description": "Whether the notification is marked as opened."
                                             }
                                         },
-                                        "example": { "read": true }
+                                        "example": {
+                                            "read": true
+                                        }
                                     }
                                 },
-                                "required": ["state"]
+                                "required": [
+                                    "state"
+                                ]
                             },
                             "example": {
-                                "ids": ["notif_123", "notif_456"],
-                                "state": { "read": true }
+                                "ids": [
+                                    "notif_123",
+                                    "notif_456"
+                                ],
+                                "state": {
+                                    "read": true
+                                }
                             }
                         }
                     }
@@ -1196,7 +1522,9 @@
                                             "description": "Number of notifications updated."
                                         }
                                     },
-                                    "example": { "updated_count": 2 }
+                                    "example": {
+                                        "updated_count": 2
+                                    }
                                 }
                             }
                         }
@@ -1205,6 +1533,28 @@
                 "security": [
                     {
                         "BearerAuthWithAPIKeyWithFullAcessScope": []
+                    }
+                ],
+                "x-codeSamples": [
+                    {
+                        "lang": "curl",
+                        "label": "cURL",
+                        "source": "curl -X PATCH https://api.bodhveda.com/recipients/recipient_123/notifications \\\n  -H \"Authorization: Bearer bv_xxxxxxxxx\" \\\n  -H \"Content-Type: application/json\" \\\n  -d '{\n    \"ids\": [123, 456],\n    \"state\": { \"read\": true }\n  }' "
+                    },
+                    {
+                        "lang": "javascript",
+                        "label": "JavaScript",
+                        "source": "import { Bodhveda } from \"@bodhveda/js\";\n\nconst bodhveda = new Bodhveda(\"bv_xxxxxxxxx\");\n\nconst res = await bodhveda.recipients.notifications.updateState(\"recipient_123\", {\n    ids: [123, 456],\n    state: { read: true },\n});\n// res.updated_count"
+                    },
+                    {
+                        "lang": "go",
+                        "label": "Go",
+                        "source": "import (\n    \"context\"\n\n    bodhveda \"github.com/MudgalLabs/bodhveda/sdk/go\"\n)\n\nctx := context.Background()\nclient := bodhveda.NewClient(\"bv_xxxxxxxxx\", nil)\n\nread := true\nres, _ := client.Recipients.Notifications.UpdateState(ctx, \"recipient_123\", &bodhveda.UpdateNotificationsStateRequest{\n    IDs:   []int{123, 456},\n    State: bodhveda.NotificationStateOptional{Read: &read},\n})\n// res.UpdatedCount"
+                    },
+                    {
+                        "lang": "jsx",
+                        "label": "React",
+                        "source": "import { useUpdateNotificationsState } from \"@bodhveda/react\";\n\n// Requires a <BodhvedaProvider recipientID=\"recipient_123\"> higher in the tree.\nfunction MarkRead({ ids }: { ids: number[] }) {\n    const { mutate } = useUpdateNotificationsState();\n    return <button onClick={() => mutate({ ids, state: { read: true } })}>Mark read</button>;\n}"
                     }
                 ]
             },
@@ -1216,7 +1566,9 @@
                         "name": "recipient_id",
                         "in": "path",
                         "required": true,
-                        "schema": { "type": "string" },
+                        "schema": {
+                            "type": "string"
+                        },
                         "description": "Unique external identifier for the recipient."
                     }
                 ],
@@ -1230,11 +1582,18 @@
                                     "ids": {
                                         "type": "array",
                                         "description": "Array of notification IDs to delete. If omitted, all will be deleted.",
-                                        "items": { "type": "string" }
+                                        "items": {
+                                            "type": "string"
+                                        }
                                     }
                                 }
                             },
-                            "example": { "ids": ["notif_123", "notif_456"] }
+                            "example": {
+                                "ids": [
+                                    "notif_123",
+                                    "notif_456"
+                                ]
+                            }
                         }
                     }
                 },
@@ -1251,7 +1610,9 @@
                                             "description": "Number of notifications deleted."
                                         }
                                     },
-                                    "example": { "deleted_count": 2 }
+                                    "example": {
+                                        "deleted_count": 2
+                                    }
                                 }
                             }
                         }
@@ -1261,6 +1622,28 @@
                     {
                         "BearerAuthWithAPIKeyWithFullAcessScope": []
                     }
+                ],
+                "x-codeSamples": [
+                    {
+                        "lang": "curl",
+                        "label": "cURL",
+                        "source": "curl -X DELETE https://api.bodhveda.com/recipients/recipient_123/notifications \\\n  -H \"Authorization: Bearer bv_xxxxxxxxx\" \\\n  -H \"Content-Type: application/json\" \\\n  -d '{\n    \"ids\": [123, 456]\n  }' "
+                    },
+                    {
+                        "lang": "javascript",
+                        "label": "JavaScript",
+                        "source": "import { Bodhveda } from \"@bodhveda/js\";\n\nconst bodhveda = new Bodhveda(\"bv_xxxxxxxxx\");\n\nconst res = await bodhveda.recipients.notifications.delete(\"recipient_123\", {\n    ids: [123, 456],\n});\n// res.deleted_count"
+                    },
+                    {
+                        "lang": "go",
+                        "label": "Go",
+                        "source": "import (\n    \"context\"\n\n    bodhveda \"github.com/MudgalLabs/bodhveda/sdk/go\"\n)\n\nctx := context.Background()\nclient := bodhveda.NewClient(\"bv_xxxxxxxxx\", nil)\n\nres, _ := client.Recipients.Notifications.Delete(ctx, \"recipient_123\", &bodhveda.DeleteNotificationsRequest{\n    IDs: []int{123, 456},\n})\n// res.DeletedCount"
+                    },
+                    {
+                        "lang": "jsx",
+                        "label": "React",
+                        "source": "import { useDeleteNotifications } from \"@bodhveda/react\";\n\n// Requires a <BodhvedaProvider recipientID=\"recipient_123\"> higher in the tree.\nfunction Delete({ ids }: { ids: number[] }) {\n    const { mutate } = useDeleteNotifications();\n    return <button onClick={() => mutate({ ids })}>Delete</button>;\n}"
+                    }
                 ]
             }
         },
@@ -1268,14 +1651,18 @@
             "get": {
                 "summary": "Get unread notification count for a recipient",
                 "operationId": "getUnreadNotificationCount",
-                "tags": ["Notifications"],
+                "tags": [
+                    "Notifications"
+                ],
                 "description": "Returns the number of unread notifications for a recipient.",
                 "parameters": [
                     {
                         "name": "recipient_id",
                         "in": "path",
                         "required": true,
-                        "schema": { "type": "string" },
+                        "schema": {
+                            "type": "string"
+                        },
                         "description": "The unique identifier of the recipient."
                     }
                 ],
@@ -1317,6 +1704,28 @@
                     {
                         "BearerAuthWithAPIKeyWithEitherScope": []
                     }
+                ],
+                "x-codeSamples": [
+                    {
+                        "lang": "curl",
+                        "label": "cURL",
+                        "source": "curl https://api.bodhveda.com/recipients/recipient_123/notifications/unread-count \\\n  -H \"Authorization: Bearer bv_xxxxxxxxx\" "
+                    },
+                    {
+                        "lang": "javascript",
+                        "label": "JavaScript",
+                        "source": "import { Bodhveda } from \"@bodhveda/js\";\n\nconst bodhveda = new Bodhveda(\"bv_xxxxxxxxx\");\n\nconst res = await bodhveda.recipients.notifications.unreadCount(\"recipient_123\");\n// res.unread_count"
+                    },
+                    {
+                        "lang": "go",
+                        "label": "Go",
+                        "source": "import (\n    \"context\"\n\n    bodhveda \"github.com/MudgalLabs/bodhveda/sdk/go\"\n)\n\nctx := context.Background()\nclient := bodhveda.NewClient(\"bv_xxxxxxxxx\", nil)\n\nres, _ := client.Recipients.Notifications.UnreadCount(ctx, \"recipient_123\")\n// res.UnreadCount"
+                    },
+                    {
+                        "lang": "jsx",
+                        "label": "React",
+                        "source": "import { useNotificationsUnreadCount } from \"@bodhveda/react\";\n\n// Requires a <BodhvedaProvider recipientID=\"recipient_123\"> higher in the tree.\nfunction Badge() {\n    const { data } = useNotificationsUnreadCount();\n    return <span>{data?.unread_count ?? 0}</span>;\n}"
+                    }
                 ]
             }
         },
@@ -1324,7 +1733,9 @@
             "get": {
                 "summary": "List the project preference catalog",
                 "operationId": "listProjectPreferences",
-                "tags": ["Project Preferences"],
+                "tags": [
+                    "Project Preferences"
+                ],
                 "description": "List every entry in the project's preference **catalog**. The project is taken from the API key. Requires a `Full access` key.",
                 "responses": {
                     "200": {
@@ -1339,7 +1750,11 @@
                                                 {
                                                     "id": 12,
                                                     "project_id": 1,
-                                                    "target": { "channel": "digest", "topic": "none", "event": "sent" },
+                                                    "target": {
+                                                        "channel": "digest",
+                                                        "topic": "none",
+                                                        "event": "sent"
+                                                    },
                                                     "medium": "email",
                                                     "default_enabled": true,
                                                     "label": "Daily digest",
@@ -1358,12 +1773,31 @@
                     {
                         "BearerAuthWithAPIKeyWithFullAcessScope": []
                     }
+                ],
+                "x-codeSamples": [
+                    {
+                        "lang": "curl",
+                        "label": "cURL",
+                        "source": "curl https://api.bodhveda.com/preferences \\\n  -H \"Authorization: Bearer bv_xxxxxxxxx\" "
+                    },
+                    {
+                        "lang": "javascript",
+                        "label": "JavaScript",
+                        "source": "import { Bodhveda } from \"@bodhveda/js\";\n\nconst bodhveda = new Bodhveda(\"bv_xxxxxxxxx\");\n\nconst preferences = await bodhveda.preferences.list();"
+                    },
+                    {
+                        "lang": "go",
+                        "label": "Go",
+                        "source": "import (\n    \"context\"\n\n    bodhveda \"github.com/MudgalLabs/bodhveda/sdk/go\"\n)\n\nctx := context.Background()\nclient := bodhveda.NewClient(\"bv_xxxxxxxxx\", nil)\n\npreferences, _ := client.Preferences.List(ctx)"
+                    }
                 ]
             },
             "post": {
                 "summary": "Create a catalog entry",
                 "operationId": "createProjectPreference",
-                "tags": ["Project Preferences"],
+                "tags": [
+                    "Project Preferences"
+                ],
                 "description": "Create a single catalog entry. **Strict**: an entry for the same `(channel, topic, event, medium)` returns `409`. Use `PATCH /preferences/{preference_id}` to change an existing entry, or `PUT /preferences` to set a whole catalog.",
                 "requestBody": {
                     "required": true,
@@ -1378,7 +1812,18 @@
                 "x-codeSamples": [
                     {
                         "lang": "curl",
-                        "source": "curl -X POST https://api.bodhveda.com/preferences \\\n  -H \"Authorization: Bearer bv_xxxxxxxxx\" \\\n  -H \"Content-Type: application/json\" \\\n  -d '{\n    \"channel\": \"digest\",\n    \"topic\": \"none\",\n    \"event\": \"sent\",\n    \"medium\": \"email\",\n    \"label\": \"Daily digest\",\n    \"default_enabled\": true\n  }'"
+                        "label": "cURL",
+                        "source": "curl -X POST https://api.bodhveda.com/preferences \\\n  -H \"Authorization: Bearer bv_xxxxxxxxx\" \\\n  -H \"Content-Type: application/json\" \\\n  -d '{\n    \"channel\": \"digest\",\n    \"topic\": \"none\",\n    \"event\": \"sent\",\n    \"medium\": \"email\",\n    \"name\": \"Daily digest\",\n    \"description\": \"Receive a daily summary of activity.\",\n    \"default_enabled\": true\n  }' "
+                    },
+                    {
+                        "lang": "javascript",
+                        "label": "JavaScript",
+                        "source": "import { Bodhveda } from \"@bodhveda/js\";\n\nconst bodhveda = new Bodhveda(\"bv_xxxxxxxxx\");\n\nconst pref = await bodhveda.preferences.create({\n    channel: \"digest\",\n    topic: \"none\",\n    event: \"sent\",\n    medium: \"email\",\n    name: \"Daily digest\",\n    description: \"Receive a daily summary of activity.\",\n    default_enabled: true,\n});"
+                    },
+                    {
+                        "lang": "go",
+                        "label": "Go",
+                        "source": "import (\n    \"context\"\n\n    bodhveda \"github.com/MudgalLabs/bodhveda/sdk/go\"\n)\n\nctx := context.Background()\nclient := bodhveda.NewClient(\"bv_xxxxxxxxx\", nil)\n\npref, _ := client.Preferences.Create(ctx, &bodhveda.CreateProjectPreferenceRequest{\n    Channel:        \"digest\",\n    Topic:          \"none\",\n    Event:          \"sent\",\n    Medium:         bodhveda.MediumEmail,\n    Name:           \"Daily digest\",\n    Description:    \"Receive a daily summary of activity.\",\n    DefaultEnabled: true,\n})"
                     }
                 ],
                 "responses": {
@@ -1394,7 +1839,11 @@
                                             "data": {
                                                 "id": 12,
                                                 "project_id": 1,
-                                                "target": { "channel": "digest", "topic": "none", "event": "sent" },
+                                                "target": {
+                                                    "channel": "digest",
+                                                    "topic": "none",
+                                                    "event": "sent"
+                                                },
                                                 "medium": "email",
                                                 "default_enabled": true,
                                                 "label": "Daily digest",
@@ -1427,14 +1876,19 @@
             "put": {
                 "summary": "Bulk upsert the catalog",
                 "operationId": "upsertProjectPreferences",
-                "tags": ["Project Preferences"],
+                "tags": [
+                    "Project Preferences"
+                ],
                 "description": "Declaratively merge a whole catalog in one call — the primitive for a one-off \"set up my project's preferences\" script. Each item is upserted by its natural key (`channel, topic, event, medium`): new entries are inserted, existing ones have their label and default updated. Entries **not** in the array are left untouched, unless `prune=true`.\n\nReturns the full resulting catalog.",
                 "parameters": [
                     {
                         "name": "prune",
                         "in": "query",
                         "required": false,
-                        "schema": { "type": "boolean", "default": false },
+                        "schema": {
+                            "type": "boolean",
+                            "default": false
+                        },
                         "description": "When `true`, catalog entries absent from the array are **deleted**, making the array the entire desired catalog. Pruning un-catalogs a `(target, medium)`, which turns a non-`in_app` medium off for recipients relying on the default — so it is opt-in."
                     }
                 ],
@@ -1454,7 +1908,18 @@
                 "x-codeSamples": [
                     {
                         "lang": "curl",
-                        "source": "curl -X PUT https://api.bodhveda.com/preferences \\\n  -H \"Authorization: Bearer bv_xxxxxxxxx\" \\\n  -H \"Content-Type: application/json\" \\\n  -d '[\n    { \"channel\": \"digest\", \"topic\": \"none\", \"event\": \"sent\", \"medium\": \"email\", \"label\": \"Daily digest\", \"default_enabled\": true }\n  ]'"
+                        "label": "cURL",
+                        "source": "curl -X PUT https://api.bodhveda.com/preferences \\\n  -H \"Authorization: Bearer bv_xxxxxxxxx\" \\\n  -H \"Content-Type: application/json\" \\\n  -d '[\n    { \"channel\": \"digest\", \"topic\": \"none\", \"event\": \"sent\", \"medium\": \"email\", \"name\": \"Daily digest\", \"default_enabled\": true }\n  ]' "
+                    },
+                    {
+                        "lang": "javascript",
+                        "label": "JavaScript",
+                        "source": "import { Bodhveda } from \"@bodhveda/js\";\n\nconst bodhveda = new Bodhveda(\"bv_xxxxxxxxx\");\n\nconst catalog = await bodhveda.preferences.upsertMany([\n    {\n        channel: \"digest\",\n        topic: \"none\",\n        event: \"sent\",\n        medium: \"email\",\n        name: \"Daily digest\",\n        default_enabled: true,\n    },\n]);\n// Pass { prune: true } to delete entries absent from the array."
+                    },
+                    {
+                        "lang": "go",
+                        "label": "Go",
+                        "source": "import (\n    \"context\"\n\n    bodhveda \"github.com/MudgalLabs/bodhveda/sdk/go\"\n)\n\nctx := context.Background()\nclient := bodhveda.NewClient(\"bv_xxxxxxxxx\", nil)\n\ncatalog, _ := client.Preferences.UpsertMany(ctx, []bodhveda.UpsertProjectPreferenceItem{\n    {\n        Channel:        \"digest\",\n        Topic:          \"none\",\n        Event:          \"sent\",\n        Medium:         bodhveda.MediumEmail,\n        Name:           \"Daily digest\",\n        DefaultEnabled: true,\n    },\n}, nil)\n// Pass &bodhveda.UpsertProjectPreferencesOptions{Prune: true} to delete absent entries."
                     }
                 ],
                 "responses": {
@@ -1471,7 +1936,11 @@
                                                 {
                                                     "id": 12,
                                                     "project_id": 1,
-                                                    "target": { "channel": "digest", "topic": "none", "event": "sent" },
+                                                    "target": {
+                                                        "channel": "digest",
+                                                        "topic": "none",
+                                                        "event": "sent"
+                                                    },
                                                     "medium": "email",
                                                     "default_enabled": true,
                                                     "label": "Daily digest",
@@ -1497,14 +1966,18 @@
             "get": {
                 "summary": "Get a catalog entry",
                 "operationId": "getProjectPreference",
-                "tags": ["Project Preferences"],
+                "tags": [
+                    "Project Preferences"
+                ],
                 "description": "Retrieve a single catalog entry by ID.",
                 "parameters": [
                     {
                         "name": "preference_id",
                         "in": "path",
                         "required": true,
-                        "schema": { "type": "integer" },
+                        "schema": {
+                            "type": "integer"
+                        },
                         "description": "The catalog entry's ID."
                     }
                 ],
@@ -1520,7 +1993,11 @@
                                             "data": {
                                                 "id": 12,
                                                 "project_id": 1,
-                                                "target": { "channel": "digest", "topic": "none", "event": "sent" },
+                                                "target": {
+                                                    "channel": "digest",
+                                                    "topic": "none",
+                                                    "event": "sent"
+                                                },
                                                 "medium": "email",
                                                 "default_enabled": true,
                                                 "label": "Daily digest",
@@ -1548,19 +2025,40 @@
                     {
                         "BearerAuthWithAPIKeyWithFullAcessScope": []
                     }
+                ],
+                "x-codeSamples": [
+                    {
+                        "lang": "curl",
+                        "label": "cURL",
+                        "source": "curl https://api.bodhveda.com/preferences/42 \\\n  -H \"Authorization: Bearer bv_xxxxxxxxx\" "
+                    },
+                    {
+                        "lang": "javascript",
+                        "label": "JavaScript",
+                        "source": "import { Bodhveda } from \"@bodhveda/js\";\n\nconst bodhveda = new Bodhveda(\"bv_xxxxxxxxx\");\n\nconst pref = await bodhveda.preferences.get(42);"
+                    },
+                    {
+                        "lang": "go",
+                        "label": "Go",
+                        "source": "import (\n    \"context\"\n\n    bodhveda \"github.com/MudgalLabs/bodhveda/sdk/go\"\n)\n\nctx := context.Background()\nclient := bodhveda.NewClient(\"bv_xxxxxxxxx\", nil)\n\npref, _ := client.Preferences.Get(ctx, 42)"
+                    }
                 ]
             },
             "patch": {
                 "summary": "Update a catalog entry",
                 "operationId": "updateProjectPreference",
-                "tags": ["Project Preferences"],
+                "tags": [
+                    "Project Preferences"
+                ],
                 "description": "Update a catalog entry's label and default. The natural key (`channel`/`topic`/`event`/`medium`) is immutable.",
                 "parameters": [
                     {
                         "name": "preference_id",
                         "in": "path",
                         "required": true,
-                        "schema": { "type": "integer" },
+                        "schema": {
+                            "type": "integer"
+                        },
                         "description": "The catalog entry's ID."
                     }
                 ],
@@ -1587,7 +2085,11 @@
                                             "data": {
                                                 "id": 12,
                                                 "project_id": 1,
-                                                "target": { "channel": "digest", "topic": "none", "event": "sent" },
+                                                "target": {
+                                                    "channel": "digest",
+                                                    "topic": "none",
+                                                    "event": "sent"
+                                                },
                                                 "medium": "email",
                                                 "default_enabled": false,
                                                 "label": "Weekly digest",
@@ -1615,19 +2117,40 @@
                     {
                         "BearerAuthWithAPIKeyWithFullAcessScope": []
                     }
+                ],
+                "x-codeSamples": [
+                    {
+                        "lang": "curl",
+                        "label": "cURL",
+                        "source": "curl -X PATCH https://api.bodhveda.com/preferences/42 \\\n  -H \"Authorization: Bearer bv_xxxxxxxxx\" \\\n  -H \"Content-Type: application/json\" \\\n  -d '{\n    \"name\": \"Daily digest\",\n    \"description\": \"Receive a daily summary of activity.\",\n    \"default_enabled\": false\n  }' "
+                    },
+                    {
+                        "lang": "javascript",
+                        "label": "JavaScript",
+                        "source": "import { Bodhveda } from \"@bodhveda/js\";\n\nconst bodhveda = new Bodhveda(\"bv_xxxxxxxxx\");\n\nconst pref = await bodhveda.preferences.update(42, {\n    name: \"Daily digest\",\n    description: \"Receive a daily summary of activity.\",\n    default_enabled: false,\n});"
+                    },
+                    {
+                        "lang": "go",
+                        "label": "Go",
+                        "source": "import (\n    \"context\"\n\n    bodhveda \"github.com/MudgalLabs/bodhveda/sdk/go\"\n)\n\nctx := context.Background()\nclient := bodhveda.NewClient(\"bv_xxxxxxxxx\", nil)\n\npref, _ := client.Preferences.Update(ctx, 42, &bodhveda.UpdateProjectPreferenceRequest{\n    Name:           \"Daily digest\",\n    Description:    \"Receive a daily summary of activity.\",\n    DefaultEnabled: false,\n})"
+                    }
                 ]
             },
             "delete": {
                 "summary": "Delete a catalog entry",
                 "operationId": "deleteProjectPreference",
-                "tags": ["Project Preferences"],
+                "tags": [
+                    "Project Preferences"
+                ],
                 "description": "Delete a catalog entry, un-cataloging the `(target, medium)`.",
                 "parameters": [
                     {
                         "name": "preference_id",
                         "in": "path",
                         "required": true,
-                        "schema": { "type": "integer" },
+                        "schema": {
+                            "type": "integer"
+                        },
                         "description": "The catalog entry's ID."
                     }
                 ],
@@ -1649,6 +2172,23 @@
                 "security": [
                     {
                         "BearerAuthWithAPIKeyWithFullAcessScope": []
+                    }
+                ],
+                "x-codeSamples": [
+                    {
+                        "lang": "curl",
+                        "label": "cURL",
+                        "source": "curl -X DELETE https://api.bodhveda.com/preferences/42 \\\n  -H \"Authorization: Bearer bv_xxxxxxxxx\" "
+                    },
+                    {
+                        "lang": "javascript",
+                        "label": "JavaScript",
+                        "source": "import { Bodhveda } from \"@bodhveda/js\";\n\nconst bodhveda = new Bodhveda(\"bv_xxxxxxxxx\");\n\nawait bodhveda.preferences.delete(42);"
+                    },
+                    {
+                        "lang": "go",
+                        "label": "Go",
+                        "source": "import (\n    \"context\"\n\n    bodhveda \"github.com/MudgalLabs/bodhveda/sdk/go\"\n)\n\nctx := context.Background()\nclient := bodhveda.NewClient(\"bv_xxxxxxxxx\", nil)\n\nerr := client.Preferences.Delete(ctx, 42)"
                     }
                 ]
             }
@@ -1689,7 +2229,9 @@
                         "$ref": "#/components/schemas/EmailContent"
                     }
                 },
-                "required": ["payload"]
+                "required": [
+                    "payload"
+                ]
             },
             "EmailContent": {
                 "type": "object",
@@ -1708,7 +2250,9 @@
                         "description": "Plain-text body. Recommended for deliverability. If omitted, it is derived from `html`."
                     }
                 },
-                "required": ["subject"]
+                "required": [
+                    "subject"
+                ]
             },
             "NotificationDelivery": {
                 "type": "object",
@@ -1768,7 +2312,11 @@
                         "description": "Event that triggered this notification (e.g., \"new_comment\")."
                     }
                 },
-                "required": ["channel", "topic", "event"]
+                "required": [
+                    "channel",
+                    "topic",
+                    "event"
+                ]
             },
             "SendNotificationResponse": {
                 "type": "object",
@@ -1887,7 +2435,9 @@
                         "description": "Name of the recipient."
                     }
                 },
-                "required": ["id"]
+                "required": [
+                    "id"
+                ]
             },
             "RecipientContact": {
                 "type": "object",
@@ -1900,7 +2450,12 @@
                     "medium": {
                         "type": "string",
                         "description": "The delivery transport this address is for. Only `email` is exercised today; `sms`, `web_push`, and `mobile_push` are reserved for future transports.",
-                        "enum": ["email", "sms", "web_push", "mobile_push"]
+                        "enum": [
+                            "email",
+                            "sms",
+                            "web_push",
+                            "mobile_push"
+                        ]
                     },
                     "address": {
                         "type": "string",
@@ -1932,7 +2487,12 @@
                     "medium": {
                         "type": "string",
                         "description": "The delivery transport. Only `email` is exercised today.",
-                        "enum": ["email", "sms", "web_push", "mobile_push"]
+                        "enum": [
+                            "email",
+                            "sms",
+                            "web_push",
+                            "mobile_push"
+                        ]
                     },
                     "address": {
                         "type": "string",
@@ -1944,7 +2504,10 @@
                         "default": false
                     }
                 },
-                "required": ["medium", "address"]
+                "required": [
+                    "medium",
+                    "address"
+                ]
             },
             "UpdateRecipientContactPayload": {
                 "type": "object",
@@ -1966,14 +2529,22 @@
                     "medium": {
                         "type": "string",
                         "description": "The delivery transport. Only `email` is exercised today.",
-                        "enum": ["email", "sms", "web_push", "mobile_push"]
+                        "enum": [
+                            "email",
+                            "sms",
+                            "web_push",
+                            "mobile_push"
+                        ]
                     },
                     "address": {
                         "type": "string",
                         "description": "The address to make primary. For email it must contain `@` and is stored lowercased."
                     }
                 },
-                "required": ["medium", "address"]
+                "required": [
+                    "medium",
+                    "address"
+                ]
             },
             "ProjectPreference": {
                 "type": "object",
@@ -1983,12 +2554,19 @@
                         "type": "integer",
                         "description": "Unique identifier for the catalog entry."
                     },
-                    "project_id": { "type": "integer" },
-                    "target": { "$ref": "#/components/schemas/Target" },
+                    "project_id": {
+                        "type": "integer"
+                    },
+                    "target": {
+                        "$ref": "#/components/schemas/Target"
+                    },
                     "medium": {
                         "type": "string",
                         "description": "The medium this catalog entry gates.",
-                        "enum": ["in_app", "email"]
+                        "enum": [
+                            "in_app",
+                            "email"
+                        ]
                     },
                     "default_enabled": {
                         "type": "boolean",
@@ -1998,8 +2576,14 @@
                         "type": "string",
                         "description": "Human-readable label for the catalog entry."
                     },
-                    "created_at": { "type": "string", "format": "date-time" },
-                    "updated_at": { "type": "string", "format": "date-time" }
+                    "created_at": {
+                        "type": "string",
+                        "format": "date-time"
+                    },
+                    "updated_at": {
+                        "type": "string",
+                        "format": "date-time"
+                    }
                 }
             },
             "CreateProjectPreferencePayload": {
@@ -2020,7 +2604,10 @@
                     "medium": {
                         "type": "string",
                         "description": "The medium this catalog entry gates. Defaults to `in_app`.",
-                        "enum": ["in_app", "email"],
+                        "enum": [
+                            "in_app",
+                            "email"
+                        ],
                         "default": "in_app"
                     },
                     "label": {
@@ -2032,16 +2619,29 @@
                         "description": "The project-level default for recipients who have set no preference of their own."
                     }
                 },
-                "required": ["channel", "topic", "event", "label", "default_enabled"]
+                "required": [
+                    "channel",
+                    "topic",
+                    "event",
+                    "label",
+                    "default_enabled"
+                ]
             },
             "UpdateProjectPreferencePayload": {
                 "type": "object",
                 "description": "Updates a catalog entry's label and default. The natural key (`channel`/`topic`/`event`/`medium`) is immutable.",
                 "properties": {
-                    "label": { "type": "string" },
-                    "default_enabled": { "type": "boolean" }
+                    "label": {
+                        "type": "string"
+                    },
+                    "default_enabled": {
+                        "type": "boolean"
+                    }
                 },
-                "required": ["label", "default_enabled"]
+                "required": [
+                    "label",
+                    "default_enabled"
+                ]
             }
         }
     }

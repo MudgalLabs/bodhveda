@@ -137,10 +137,12 @@ type ProjectPreference struct {
 	// DefaultEnabled is the project-level default for this (target, medium):
 	// whether a recipient who has expressed no preference of their own is
 	// delivered to.
-	DefaultEnabled bool      `json:"default_enabled"`
-	Label          string    `json:"label"`
-	CreatedAt      time.Time `json:"created_at"`
-	UpdatedAt      time.Time `json:"updated_at"`
+	DefaultEnabled bool   `json:"default_enabled"`
+	Name           string `json:"name"`
+	// Description is the catalog entry's optional longer blurb; nil when unset.
+	Description *string   `json:"description"`
+	CreatedAt   time.Time `json:"created_at"`
+	UpdatedAt   time.Time `json:"updated_at"`
 }
 
 // CreateProjectPreferenceRequest creates ONE catalog entry. Strict: creating an
@@ -148,18 +150,24 @@ type ProjectPreference struct {
 // use ProjectPreferences.Update to change an existing entry, or UpsertMany to
 // declaratively merge a whole catalog. Medium defaults to in_app when empty.
 type CreateProjectPreferenceRequest struct {
-	Channel        string `json:"channel"`
-	Topic          string `json:"topic"`
-	Event          string `json:"event"`
-	Medium         Medium `json:"medium,omitempty"`
-	Label          string `json:"label"`
+	Channel string `json:"channel"`
+	Topic   string `json:"topic"`
+	Event   string `json:"event"`
+	Medium  Medium `json:"medium,omitempty"`
+	Name    string `json:"name"`
+	// Description is optional (e.g. "Receive notifications about new products,
+	// features, and more."). Omitted stores no description.
+	Description    string `json:"description,omitempty"`
 	DefaultEnabled bool   `json:"default_enabled"`
 }
 
 // UpdateProjectPreferenceRequest updates a catalog entry. The natural key
-// (channel/topic/event/medium) is immutable, so only the label and default change.
+// (channel/topic/event/medium) is immutable, so only the name, description and
+// default change.
 type UpdateProjectPreferenceRequest struct {
-	Label          string `json:"label"`
+	Name string `json:"name"`
+	// Description is optional; omitted clears it.
+	Description    string `json:"description,omitempty"`
 	DefaultEnabled bool   `json:"default_enabled"`
 }
 
@@ -177,12 +185,13 @@ type UpsertProjectPreferencesOptions struct {
 	Prune bool
 }
 
-// TargetWithLabel represents a target with an optional label. Medium is the
-// medium this preference applies to (in_app or email).
-type TargetWithLabel struct {
+// TargetWithName represents a target with the catalog entry's optional name and
+// description. Medium is the medium this preference applies to (in_app or email).
+type TargetWithName struct {
 	Target
-	Medium Medium  `json:"medium,omitempty"`
-	Label  *string `json:"label,omitempty"`
+	Medium      Medium  `json:"medium,omitempty"`
+	Name        *string `json:"name,omitempty"`
+	Description *string `json:"description,omitempty"`
 }
 
 // PreferenceState represents the state of a preference that was just written.
@@ -215,7 +224,7 @@ type ResolvedPreferenceState struct {
 
 // Preference represents a resolved preference.
 type Preference struct {
-	Target TargetWithLabel         `json:"target"`
+	Target TargetWithName         `json:"target"`
 	State  ResolvedPreferenceState `json:"state"`
 }
 
@@ -372,7 +381,7 @@ type SetPreferenceRequest struct {
 
 // SetPreferenceResponse represents the response after setting a preference.
 type SetPreferenceResponse struct {
-	Target TargetWithLabel `json:"target"`
+	Target TargetWithName `json:"target"`
 	State  PreferenceState `json:"state"`
 }
 
@@ -387,6 +396,6 @@ type CheckPreferenceRequest struct {
 // The target need not be cataloged, or stored at all — any (channel, topic,
 // event) resolves.
 type CheckPreferenceResponse struct {
-	Target TargetWithLabel         `json:"target"`
+	Target TargetWithName         `json:"target"`
 	State  ResolvedPreferenceState `json:"state"`
 }

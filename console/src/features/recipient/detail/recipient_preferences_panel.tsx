@@ -34,7 +34,7 @@ interface RecipientPreferencesPanelProps {
 interface PreferenceRow {
     key: string;
     target: Target;
-    label?: string;
+    name?: string;
     cells: Partial<Record<PreferenceMedium, RecipientPreferenceTargetState>>;
 }
 
@@ -113,10 +113,10 @@ export function RecipientPreferencesPanel({
             }
 
             row.cells[pref.target.medium] = pref;
-            // Only cataloged cells carry a label, and a target may be cataloged
+            // Only cataloged cells carry a name, and a target may be cataloged
             // for one medium and not the other — take whichever has it.
-            if (pref.target.label) {
-                row.label = pref.target.label;
+            if (pref.target.name) {
+                row.name = pref.target.name;
             }
         }
 
@@ -182,9 +182,9 @@ export function RecipientPreferencesPanel({
                                     <div className="select-text!">
                                         {row.key}
                                     </div>
-                                    {row.label && (
+                                    {row.name && (
                                         <div className="text-foreground-muted text-xs">
-                                            {row.label}
+                                            {row.name}
                                         </div>
                                     )}
                                 </td>

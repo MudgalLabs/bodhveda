@@ -38,7 +38,8 @@ func (s *PreferenceService) CreateProjectPreference(ctx context.Context, payload
 		payload.Topic,
 		payload.Event,
 		payload.Medium,
-		&payload.Label,
+		&payload.Name,
+		payload.DescriptionPtr(),
 		payload.Enabled,
 	)
 
@@ -101,7 +102,8 @@ func (s *PreferenceService) UpsertProjectPreferences(ctx context.Context, projec
 			items[i].Topic,
 			items[i].Event,
 			items[i].Medium,
-			&items[i].Label,
+			&items[i].Name,
+			items[i].DescriptionPtr(),
 			items[i].Enabled,
 		))
 	}
@@ -134,14 +136,15 @@ func (s *PreferenceService) GetProjectPreference(ctx context.Context, projectID 
 	return dto.FromPreferenceForProject(pref), service.ErrNone, nil
 }
 
-// UpdateProjectPreference updates a catalog entry's label and project-level
-// default. The natural key is immutable, so only those two fields change.
+// UpdateProjectPreference updates a catalog entry's name, description and
+// project-level default. The natural key is immutable, so only those fields
+// change.
 func (s *PreferenceService) UpdateProjectPreference(ctx context.Context, projectID int, preferenceID int, payload dto.UpdateProjectPreferencePayload) (*dto.ProjectPreference, service.Error, error) {
 	if err := payload.Validate(); err != nil {
 		return nil, service.ErrInvalidInput, err
 	}
 
-	pref, err := s.repo.UpdateProjectPreference(ctx, projectID, preferenceID, payload.Label, payload.Enabled)
+	pref, err := s.repo.UpdateProjectPreference(ctx, projectID, preferenceID, payload.Name, payload.DescriptionPtr(), payload.Enabled)
 	if err != nil {
 		if err == tantraRepo.ErrNotFound {
 			return nil, service.ErrNotFound, fmt.Errorf("Preference not found")
@@ -229,6 +232,7 @@ func (s *PreferenceService) UpsertRecipientPreference(ctx context.Context, paylo
 		payload.Event,
 		payload.Medium,
 		nil,
+		nil,
 		payload.Enabled,
 	)
 
@@ -255,6 +259,7 @@ func (s *PreferenceService) UpdateRecipientPreferenceTarget(ctx context.Context,
 		req.Target.Topic,
 		req.Target.Event,
 		req.Medium,
+		nil,
 		nil,
 		req.State.Enabled,
 	)

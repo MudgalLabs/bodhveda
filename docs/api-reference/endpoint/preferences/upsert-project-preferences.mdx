@@ -3,7 +3,7 @@ title: "Set up the catalog (bulk)"
 openapi: "PUT /preferences"
 ---
 
-Declaratively merge a whole catalog in one call — the primitive for a one-off "set up my project's preferences" script. Each item is upserted by its natural key (`channel, topic, event, medium`): new entries are inserted, existing ones have their label and default updated. Entries **not** in the array are left untouched.
+Declaratively merge a whole catalog in one call — the primitive for a one-off "set up my project's preferences" script. Each item is upserted by its natural key (`channel, topic, event, medium`): new entries are inserted, existing ones have their name, description and default updated. Entries **not** in the array are left untouched.
 
 <Note>
     Pass `?prune=true` to also **delete** entries absent from the array, making it your entire desired catalog. Pruning un-catalogs a `(target, medium)`, which turns a non-`in_app` medium off for recipients relying on the default — so it is opt-in. Deliberate one-off removals go through [delete](/api-reference/endpoint/preferences/delete-project-preference).

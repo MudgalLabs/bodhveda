@@ -12,6 +12,7 @@ import {
     IconBadgeInfo,
     Input,
     Label,
+    Textarea,
     toast,
     ToggleGroup,
     ToggleGroupItem,
@@ -35,7 +36,8 @@ export const CreateProjectPreferenceModal: FC<
     const projectID = useGetProjectIDFromParams();
 
     const [open, setOpen] = useState(false);
-    const [label, setLabel] = useState("");
+    const [name, setName] = useState("");
+    const [description, setDescription] = useState("");
     const [defaultEnabled, setDefaultEnabled] = useState(true);
     const [channel, setChannel] = useState("");
     const [event, setEvent] = useState("");
@@ -47,7 +49,7 @@ export const CreateProjectPreferenceModal: FC<
     const { mutateAsync: create, isPending } = useCreateProjectPreference();
 
     const disableCreate =
-        !label.trim() || !channel.trim() || mediums.length === 0;
+        !name.trim() || !channel.trim() || mediums.length === 0;
 
     const handleSubmit = async (e: React.FormEvent) => {
         e.preventDefault();
@@ -60,7 +62,8 @@ export const CreateProjectPreferenceModal: FC<
                     create({
                         projectID,
                         payload: {
-                            label: label.trim(),
+                            name: name.trim(),
+                            description: description.trim() || undefined,
                             default_enabled: defaultEnabled,
                             channel: channel.trim(),
                             event: event.trim() || null,
@@ -71,7 +74,7 @@ export const CreateProjectPreferenceModal: FC<
                 )
             );
 
-            toast.success(`Preference "${label}" created successfully`);
+            toast.success(`Preference "${name}" created successfully`);
             setOpen(false);
         } catch (err) {
             apiErrorHandler(err);
@@ -88,7 +91,8 @@ export const CreateProjectPreferenceModal: FC<
 
     useEffect(() => {
         if (open) {
-            setLabel("");
+            setName("");
+            setDescription("");
             setDefaultEnabled(true);
             setChannel("");
             setEvent("");
@@ -100,118 +104,137 @@ export const CreateProjectPreferenceModal: FC<
     return (
         <Dialog open={open} onOpenChange={setOpen}>
             <DialogTrigger asChild>{renderTrigger()}</DialogTrigger>
-            <DialogContent>
+            {/* Cap the height and let the body scroll so the header (with its
+                close button) and the footer stay pinned on short viewports. */}
+            <DialogContent className="flex max-h-[90vh] flex-col">
                 <DialogHeader>
                     <DialogTitle>Create Preference</DialogTitle>
                 </DialogHeader>
 
-                <p>
-                    Create a project level preference that will be applied to
-                    all recipients in this project. You should allow recipients
-                    to override project level preferences in their notification
-                    settings.
-                </p>
+                <form
+                    className="flex min-h-0 flex-1 flex-col gap-4"
+                    onSubmit={handleSubmit}
+                >
+                    <div className="flex min-h-0 flex-1 flex-col gap-4 overflow-y-auto pr-1">
+                        <p>
+                            Create a project level preference that will be
+                            applied to all recipients in this project. You should
+                            allow recipients to override project level
+                            preferences in their notification settings.
+                        </p>
 
-                <Alert>
-                    <IconBadgeInfo />
-                    <p className="text-text-muted">
-                        Recipient preferences are accessible via the{" "}
-                        <a
-                            href="https://docs.bodhveda.com/api-reference/endpoint/recipients/preferences/list-preferences"
-                            target="_blank"
-                            rel="noopener noreferrer"
-                        >
-                            API
-                        </a>
-                        .
-                    </p>
-                </Alert>
-                <form className="flex flex-col gap-4" onSubmit={handleSubmit}>
-                    <WithLabel Label={<Label>Label</Label>}>
-                        <Input
-                            className="w-full!"
-                            placeholder="Comments on photos of you"
-                            required
-                            maxLength={256}
-                            value={label}
-                            onChange={(e) => setLabel(e.target.value)}
-                        />
-                    </WithLabel>
-
-                    <WithLabel Label={<Label>Default</Label>}>
-                        <ToggleGroup
-                            className="[&_*]:h-8 pl-0!"
-                            type="single"
-                            size="small"
-                            value={defaultEnabled ? "enabled" : "disabled"}
-                            onValueChange={(value) =>
-                                value && setDefaultEnabled(value === "enabled")
-                            }
-                        >
-                            <ToggleGroupItem value="enabled">
-                                Enabled
-                            </ToggleGroupItem>
-
-                            <ToggleGroupItem value="disabled">
-                                Disabled
-                            </ToggleGroupItem>
-                        </ToggleGroup>
-                    </WithLabel>
-
-                    <WithLabel Label={<Label>Mediums</Label>}>
-                        <ToggleGroup
-                            className="[&_*]:h-8 pl-0!"
-                            type="multiple"
-                            size="small"
-                            value={mediums}
-                            onValueChange={(value: string[]) =>
-                                setMediums(value as PreferenceMedium[])
-                            }
-                        >
-                            {PREFERENCE_MEDIUMS.map((medium) => (
-                                <ToggleGroupItem
-                                    key={medium}
-                                    value={medium}
-                                    className="whitespace-nowrap"
+                        <Alert>
+                            <IconBadgeInfo />
+                            <p className="text-text-muted">
+                                Recipient preferences are accessible via the{" "}
+                                <a
+                                    href="https://docs.bodhveda.com/api-reference/endpoint/recipients/preferences/list-preferences"
+                                    target="_blank"
+                                    rel="noopener noreferrer"
                                 >
-                                    {PREFERENCE_MEDIUM_LABELS[medium]}
+                                    API
+                                </a>
+                                .
+                            </p>
+                        </Alert>
+
+                        <WithLabel Label={<Label>Name</Label>}>
+                            <Input
+                                className="w-full!"
+                                placeholder="Comments on photos of you"
+                                required
+                                maxLength={256}
+                                value={name}
+                                onChange={(e) => setName(e.target.value)}
+                            />
+                        </WithLabel>
+
+                        <WithLabel Label={<Label>Description</Label>}>
+                            <Textarea
+                                className="w-full!"
+                                placeholder="Receive notifications about new products, features, and more."
+                                maxLength={1024}
+                                value={description}
+                                onChange={(e) => setDescription(e.target.value)}
+                            />
+                        </WithLabel>
+
+                        <WithLabel Label={<Label>Default</Label>}>
+                            <ToggleGroup
+                                className="[&_*]:h-8 pl-0!"
+                                type="single"
+                                size="small"
+                                value={defaultEnabled ? "enabled" : "disabled"}
+                                onValueChange={(value) =>
+                                    value &&
+                                    setDefaultEnabled(value === "enabled")
+                                }
+                            >
+                                <ToggleGroupItem value="enabled">
+                                    Enabled
                                 </ToggleGroupItem>
-                            ))}
-                        </ToggleGroup>
-                    </WithLabel>
 
-                    <WithLabel Label={<Label>Channel</Label>}>
-                        <Input
-                            className="w-full!"
-                            placeholder="posts"
-                            required
-                            maxLength={256}
-                            value={channel}
-                            onChange={(e) => setChannel(e.target.value)}
-                        />
-                    </WithLabel>
+                                <ToggleGroupItem value="disabled">
+                                    Disabled
+                                </ToggleGroupItem>
+                            </ToggleGroup>
+                        </WithLabel>
 
-                    <WithLabel Label={<Label>Topic</Label>}>
-                        <Input
-                            className="w-full!"
-                            placeholder="'any' / 'none' / anything_but_any_or_none"
-                            required
-                            maxLength={256}
-                            value={topic}
-                            onChange={(e) => setTopic(e.target.value)}
-                        />
-                    </WithLabel>
+                        <WithLabel Label={<Label>Mediums</Label>}>
+                            <ToggleGroup
+                                className="[&_*]:h-8 pl-0!"
+                                type="multiple"
+                                size="small"
+                                value={mediums}
+                                onValueChange={(value: string[]) =>
+                                    setMediums(value as PreferenceMedium[])
+                                }
+                            >
+                                {PREFERENCE_MEDIUMS.map((medium) => (
+                                    <ToggleGroupItem
+                                        key={medium}
+                                        value={medium}
+                                        className="whitespace-nowrap"
+                                    >
+                                        {PREFERENCE_MEDIUM_LABELS[medium]}
+                                    </ToggleGroupItem>
+                                ))}
+                            </ToggleGroup>
+                        </WithLabel>
 
-                    <WithLabel Label={<Label>Event</Label>}>
-                        <Input
-                            className="w-full!"
-                            placeholder="new_comment"
-                            required
-                            maxLength={256}
-                            value={event}
-                            onChange={(e) => setEvent(e.target.value)}
-                        />
-                    </WithLabel>
+                        <WithLabel Label={<Label>Channel</Label>}>
+                            <Input
+                                className="w-full!"
+                                placeholder="posts"
+                                required
+                                maxLength={256}
+                                value={channel}
+                                onChange={(e) => setChannel(e.target.value)}
+                            />
+                        </WithLabel>
+
+                        <WithLabel Label={<Label>Topic</Label>}>
+                            <Input
+                                className="w-full!"
+                                placeholder="'any' / 'none' / anything_but_any_or_none"
+                                required
+                                maxLength={256}
+                                value={topic}
+                                onChange={(e) => setTopic(e.target.value)}
+                            />
+                        </WithLabel>
+
+                        <WithLabel Label={<Label>Event</Label>}>
+                            <Input
+                                className="w-full!"
+                                placeholder="new_comment"
+                                required
+                                maxLength={256}
+                                value={event}
+                                onChange={(e) => setEvent(e.target.value)}
+                            />
+                        </WithLabel>
+                    </div>
 
                     <DialogFooter className="flex-x justify-between!">
                         <div>

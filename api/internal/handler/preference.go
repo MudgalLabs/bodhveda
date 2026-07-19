@@ -47,7 +47,7 @@ func CreateProjectPreference(s *service.PreferenceService) http.HandlerFunc {
 }
 
 // UpdateProjectPreference is the console's catalog edit (project_id in path).
-// Only the mutable fields change — label and the project-level default — since
+// Only the mutable fields change — name, description and the project-level default — since
 // the natural key (channel, topic, event, medium) is immutable. It reuses the
 // same service method as the Developer API's UpdateProjectPreferenceAPI.
 func UpdateProjectPreference(s *service.PreferenceService) http.HandlerFunc {

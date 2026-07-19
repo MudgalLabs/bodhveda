@@ -158,7 +158,11 @@ function ActionCell({ preference }: { preference: ProjectPreference }) {
 
                 <DropdownMenuContent>
                     <DropdownMenuItem asChild>
-                        <Button variant="ghost" onClick={handleOpenEdit}>
+                        <Button
+                            variant="ghost"
+                            className="w-full! justify-start!"
+                            onClick={handleOpenEdit}
+                        >
                             <IconEdit size={16} />
                             Edit
                         </Button>
@@ -167,6 +171,7 @@ function ActionCell({ preference }: { preference: ProjectPreference }) {
                     <DropdownMenuItem asChild>
                         <Button
                             variant="destructive"
+                            className="w-full! justify-start!"
                             onClick={handleOpenDeleteConfirm}
                         >
                             <IconTrash size={16} />
@@ -199,8 +204,13 @@ function ActionCell({ preference }: { preference: ProjectPreference }) {
 
 const projectPreferenceColumns: ColumnDef<ProjectPreference>[] = [
     {
-        accessorKey: "label",
-        header: () => <DataTableColumnHeader title="Label" />,
+        accessorKey: "name",
+        header: () => <DataTableColumnHeader title="Name" />,
+    },
+    {
+        accessorKey: "description",
+        header: () => <DataTableColumnHeader title="Description" />,
+        cell: ({ row }) => row.original.description || "—",
     },
     {
         accessorKey: "medium",

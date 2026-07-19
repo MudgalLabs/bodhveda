@@ -65,11 +65,11 @@ func TestResolveRecipientPreferencesAgreesWithGating(t *testing.T) {
 		t.Fatalf("insert recipient: %v", err)
 	}
 
-	seedProjectPref := func(channel, topic, event, medium, label string, enabled bool) {
+	seedProjectPref := func(channel, topic, event, medium, name string, enabled bool) {
 		_, err := pool.Exec(ctx, `
-			INSERT INTO preference (project_id, recipient_external_id, channel, topic, event, medium, label, enabled, created_at, updated_at)
+			INSERT INTO preference (project_id, recipient_external_id, channel, topic, event, medium, name, enabled, created_at, updated_at)
 			VALUES ($1, NULL, $2, $3, $4, $5, $6, $7, now(), now())
-		`, projectID, channel, topic, event, medium, label, enabled)
+		`, projectID, channel, topic, event, medium, name, enabled)
 		if err != nil {
 			t.Fatalf("insert project preference: %v", err)
 		}
@@ -77,7 +77,7 @@ func TestResolveRecipientPreferencesAgreesWithGating(t *testing.T) {
 
 	seedRecipientPref := func(channel, topic, event, medium string, enabled bool) {
 		_, err := pool.Exec(ctx, `
-			INSERT INTO preference (project_id, recipient_external_id, channel, topic, event, medium, label, enabled, created_at, updated_at)
+			INSERT INTO preference (project_id, recipient_external_id, channel, topic, event, medium, name, enabled, created_at, updated_at)
 			VALUES ($1, $2, $3, $4, $5, $6, NULL, $7, now(), now())
 		`, projectID, extID, channel, topic, event, medium, enabled)
 		if err != nil {
@@ -254,7 +254,7 @@ func TestResolveRecipientPreferencesAgreesWithGating(t *testing.T) {
 		t.Cleanup(func() { _, _ = pool.Exec(ctx, "DELETE FROM project WHERE id = $1", otherProject) })
 
 		_, err = pool.Exec(ctx, `
-			INSERT INTO preference (project_id, recipient_external_id, channel, topic, event, medium, label, enabled, created_at, updated_at)
+			INSERT INTO preference (project_id, recipient_external_id, channel, topic, event, medium, name, enabled, created_at, updated_at)
 			VALUES ($1, $2, 'leaked', 'none', 'evt', 'email', NULL, true, now(), now())
 		`, otherProject, extID)
 		if err != nil {

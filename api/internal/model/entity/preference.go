@@ -21,14 +21,20 @@ type Preference struct {
 	// Medium is the delivery transport this preference gates (in_app, email, ...).
 	// Legacy rows backfill to "in_app". A project-level (recipient NULL) row is a
 	// catalog entry declaring that (target, medium) may fire.
-	Medium    string
-	Enabled   bool
-	Label     *string // Nullable, if null then this is a recipient preference.
-	CreatedAt time.Time
-	UpdatedAt time.Time
+	Medium  string
+	Enabled bool
+	// Name is the catalog entry's human name (e.g. "Marketing emails"). Nullable:
+	// null on a recipient-level row, required on a project-level (catalog) row.
+	Name *string
+	// Description is an optional longer blurb for a catalog entry
+	// (e.g. "Receive notifications about new products, features, and more.").
+	// Nullable and, like Name, only ever set on project-level rows.
+	Description *string
+	CreatedAt   time.Time
+	UpdatedAt   time.Time
 }
 
-func NewPreference(projectID *int, recipientExtID *string, channel string, topic string, event string, medium string, label *string, enabled bool) *Preference {
+func NewPreference(projectID *int, recipientExtID *string, channel string, topic string, event string, medium string, name *string, description *string, enabled bool) *Preference {
 	now := time.Now().UTC()
 
 	return &Preference{
@@ -38,7 +44,8 @@ func NewPreference(projectID *int, recipientExtID *string, channel string, topic
 		Topic:          topic,
 		Event:          event,
 		Medium:         medium,
-		Label:          label,
+		Name:           name,
+		Description:    description,
 		Enabled:        enabled,
 		CreatedAt:      now,
 		UpdatedAt:      now,
@@ -86,10 +93,13 @@ type ResolvedPreference struct {
 	Channel string
 	Topic   string
 	Event   string
-	Medium  string
-	// Label is the catalog entry's label, when this (target, medium) is
+	Medium string
+	// Name is the catalog entry's human name, when this (target, medium) is
 	// cataloged. Nil otherwise.
-	Label *string
+	Name *string
+	// Description is the catalog entry's optional longer blurb, when this
+	// (target, medium) is cataloged and has one. Nil otherwise.
+	Description *string
 	// Enabled is the resolved delivery decision — what a send would do.
 	Enabled bool
 	// Cataloged reports whether a project-level row exists for this exact

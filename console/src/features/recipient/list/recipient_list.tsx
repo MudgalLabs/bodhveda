@@ -151,7 +151,7 @@ function ActionCell({ recipient }: { recipient: RecipientListItem }) {
                     <DropdownMenuItem asChild>
                         <Button
                             variant="ghost"
-                            className="w-full!"
+                            className="w-full! justify-start!"
                             onClick={handleEditOpen}
                         >
                             <IconEdit size={16} />
@@ -162,7 +162,7 @@ function ActionCell({ recipient }: { recipient: RecipientListItem }) {
                     <DropdownMenuItem asChild>
                         <Button
                             variant="ghost"
-                            className="w-full!"
+                            className="w-full! justify-start!"
                             onClick={() =>
                                 navigate({
                                     to: "/projects/$id/recipients/$recipientId",
@@ -182,7 +182,7 @@ function ActionCell({ recipient }: { recipient: RecipientListItem }) {
                     <DropdownMenuItem asChild>
                         <Button
                             variant="destructive"
-                            className="w-full!"
+                            className="w-full! justify-start!"
                             onClick={handleDeleteOpen}
                         >
                             <IconTrash size={16} />

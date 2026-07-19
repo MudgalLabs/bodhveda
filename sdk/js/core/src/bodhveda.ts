@@ -601,7 +601,7 @@ interface ProjectPreferencesClient {
     create(req: CreateProjectPreferenceRequest): Promise<ProjectPreference>;
 
     /**
-     * Updates a catalog entry's label and default. The natural key
+     * Updates a catalog entry's name, description and default. The natural key
      * (channel/topic/event/medium) is immutable.
      * @param preferenceID - The catalog entry's ID.
      * @param req - The fields to update.
@@ -621,7 +621,8 @@ interface ProjectPreferencesClient {
     /**
      * Declaratively merges a whole catalog in one call — the primitive for a
      * one-off "set up my project's preferences" script. Each item is upserted by
-     * its natural key (new inserted, existing label + default updated). By default
+     * its natural key (new inserted, existing name + description + default
+     * updated). By default
      * entries absent from the array are left untouched; pass `{ prune: true }` to
      * also delete them, making the array the entire desired catalog.
      * @param prefs - The desired catalog entries.

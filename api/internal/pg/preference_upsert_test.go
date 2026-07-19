@@ -57,11 +57,11 @@ func TestUpsertProjectPreferences(t *testing.T) {
 
 	// A recipient-level row on the SAME target/medium as a catalog entry below —
 	// prune must never remove it.
-	if _, err := repo.Create(ctx, entity.NewPreference(&projectID, &extID, "alerts", "none", "fired", "email", nil, false)); err != nil {
+	if _, err := repo.Create(ctx, entity.NewPreference(&projectID, &extID, "alerts", "none", "fired", "email", nil, nil, false)); err != nil {
 		t.Fatalf("seed recipient row: %v", err)
 	}
 
-	lbl := func(s string) *string { return &s }
+	nm := func(s string) *string { return &s }
 
 	// find is a small helper: locate a (channel,event,medium) row in a catalog.
 	find := func(catalog []*entity.Preference, channel, event, medium string) *entity.Preference {
@@ -75,8 +75,8 @@ func TestUpsertProjectPreferences(t *testing.T) {
 
 	// 1. Initial merge — two new catalog entries.
 	set1 := []*entity.Preference{
-		{ProjectID: &projectID, Channel: "digest", Topic: "none", Event: "sent", Medium: "email", Label: lbl("Digest"), Enabled: true},
-		{ProjectID: &projectID, Channel: "alerts", Topic: "none", Event: "fired", Medium: "email", Label: lbl("Alerts"), Enabled: true},
+		{ProjectID: &projectID, Channel: "digest", Topic: "none", Event: "sent", Medium: "email", Name: nm("Digest"), Enabled: true},
+		{ProjectID: &projectID, Channel: "alerts", Topic: "none", Event: "fired", Medium: "email", Name: nm("Alerts"), Enabled: true},
 	}
 	cat, err := repo.UpsertProjectPreferences(ctx, projectID, set1, false)
 	if err != nil {
@@ -85,16 +85,16 @@ func TestUpsertProjectPreferences(t *testing.T) {
 	if len(cat) != 2 {
 		t.Fatalf("after set1 want 2 catalog rows, got %d", len(cat))
 	}
-	if d := find(cat, "digest", "sent", "email"); d == nil || d.Label == nil || *d.Label != "Digest" || !d.Enabled {
+	if d := find(cat, "digest", "sent", "email"); d == nil || d.Name == nil || *d.Name != "Digest" || !d.Enabled {
 		t.Fatalf("digest not inserted correctly: %+v", d)
 	}
 
-	// 2. Merge again: UPDATE the digest label/default, ADD a new entry, and OMIT
+	// 2. Merge again: UPDATE the digest name/default, ADD a new entry, and OMIT
 	//    alerts. Without prune, alerts must survive untouched.
 	digestID := find(cat, "digest", "sent", "email").ID
 	set2 := []*entity.Preference{
-		{ProjectID: &projectID, Channel: "digest", Topic: "none", Event: "sent", Medium: "email", Label: lbl("Weekly Digest"), Enabled: false},
-		{ProjectID: &projectID, Channel: "news", Topic: "any", Event: "posted", Medium: "email", Label: lbl("News"), Enabled: true},
+		{ProjectID: &projectID, Channel: "digest", Topic: "none", Event: "sent", Medium: "email", Name: nm("Weekly Digest"), Enabled: false},
+		{ProjectID: &projectID, Channel: "news", Topic: "any", Event: "posted", Medium: "email", Name: nm("News"), Enabled: true},
 	}
 	cat, err = repo.UpsertProjectPreferences(ctx, projectID, set2, false)
 	if err != nil {
@@ -107,7 +107,7 @@ func TestUpsertProjectPreferences(t *testing.T) {
 	if d == nil || d.ID != digestID {
 		t.Fatalf("digest should be updated in place, not re-created: %+v", d)
 	}
-	if d.Label == nil || *d.Label != "Weekly Digest" || d.Enabled {
+	if d.Name == nil || *d.Name != "Weekly Digest" || d.Enabled {
 		t.Fatalf("digest update did not apply: %+v", d)
 	}
 	if find(cat, "alerts", "fired", "email") == nil {
@@ -116,8 +116,8 @@ func TestUpsertProjectPreferences(t *testing.T) {
 
 	// 3. Prune: the set is digest + news only, so alerts (absent) is removed.
 	set3 := []*entity.Preference{
-		{ProjectID: &projectID, Channel: "digest", Topic: "none", Event: "sent", Medium: "email", Label: lbl("Weekly Digest"), Enabled: false},
-		{ProjectID: &projectID, Channel: "news", Topic: "any", Event: "posted", Medium: "email", Label: lbl("News"), Enabled: true},
+		{ProjectID: &projectID, Channel: "digest", Topic: "none", Event: "sent", Medium: "email", Name: nm("Weekly Digest"), Enabled: false},
+		{ProjectID: &projectID, Channel: "news", Topic: "any", Event: "posted", Medium: "email", Name: nm("News"), Enabled: true},
 	}
 	cat, err = repo.UpsertProjectPreferences(ctx, projectID, set3, true)
 	if err != nil {

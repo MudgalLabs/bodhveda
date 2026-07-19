@@ -8,6 +8,7 @@ import {
     DialogTitle,
     Input,
     Label,
+    Textarea,
     toast,
     ToggleGroup,
     ToggleGroupItem,
@@ -28,7 +29,7 @@ interface EditProjectPreferenceModalProps {
     preference: ProjectPreference;
 }
 
-// Only label and the project-level default are editable. The target
+// Only name, description and the project-level default are editable. The target
 // (channel/topic/event) and medium form the immutable natural key, so they are
 // shown read-only for context — changing them would be a delete + create.
 export function EditProjectPreferenceModal(
@@ -36,7 +37,10 @@ export function EditProjectPreferenceModal(
 ) {
     const { open, setOpen, projectID, preference } = props;
 
-    const [label, setLabel] = useState(preference.label);
+    const [name, setName] = useState(preference.name);
+    const [description, setDescription] = useState(
+        preference.description ?? ""
+    );
     const [defaultEnabled, setDefaultEnabled] = useState(
         preference.default_enabled
     );
@@ -45,7 +49,7 @@ export function EditProjectPreferenceModal(
         projectID,
         {
             onSuccess: () => {
-                toast.success(`Preference "${label}" updated successfully`);
+                toast.success(`Preference "${name}" updated successfully`);
                 setOpen(false);
             },
         }
@@ -55,12 +59,18 @@ export function EditProjectPreferenceModal(
     // cancelled edit doesn't leak into the next one.
     useEffect(() => {
         if (open) {
-            setLabel(preference.label);
+            setName(preference.name);
+            setDescription(preference.description ?? "");
             setDefaultEnabled(preference.default_enabled);
         }
-    }, [open, preference.label, preference.default_enabled]);
+    }, [
+        open,
+        preference.name,
+        preference.description,
+        preference.default_enabled,
+    ]);
 
-    const disableSave = !label.trim();
+    const disableSave = !name.trim();
 
     const handleSubmit = async (e: React.FormEvent) => {
         e.preventDefault();
@@ -70,7 +80,8 @@ export function EditProjectPreferenceModal(
             await update({
                 preferenceID: preference.id,
                 payload: {
-                    label: label.trim(),
+                    name: name.trim(),
+                    description: description.trim() || undefined,
                     default_enabled: defaultEnabled,
                 },
             });
@@ -81,60 +92,78 @@ export function EditProjectPreferenceModal(
 
     return (
         <Dialog open={open} onOpenChange={setOpen}>
-            <DialogContent>
+            {/* Cap the height and let the body scroll so the header (with its
+                close button) and the footer stay pinned on short viewports. */}
+            <DialogContent className="flex max-h-[90vh] flex-col">
                 <DialogHeader>
                     <DialogTitle>Edit Preference</DialogTitle>
                 </DialogHeader>
 
-                <p>
-                    Update the label and default for this preference. The medium
-                    and target can't be changed — create a new preference for a
-                    different target.
-                </p>
-
-                <form className="flex flex-col gap-4" onSubmit={handleSubmit}>
-                    <WithLabel Label={<Label>Label</Label>}>
-                        <Input
-                            className="w-full!"
-                            placeholder="Comments on photos of you"
-                            required
-                            maxLength={256}
-                            value={label}
-                            onChange={(e) => setLabel(e.target.value)}
-                        />
-                    </WithLabel>
-
-                    <WithLabel Label={<Label>Default</Label>}>
-                        <ToggleGroup
-                            className="[&_*]:h-8 pl-0!"
-                            type="single"
-                            size="small"
-                            value={defaultEnabled ? "enabled" : "disabled"}
-                            onValueChange={(value) =>
-                                value && setDefaultEnabled(value === "enabled")
-                            }
-                        >
-                            <ToggleGroupItem value="enabled">
-                                Enabled
-                            </ToggleGroupItem>
-
-                            <ToggleGroupItem value="disabled">
-                                Disabled
-                            </ToggleGroupItem>
-                        </ToggleGroup>
-                    </WithLabel>
-
-                    <WithLabel Label={<Label>Medium</Label>}>
-                        <p className="text-text-muted">
-                            {mediumLabel(preference.medium)}
+                <form
+                    className="flex min-h-0 flex-1 flex-col gap-4"
+                    onSubmit={handleSubmit}
+                >
+                    <div className="flex min-h-0 flex-1 flex-col gap-4 overflow-y-auto pr-1">
+                        <p>
+                            Update the name, description and default for this
+                            preference. The medium and target can't be changed —
+                            create a new preference for a different target.
                         </p>
-                    </WithLabel>
 
-                    <WithLabel Label={<Label>Target</Label>}>
-                        <p className="text-text-muted">
-                            {targetToString(preference.target)}
-                        </p>
-                    </WithLabel>
+                        <WithLabel Label={<Label>Name</Label>}>
+                            <Input
+                                className="w-full!"
+                                placeholder="Comments on photos of you"
+                                required
+                                maxLength={256}
+                                value={name}
+                                onChange={(e) => setName(e.target.value)}
+                            />
+                        </WithLabel>
+
+                        <WithLabel Label={<Label>Description</Label>}>
+                            <Textarea
+                                className="w-full!"
+                                placeholder="Receive notifications about new products, features, and more."
+                                maxLength={1024}
+                                value={description}
+                                onChange={(e) => setDescription(e.target.value)}
+                            />
+                        </WithLabel>
+
+                        <WithLabel Label={<Label>Default</Label>}>
+                            <ToggleGroup
+                                className="[&_*]:h-8 pl-0!"
+                                type="single"
+                                size="small"
+                                value={defaultEnabled ? "enabled" : "disabled"}
+                                onValueChange={(value) =>
+                                    value &&
+                                    setDefaultEnabled(value === "enabled")
+                                }
+                            >
+                                <ToggleGroupItem value="enabled">
+                                    Enabled
+                                </ToggleGroupItem>
+
+                                <ToggleGroupItem value="disabled">
+                                    Disabled
+                                </ToggleGroupItem>
+                            </ToggleGroup>
+                        </WithLabel>
+
+                        <WithLabel Label={<Label>Medium</Label>}>
+                            <p className="text-text-muted">
+                                {mediumLabel(preference.medium)}
+                            </p>
+                        </WithLabel>
+
+                        <WithLabel Label={<Label>Target</Label>}>
+                            <p className="text-text-muted">
+                                {targetToString(preference.target)}
+                            </p>
+                        </WithLabel>
+                    </div>
 
                     <DialogFooter>
                         <Button

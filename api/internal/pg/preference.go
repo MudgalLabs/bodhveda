@@ -32,21 +32,21 @@ func (r *PreferenceRepo) Create(ctx context.Context, pref *entity.Preference) (*
 	// now includes `medium` (see migration 20260712130000). This clause and that
 	// index move in lock-step.
 	sql := `
-		INSERT INTO preference (project_id, recipient_external_id, channel, topic, event, medium, label, enabled, created_at, updated_at)
-		VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10)
+		INSERT INTO preference (project_id, recipient_external_id, channel, topic, event, medium, name, description, enabled, created_at, updated_at)
+		VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11)
 		ON CONFLICT (project_id, recipient_external_id, channel, topic, event, medium)
 		WHERE recipient_external_id IS NOT NULL
 		DO UPDATE SET
 			enabled = EXCLUDED.enabled,
 			updated_at = EXCLUDED.updated_at
-		RETURNING id, project_id, recipient_external_id, channel, topic, event, medium, label, enabled, created_at, updated_at
+		RETURNING id, project_id, recipient_external_id, channel, topic, event, medium, name, description, enabled, created_at, updated_at
 	`
 
-	row := r.db.QueryRow(ctx, sql, pref.ProjectID, pref.RecipientExtID, pref.Channel, pref.Topic, pref.Event, pref.Medium, pref.Label, pref.Enabled, pref.CreatedAt, pref.UpdatedAt)
+	row := r.db.QueryRow(ctx, sql, pref.ProjectID, pref.RecipientExtID, pref.Channel, pref.Topic, pref.Event, pref.Medium, pref.Name, pref.Description, pref.Enabled, pref.CreatedAt, pref.UpdatedAt)
 
 	var newPref entity.Preference
 
-	err := row.Scan(&newPref.ID, &newPref.ProjectID, &newPref.RecipientExtID, &newPref.Channel, &newPref.Topic, &newPref.Event, &newPref.Medium, &newPref.Label, &newPref.Enabled, &newPref.CreatedAt, &newPref.UpdatedAt)
+	err := row.Scan(&newPref.ID, &newPref.ProjectID, &newPref.RecipientExtID, &newPref.Channel, &newPref.Topic, &newPref.Event, &newPref.Medium, &newPref.Name, &newPref.Description, &newPref.Enabled, &newPref.CreatedAt, &newPref.UpdatedAt)
 	if err != nil {
 		if dbx.IsUniqueViolation(err) {
 			return nil, tantraRepo.ErrConflict
@@ -63,7 +63,7 @@ func (r *PreferenceRepo) Create(ctx context.Context, pref *entity.Preference) (*
 // a recipient-level row with the same id resolves to ErrNotFound here.
 func (r *PreferenceRepo) GetProjectPreferenceByID(ctx context.Context, projectID int, preferenceID int) (*entity.Preference, error) {
 	sql := `
-		SELECT id, project_id, recipient_external_id, channel, topic, event, medium, label, enabled, created_at, updated_at
+		SELECT id, project_id, recipient_external_id, channel, topic, event, medium, name, description, enabled, created_at, updated_at
 		FROM preference
 		WHERE project_id = $1 AND id = $2 AND recipient_external_id IS NULL
 	`
@@ -71,7 +71,7 @@ func (r *PreferenceRepo) GetProjectPreferenceByID(ctx context.Context, projectID
 	row := r.db.QueryRow(ctx, sql, projectID, preferenceID)
 
 	var pref entity.Preference
-	err := row.Scan(&pref.ID, &pref.ProjectID, &pref.RecipientExtID, &pref.Channel, &pref.Topic, &pref.Event, &pref.Medium, &pref.Label, &pref.Enabled, &pref.CreatedAt, &pref.UpdatedAt)
+	err := row.Scan(&pref.ID, &pref.ProjectID, &pref.RecipientExtID, &pref.Channel, &pref.Topic, &pref.Event, &pref.Medium, &pref.Name, &pref.Description, &pref.Enabled, &pref.CreatedAt, &pref.UpdatedAt)
 	if err != nil {
 		if err == pgx.ErrNoRows {
 			return nil, tantraRepo.ErrNotFound
@@ -82,22 +82,23 @@ func (r *PreferenceRepo) GetProjectPreferenceByID(ctx context.Context, projectID
 	return &pref, nil
 }
 
-// UpdateProjectPreference updates a catalog entry's mutable fields (label and
-// the project-level default). Scoped to project-level rows (recipient NULL) for
-// the same reason GetProjectPreferenceByID is; RETURNING gives back the fresh
-// row so the caller need not re-read. ErrNotFound when nothing matched.
-func (r *PreferenceRepo) UpdateProjectPreference(ctx context.Context, projectID int, preferenceID int, label string, enabled bool) (*entity.Preference, error) {
+// UpdateProjectPreference updates a catalog entry's mutable fields (name,
+// description and the project-level default). Scoped to project-level rows
+// (recipient NULL) for the same reason GetProjectPreferenceByID is; RETURNING
+// gives back the fresh row so the caller need not re-read. A nil description
+// clears it. ErrNotFound when nothing matched.
+func (r *PreferenceRepo) UpdateProjectPreference(ctx context.Context, projectID int, preferenceID int, name string, description *string, enabled bool) (*entity.Preference, error) {
 	sql := `
 		UPDATE preference
-		SET label = $3, enabled = $4, updated_at = now()
+		SET name = $3, description = $4, enabled = $5, updated_at = now()
 		WHERE project_id = $1 AND id = $2 AND recipient_external_id IS NULL
-		RETURNING id, project_id, recipient_external_id, channel, topic, event, medium, label, enabled, created_at, updated_at
+		RETURNING id, project_id, recipient_external_id, channel, topic, event, medium, name, description, enabled, created_at, updated_at
 	`
 
-	row := r.db.QueryRow(ctx, sql, projectID, preferenceID, label, enabled)
+	row := r.db.QueryRow(ctx, sql, projectID, preferenceID, name, description, enabled)
 
 	var pref entity.Preference
-	err := row.Scan(&pref.ID, &pref.ProjectID, &pref.RecipientExtID, &pref.Channel, &pref.Topic, &pref.Event, &pref.Medium, &pref.Label, &pref.Enabled, &pref.CreatedAt, &pref.UpdatedAt)
+	err := row.Scan(&pref.ID, &pref.ProjectID, &pref.RecipientExtID, &pref.Channel, &pref.Topic, &pref.Event, &pref.Medium, &pref.Name, &pref.Description, &pref.Enabled, &pref.CreatedAt, &pref.UpdatedAt)
 	if err != nil {
 		if err == pgx.ErrNoRows {
 			return nil, tantraRepo.ErrNotFound
@@ -148,12 +149,13 @@ func (r *PreferenceRepo) UpsertProjectPreferences(ctx context.Context, projectID
 
 	err := dbx.WithTx(ctx, r.pool, func(tx pgx.Tx) error {
 		upsertSQL := `
-			INSERT INTO preference (project_id, recipient_external_id, channel, topic, event, medium, label, enabled, created_at, updated_at)
-			VALUES ($1, NULL, $2, $3, $4, $5, $6, $7, now(), now())
+			INSERT INTO preference (project_id, recipient_external_id, channel, topic, event, medium, name, description, enabled, created_at, updated_at)
+			VALUES ($1, NULL, $2, $3, $4, $5, $6, $7, $8, now(), now())
 			ON CONFLICT (project_id, channel, topic, event, medium)
 			WHERE recipient_external_id IS NULL
 			DO UPDATE SET
-				label = EXCLUDED.label,
+				name = EXCLUDED.name,
+				description = EXCLUDED.description,
 				enabled = EXCLUDED.enabled,
 				updated_at = now()
 		`
@@ -164,7 +166,7 @@ func (r *PreferenceRepo) UpsertProjectPreferences(ctx context.Context, projectID
 		mediums := make([]string, len(prefs))
 		for i, p := range prefs {
 			channels[i], topics[i], events[i], mediums[i] = p.Channel, p.Topic, p.Event, p.Medium
-			if _, err := tx.Exec(ctx, upsertSQL, projectID, p.Channel, p.Topic, p.Event, p.Medium, p.Label, p.Enabled); err != nil {
+			if _, err := tx.Exec(ctx, upsertSQL, projectID, p.Channel, p.Topic, p.Event, p.Medium, p.Name, p.Description, p.Enabled); err != nil {
 				return fmt.Errorf("upsert preference: %w", err)
 			}
 		}
@@ -187,7 +189,7 @@ func (r *PreferenceRepo) UpsertProjectPreferences(ctx context.Context, projectID
 		}
 
 		readSQL := `
-			SELECT id, project_id, recipient_external_id, channel, topic, event, medium, label, enabled, created_at, updated_at
+			SELECT id, project_id, recipient_external_id, channel, topic, event, medium, name, description, enabled, created_at, updated_at
 			FROM preference
 			WHERE project_id = $1 AND recipient_external_id IS NULL
 			ORDER BY channel, topic, event, medium
@@ -201,7 +203,7 @@ func (r *PreferenceRepo) UpsertProjectPreferences(ctx context.Context, projectID
 		catalog := []*entity.Preference{}
 		for rows.Next() {
 			var p entity.Preference
-			if err := rows.Scan(&p.ID, &p.ProjectID, &p.RecipientExtID, &p.Channel, &p.Topic, &p.Event, &p.Medium, &p.Label, &p.Enabled, &p.CreatedAt, &p.UpdatedAt); err != nil {
+			if err := rows.Scan(&p.ID, &p.ProjectID, &p.RecipientExtID, &p.Channel, &p.Topic, &p.Event, &p.Medium, &p.Name, &p.Description, &p.Enabled, &p.CreatedAt, &p.UpdatedAt); err != nil {
 				return fmt.Errorf("scan: %w", err)
 			}
 			catalog = append(catalog, &p)
@@ -233,7 +235,7 @@ func (r *PreferenceRepo) ListPreferences(ctx context.Context, projectID int, kin
 func (r *PreferenceRepo) findPreferences(ctx context.Context, payload repository.SearchPreferencePayload) ([]*entity.Preference, int, error) {
 	baseSQL := `
 		SELECT
-			p.id, p.project_id, p.recipient_external_id, p.channel, p.topic, p.event, p.medium, p.label, p.enabled, p.created_at, p.updated_at
+			p.id, p.project_id, p.recipient_external_id, p.channel, p.topic, p.event, p.medium, p.name, p.description, p.enabled, p.created_at, p.updated_at
 		FROM preference p
 	`
 
@@ -252,7 +254,7 @@ func (r *PreferenceRepo) findPreferences(ctx context.Context, payload repository
 
 	// Apply default sorting if not provided.
 	if payload.Sort.Field == "" {
-		payload.Sort.Field = "p.channel, p.label"
+		payload.Sort.Field = "p.channel, p.name"
 	}
 
 	if payload.Sort.Order == "" {
@@ -281,7 +283,7 @@ func (r *PreferenceRepo) findPreferences(ctx context.Context, payload repository
 	prefs := []*entity.Preference{}
 	for rows.Next() {
 		var newPref entity.Preference
-		err := rows.Scan(&newPref.ID, &newPref.ProjectID, &newPref.RecipientExtID, &newPref.Channel, &newPref.Topic, &newPref.Event, &newPref.Medium, &newPref.Label, &newPref.Enabled, &newPref.CreatedAt, &newPref.UpdatedAt)
+		err := rows.Scan(&newPref.ID, &newPref.ProjectID, &newPref.RecipientExtID, &newPref.Channel, &newPref.Topic, &newPref.Event, &newPref.Medium, &newPref.Name, &newPref.Description, &newPref.Enabled, &newPref.CreatedAt, &newPref.UpdatedAt)
 
 		if err != nil {
 			return nil, 0, err
@@ -523,7 +525,8 @@ func (r *PreferenceRepo) resolvePreferences(ctx context.Context, projectID int, 
 		    c.topic,
 		    c.event,
 		    c.medium,
-		    pe.label,
+		    pe.name,
+		    pe.description,
 		    -- Cataloged = a project-level row for this EXACT (target, medium).
 		    -- Context for the UI; it deliberately does not gate the enabled value.
 		    (pe.id IS NOT NULL) AS cataloged,
@@ -590,7 +593,7 @@ func (r *PreferenceRepo) resolvePreferences(ctx context.Context, projectID int, 
 	resolved := []*entity.ResolvedPreference{}
 	for rows.Next() {
 		var p entity.ResolvedPreference
-		if err := rows.Scan(&p.Channel, &p.Topic, &p.Event, &p.Medium, &p.Label, &p.Cataloged, &p.Enabled, &p.Source); err != nil {
+		if err := rows.Scan(&p.Channel, &p.Topic, &p.Event, &p.Medium, &p.Name, &p.Description, &p.Cataloged, &p.Enabled, &p.Source); err != nil {
 			return nil, fmt.Errorf("scan error: %w", err)
 		}
 		resolved = append(resolved, &p)

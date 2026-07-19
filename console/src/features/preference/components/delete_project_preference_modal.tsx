@@ -32,7 +32,7 @@ export function DeleteProjectPreferenceModal(
         useDeleteProjectPreference(projectID, {
             onSuccess: () => {
                 toast.success(
-                    `Preference ${preference.label} deleted successfully`
+                    `Preference ${preference.name} deleted successfully`
                 );
                 setOpen(false);
             },
@@ -57,7 +57,7 @@ export function DeleteProjectPreferenceModal(
                 <p>
                     Are you sure you want to delete the{" "}
                     <span className="font-bold text-text-primary">
-                        {preference.label}
+                        {preference.name}
                     </span>{" "}
                     preference?
                 </p>

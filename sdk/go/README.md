@@ -343,7 +343,8 @@ pref, _ := client.Preferences.Create(ctx, &bodhveda.CreateProjectPreferenceReque
     Topic:          "any",
     Event:          "new_comment",
     Medium:         bodhveda.MediumEmail,
-    Label:          "New comments",
+    Name:           "New comments",
+    Description:    "Get notified when someone comments on your posts.",
     DefaultEnabled: true,
 })
 ```
@@ -357,11 +358,12 @@ pref, _ := client.Preferences.Get(ctx, pref.ID)
 ### Update a catalog entry
 
 The natural key (`channel`/`topic`/`event`/`medium`) is immutable, so only the
-label and default change.
+name, description and default change.
 
 ```go
 pref, _ := client.Preferences.Update(ctx, pref.ID, &bodhveda.UpdateProjectPreferenceRequest{
-    Label:          "New comments on your posts",
+    Name:           "New comments on your posts",
+    Description:    "Get notified when someone comments on your posts.",
     DefaultEnabled: false,
 })
 ```
@@ -382,8 +384,8 @@ making the slice the entire desired catalog.
 
 ```go
 prefs, _ := client.Preferences.UpsertMany(ctx, []bodhveda.UpsertProjectPreferenceItem{
-    {Channel: "posts", Topic: "any", Event: "new_comment", Medium: bodhveda.MediumInApp, Label: "New comments", DefaultEnabled: true},
-    {Channel: "posts", Topic: "any", Event: "new_comment", Medium: bodhveda.MediumEmail, Label: "New comments", DefaultEnabled: false},
+    {Channel: "posts", Topic: "any", Event: "new_comment", Medium: bodhveda.MediumInApp, Name: "New comments", DefaultEnabled: true},
+    {Channel: "posts", Topic: "any", Event: "new_comment", Medium: bodhveda.MediumEmail, Name: "New comments", DefaultEnabled: false},
 }, &bodhveda.UpsertProjectPreferencesOptions{Prune: true})
 ```
 
