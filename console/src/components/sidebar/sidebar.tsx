@@ -4,8 +4,6 @@ import { useLocation, Link } from "@tanstack/react-router";
 import { cn } from "@/lib/utils";
 import { useAuth } from "@/features/auth/auth_context";
 import {
-    buttonVariants,
-    IconArrowLeft,
     IconLogout,
     IconKey,
     IconUsers,
@@ -18,10 +16,9 @@ import {
     useIsMobile,
     IconCreditCard,
 } from "netra";
-import {
-    useGetProjectIDFromParams,
-    useGetProjects,
-} from "@/features/project/project_hooks";
+import { useGetProjectIDFromParams } from "@/features/project/project_hooks";
+import { setLastProjectId } from "@/features/project/last_project";
+import { ProjectSwitcher } from "@/features/project/components/project_switcher";
 import { Branding } from "@/components/branding";
 import { DEFAULT_RANGE_PRESET } from "@/features/dashboard/analytics_range";
 import { DEFAULT_NOTIFICATION_KIND } from "@/features/notification/notification_types";
@@ -35,17 +32,15 @@ export const Sidebar = () => {
     const { logout } = useAuth();
     const id = useGetProjectIDFromParams();
 
-    // The current project's name, for the "back to projects" item — it doubles as
-    // a breadcrumb showing which project you're in. Falls back to "Projects" until
-    // the (cached) projects list resolves.
-    const { data: projects } = useGetProjects();
-    const projectName =
-        projects?.data.find((p) => String(p.id) === id)?.name ?? "Projects";
-
     const [activeRoute, setActiveRoute] = useState("");
     useEffect(() => {
         setActiveRoute(pathname);
     }, [pathname, setIsOpen]);
+
+    // Remember the project being viewed so "/" can return here next time.
+    useEffect(() => {
+        if (id) setLastProjectId(id);
+    }, [id]);
 
     return (
         <div
@@ -68,30 +63,12 @@ export const Sidebar = () => {
 
                         <div className="h-4" />
 
-                        {/* Only the arrow is the link back to projects; the
-                            project name beside it is a non-clickable breadcrumb,
-                            pushed to the right edge of the sidebar. The Link wears
-                            netra's `link` button styling so it reads as a link. */}
-                        <div className="flex items-center justify-between gap-x-2">
-                            <Link
-                                to="/projects"
-                                aria-label="Back to projects"
-                                className={buttonVariants({
-                                    variant: "link",
-                                    size: "icon",
-                                })}
-                            >
-                                <IconArrowLeft size={18} />
-                            </Link>
-                            {isOpen && !isMobile && (
-                                <span
-                                    className="text-text-muted min-w-0 truncate text-sm font-medium"
-                                    title={projectName}
-                                >
-                                    {projectName}
-                                </span>
-                            )}
-                        </div>
+                        {/* Project switcher: pick the active project and jump
+                            between projects, or create a new one via the "+". */}
+                        <ProjectSwitcher
+                            currentId={id}
+                            open={isOpen && !isMobile}
+                        />
                     </div>
 
                     <Link

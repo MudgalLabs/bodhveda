@@ -1,5 +1,6 @@
 import { FC, ReactNode, useEffect, useState } from "react";
 import { useCreateProject } from "@/features/project/project_hooks";
+import { Project } from "@/features/project/project_types";
 import {
     Button,
     Dialog,
@@ -18,18 +19,23 @@ import {
 
 interface CreateprojectModalProps {
     renderTrigger: () => ReactNode;
+    // Called with the freshly created project once the API responds. Used by the
+    // sidebar switcher to jump straight into the new project.
+    onCreated?: (project: Project) => void;
 }
 
 export const CreateProjectModal: FC<CreateprojectModalProps> = ({
     renderTrigger,
+    onCreated,
 }) => {
     const [open, setOpen] = useState(false);
     const [name, setName] = useState("");
 
     const { mutate: create, isPending } = useCreateProject({
-        onSuccess: () => {
+        onSuccess: (res: { data: Project }) => {
             toast.success(`Project ${name} created successfully`);
             setOpen(false);
+            onCreated?.(res.data);
         },
     });
 

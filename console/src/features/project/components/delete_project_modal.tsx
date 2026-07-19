@@ -18,10 +18,13 @@ interface DeleteProjectModalProps {
     setOpen: (open: boolean) => void;
     id: number;
     name: string;
+    // Called after the project is deleted. Lets the sidebar switcher move the
+    // user off the (now gone) project's pages.
+    onDeleted?: () => void;
 }
 
 export function DeleteProjectModal(props: DeleteProjectModalProps) {
-    const { open, setOpen, id, name } = props;
+    const { open, setOpen, id, name, onDeleted } = props;
 
     const [confirmText, setConfirmText] = useState("");
 
@@ -29,6 +32,7 @@ export function DeleteProjectModal(props: DeleteProjectModalProps) {
         onSuccess: () => {
             toast.success(`Project ${name} deleted successfully`);
             setOpen(false);
+            onDeleted?.();
         },
     });
 
