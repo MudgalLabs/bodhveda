@@ -246,7 +246,13 @@ type SendNotificationPayload struct {
 	// Optional for direct notifications, but required for broadcast notifications.
 	Target *Target `json:"target"`
 
-	// Payload is the actual notification payload (the in-app/default content).
+	// Payload is the in-app content block. Its presence is the sender's
+	// "in-app is eligible for this send" signal, exactly as an `email` block is
+	// for email — see HasPayload.
+	//
+	// OPTIONAL on a direct send: omitting it means "do not create an in-app
+	// row", which is how an email-only send is expressed. REQUIRED on a
+	// broadcast, which is in-app only.
 	// TODO: Add a 4KB limit to this field.
 	Payload json.RawMessage `json:"payload"`
 
@@ -259,6 +265,30 @@ type SendNotificationPayload struct {
 // intent-to-email signal).
 func (p *SendNotificationPayload) HasEmail() bool {
 	return p.Email != nil
+}
+
+// HasPayload reports whether the send carries an in-app content block — the
+// same intent signal as HasEmail, for the in-app medium.
+//
+// It uses IsJSONContent rather than a bare nil check because an omitted field
+// and an explicit `"payload": null` arrive differently (nil vs the four bytes
+// `null`) and mean the same thing to a caller.
+func (p *SendNotificationPayload) HasPayload() bool {
+	return IsJSONContent(p.Payload)
+}
+
+// IsJSONContent reports whether raw holds actual JSON content, treating both a
+// nil slice and a literal JSON `null` as absent.
+//
+// The distinction is a real trap rather than pedantry: a nil json.RawMessage
+// MARSHALS to `null` and then UNMARSHALS back to the 4-byte slice `null`, not to
+// nil. So a notification with no payload arrives at the worker through the Asynq
+// task payload as `null` — a plain `len(...) == 0` check would report it as
+// having in-app content and write the inbox row this whole feature exists to
+// avoid. Every "was in-app requested?" test must go through here.
+func IsJSONContent(raw json.RawMessage) bool {
+	trimmed := strings.TrimSpace(string(raw))
+	return trimmed != "" && trimmed != "null"
 }
 
 func (p *SendNotificationPayload) Validate() error {
@@ -299,6 +329,30 @@ func (p *SendNotificationPayload) Validate() error {
 				errs.Add(apires.NewApiError("Event is required", "Event cannot be empty", "event", p.Target.Event))
 			}
 		}
+	}
+
+	// Content blocks. A send must name at least one medium, and it does that by
+	// carrying that medium's content block — `payload` for in-app, `email` for
+	// email. There is no separate flag or allow-list; presence IS the intent
+	// (agent-docs/overview.md, "Mediums").
+	//
+	// `payload` used to be required, which is why an email-only send was
+	// inexpressible: every email send also wrote an in-app row. It is now
+	// optional on a DIRECT send. The at-least-one rule below is what keeps that
+	// from turning a caller's accidental omission into a silent no-op — to get an
+	// email-only send you must have deliberately included an `email` block.
+	if !p.HasPayload() && p.Email == nil {
+		errs.Add(apires.NewApiError("Nothing to send", "A send must carry at least one content block: 'payload' for in-app, 'email' for email. Both were omitted, so this send names no medium.", "payload", nil))
+	}
+
+	// Broadcasts are in-app only, so a broadcast MUST carry a payload — the rule
+	// above would otherwise let a payload-less broadcast through on the strength
+	// of an `email` block that broadcasts reject anyway. Reported separately from
+	// the email rejection below so a caller who sent only `email` on a broadcast
+	// gets both halves of the story: email is not supported here, AND the payload
+	// you skipped is required here.
+	if p.RecipientExtID == nil && !p.HasPayload() {
+		errs.Add(apires.NewApiError("Payload is required", "A broadcast requires a 'payload' — broadcasts are in-app only, so a payload-less broadcast has no medium to deliver on. Omitting 'payload' is supported on direct sends only.", "payload", nil))
 	}
 
 	// Email block: email is DIRECT-only (HARD RULE — never on broadcast). Reject
@@ -461,6 +515,10 @@ type AnalyticsInAppByStatus struct {
 	Delivered     int `json:"delivered"`
 	QuotaExceeded int `json:"quota_exceeded"`
 	Failed        int `json:"failed"`
+	// NotRequested counts email-only sends — ones that never asked for in-app.
+	// Total is a count of all notification rows, so this bucket is what keeps the
+	// per-status split summing to it.
+	NotRequested int `json:"not_requested"`
 }
 
 // AnalyticsInAppDay is one calendar day's in-app counts, the day computed in the
@@ -474,6 +532,7 @@ type AnalyticsInAppDay struct {
 	Delivered     int    `json:"delivered"`
 	QuotaExceeded int    `json:"quota_exceeded"`
 	Failed        int    `json:"failed"`
+	NotRequested  int    `json:"not_requested"`
 }
 
 // AnalyticsEmail is the email (notification_delivery) side. Attempted is the

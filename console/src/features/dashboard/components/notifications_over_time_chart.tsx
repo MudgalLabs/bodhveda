@@ -23,12 +23,19 @@ import { AnalyticsInApp } from "@/features/dashboard/analytics_types";
 import { CHART_SURFACE, STATUS_COLORS } from "@/features/dashboard/chart_colors";
 import { formatDayShort } from "@/features/dashboard/format";
 
-// The five in-app statuses a `notification` row can hold, in a fixed stacking
-// order (settled outcomes at the base, in-flight/failed above). All five are
+// The six in-app statuses a `notification` row can hold, in a fixed stacking
+// order (settled outcomes at the base, in-flight/failed above). All six are
 // really written, so charting them implies no data that cannot exist — unlike
 // the reserved DELIVERY statuses, which are never shown.
+//
+// `not_requested` sits at the base with the other settled outcomes: it is an
+// email-only send, which is a completed thing, not one in flight. It must be
+// charted rather than dropped — the bar's height is total volume, so omitting a
+// status that counts toward the total would leave an unexplained gap between the
+// stack and the bar.
 const STATUS_ORDER = [
     "delivered",
+    "not_requested",
     "muted",
     "quota_exceeded",
     "failed",
@@ -37,6 +44,7 @@ const STATUS_ORDER = [
 
 const STATUS_LABEL: Record<(typeof STATUS_ORDER)[number], string> = {
     delivered: "Delivered",
+    not_requested: "No in-app (email only)",
     muted: "Muted",
     quota_exceeded: "Quota exceeded",
     failed: "Failed",
@@ -65,6 +73,7 @@ export function NotificationsOverTimeChart({
             return {
                 day,
                 delivered: d?.delivered ?? 0,
+                not_requested: d?.not_requested ?? 0,
                 muted: d?.muted ?? 0,
                 quota_exceeded: d?.quota_exceeded ?? 0,
                 failed: d?.failed ?? 0,

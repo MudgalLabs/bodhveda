@@ -153,9 +153,22 @@ function InAppSection({ notification }: { notification: Notification }) {
                         the in-app content block, as sent
                     </span>
                 </div>
-                <pre className="border-border-subtle bg-surface-1 text-text-muted overflow-x-auto rounded-md border p-2 text-xs">
-                    {formatPayload(notification.payload)}
-                </pre>
+                {notification.status === "not_requested" ? (
+                    // An email-only send. Without this the operator sees an empty
+                    // payload beside a status they have not met before and has to
+                    // guess whether something was dropped — the answer is that
+                    // nothing was: no in-app delivery was ever asked for.
+                    <p className="border-border-subtle bg-surface-1 text-text-muted rounded-md border p-2 text-xs">
+                        This send carried no <code>payload</code>, so no in-app
+                        notification was created — only the email below. The
+                        recipient never saw this in their feed, and it is not
+                        counted in their unread total.
+                    </p>
+                ) : (
+                    <pre className="border-border-subtle bg-surface-1 text-text-muted overflow-x-auto rounded-md border p-2 text-xs">
+                        {formatPayload(notification.payload)}
+                    </pre>
+                )}
             </div>
         </div>
     );

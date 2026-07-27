@@ -115,7 +115,27 @@ sdk_publish_js_react:
 	@cd sdk/js/react && npm install && npm run build && npm pack --dry-run && npm publish
 
 # Tag + push the Go module. VERSION defaults to the sdk/go CHANGELOG's top entry.
+#
+# This tags HEAD. Guards below exist because sdk/go/v0.6.0 was tagged with the Go
+# SDK changes still sitting UNCOMMITTED — so it shipped v0.5.0's code under a new
+# number, and proxy.golang.org cached it within minutes. Go tags cannot be fixed
+# after the proxy sees them (re-pointing one gives consumers a `checksum
+# mismatch`, which reads as a supply-chain attack), so that version is now
+# permanently a no-op and had to be superseded by v0.6.1.
+#
+# Hence: refuse to tag when sdk/go/ is dirty, or when the tag already exists.
 sdk_tag_go:
 	@ver=$${VERSION:-$$(grep -m1 -oE 'v[0-9]+\.[0-9]+\.[0-9]+' sdk/go/CHANGELOG.md)}; \
-	echo "tagging sdk/go/$$ver"; \
+	if [ -n "$$(git status --porcelain -- sdk/go)" ]; then \
+		echo "❌ sdk/go has uncommitted changes — commit them BEFORE tagging."; \
+		echo "   (a Go tag is immutable once proxy.golang.org caches it)"; \
+		git status --short -- sdk/go; \
+		exit 1; \
+	fi; \
+	if git rev-parse -q --verify "refs/tags/sdk/go/$$ver" >/dev/null; then \
+		echo "❌ tag sdk/go/$$ver already exists — bump the CHANGELOG instead."; \
+		echo "   NEVER delete and re-push a Go tag the proxy has already served."; \
+		exit 1; \
+	fi; \
+	echo "tagging sdk/go/$$ver at $$(git rev-parse --short HEAD)"; \
 	git tag "sdk/go/$$ver" && git push origin "sdk/go/$$ver"

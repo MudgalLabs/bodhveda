@@ -1,5 +1,43 @@
 # Changelog
 
+## 0.6.0
+
+Email-only sends: deliver an email without creating an in-app notification.
+
+-   **`payload` is now optional on `SendNotificationRequest`.** Omit it, together
+    with an `email` block, and Bodhveda sends the email **without** writing
+    anything to the recipient's inbox:
+
+    ```ts
+    await bodhveda.notifications.send({
+        recipient_id: "recipient_123",
+        target: { channel: "conversation", topic: "thread_7", event: "reply" },
+        email: { subject: "3 new messages", html: "<p>…</p>" },
+    });
+    ```
+
+    This exists because the two mediums often want different timing. A support
+    inbox wants one in-app row per reply the instant it happens, but a single
+    *debounced* email covering the last few minutes — two sends, and previously
+    the second one always dropped a duplicate row into the feed.
+
+-   **A send must carry at least one content block.** Omitting both `payload` and
+    `email` is now a `400` rather than a server error. This is the guard that
+    keeps an accidental omission from silently becoming a no-op.
+
+-   **`Notification.status` gained `not_requested`** — the send carried no
+    `payload`, so no in-app delivery was requested. Unlike every other status it
+    is set when the send is accepted and never changes. Such notifications are
+    excluded from the recipient's feed, unread count and mark-all-read, but still
+    carry the `email` delivery outcome. **If you `switch` exhaustively on
+    `status`, add a case for it.**
+
+-   **`Notification.payload` is `null`** for an email-only send. The field was
+    already typed `unknown`, so this is not a type change.
+
+Backwards compatible: `payload` only became *optional*, so existing calls behave
+identically. `payload` remains **required on a broadcast**, which is in-app only.
+
 ## 0.5.0
 
 Direct sends are now fully asynchronous, and there is a new way to read a

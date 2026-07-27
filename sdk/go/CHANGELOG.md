@@ -1,5 +1,60 @@
 # Changelog
 
+## v0.6.1
+
+Feature parity with `@bodhveda/js` / `@bodhveda/react` `0.6.0`. Email-only sends:
+deliver an email without creating an in-app notification.
+
+> **Skip `v0.6.0` — it shipped by mistake and is byte-identical to `v0.5.0`.**
+> The tag was pushed before the changes below were committed, so it carries none
+> of them. It is harmless (nothing broke; it is simply `v0.5.0` under another
+> number) and it was deliberately NOT deleted or re-pointed: `proxy.golang.org`
+> had already cached it, and re-tagging a cached version produces a
+> `checksum mismatch` for every consumer that had resolved it — an error that
+> reads as a supply-chain compromise. Superseding it with `v0.6.1` is the safe
+> remedy.
+>
+> If you are already on `v0.6.0`, you can make email-only sends today: a nil
+> `Payload` marshals to `"payload": null`, which the API treats as absent. This
+> release only adds `omitempty` (so the key is omitted rather than sent as null)
+> and the documentation below.
+
+-   **`SendNotificationRequest.Payload` is now optional.** Leave it nil, together
+    with an `Email` block, and Bodhveda sends the email **without** writing
+    anything to the recipient's inbox:
+
+    ```go
+    _, err := client.Notifications.Send(ctx, bodhveda.SendNotificationRequest{
+        RecipientID: bodhveda.String("recipient_123"),
+        Target:      &bodhveda.Target{Channel: "conversation", Topic: "thread_7", Event: "reply"},
+        Email:       &bodhveda.EmailContent{Subject: "3 new messages", HTML: "<p>…</p>"},
+    })
+    ```
+
+    This exists because the two mediums often want different timing. A support
+    inbox wants one in-app row per reply the instant it happens, but a single
+    *debounced* email covering the last few minutes — two sends, and previously
+    the second one always dropped a duplicate row into the feed.
+
+    The field gained `omitempty`, so a nil payload omits the key rather than
+    sending `"payload": null`. Both are read as absent by the API; omitting is
+    just clearer on the wire. **No signature change** — `json.RawMessage` was
+    already nil-able, so existing code compiles and behaves identically.
+
+-   **A send must carry at least one content block.** Omitting both `Payload` and
+    `Email` is now a `400` rather than a server error.
+
+-   **`Notification.Status` gained `"not_requested"`** — the send carried no
+    `Payload`, so no in-app delivery was requested. Unlike every other status it
+    is set when the send is accepted and never changes. Such notifications are
+    excluded from the recipient's feed, unread count and mark-all-read, but still
+    carry the `Email` delivery outcome. **If you `switch` exhaustively on
+    `Status`, add a case for it.**
+
+-   **`Notification.Payload` is nil** for an email-only send.
+
+`Payload` remains **required on a broadcast**, which is in-app only.
+
 ## v0.5.0
 
 Feature parity with `@bodhveda/js` / `@bodhveda/react` `0.5.0`. Direct sends are

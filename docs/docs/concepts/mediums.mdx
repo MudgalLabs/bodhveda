@@ -31,6 +31,35 @@ There is no `mediums` array to set, and **no fallback that derives an email from
 }
 ```
 
+The rule cuts both ways: **omit `payload` and no in-app notification is created**.
+
+## Email-only sends
+
+On a **direct** send, `payload` is optional. A send carrying only an `email` block delivers the email and creates **no in-app notification**:
+
+```json
+{
+    "recipient_id": "recipient_123",
+    "target": { "channel": "conversation", "topic": "thread_7", "event": "reply" },
+    "email": {
+        "subject": "3 new messages on your thread",
+        "html": "<p>Vikram and 2 others replied.</p>"
+    }
+}
+```
+
+This exists because in-app and email often want **different timing**. A support inbox wants one in-app row per reply, the instant it happens — but a single *debounced* email covering the last five minutes, rather than five separate emails. That is two sends: an instant in-app one, and a later email-only one. Without this, the debounced email would drop a duplicate row into the feed minutes after the instant one.
+
+<Note>
+    A send must carry **at least one** content block. Omitting both `payload` and `email` returns a `400` — such a send names no medium, so it would do nothing. An explicit `"payload": null` counts as omitted.
+</Note>
+
+The notification still exists — you get an `id` back, and it carries the email delivery outcome for [retrieval](/api-reference/endpoint/notifications/get-notification) and shows up in the Console. It just isn't a recipient-facing one: its `status` is `not_requested`, and it is excluded from the recipient's [feed](/api-reference/endpoint/recipients/notifications/list-notifications), their [unread count](/api-reference/endpoint/recipients/notifications/unread-count), and mark-all-read.
+
+Because in-app was never requested, the recipient's **in-app** preference is irrelevant to such a send. It is still gated by the email catalog, the recipient's email preference, and a primary email contact, exactly like any other email.
+
+`payload` remains **required on a broadcast**, which is in-app only.
+
 ## Email is direct-only
 
 Email is sent **only on direct notifications** (when `recipient_id` is set). Including an `email` block on a **broadcast** returns a `400`. Broadcasts remain in-app only — bulk email is deliberately out of scope in v1 to protect sender reputation.
@@ -45,7 +74,7 @@ Even when an `email` block is present, email fires only when **all** of the foll
 
 In-app and email preferences are toggled **independently** for the same target, so a recipient can keep the in-app bell while turning email off (and vice-versa).
 
-When a medium is skipped or fails, the send still succeeds (a partial-medium failure never rejects the whole send). The per-medium outcome is reported in the `deliveries` array of the [send response](/api-reference/endpoint/notifications/send-notification).
+When a medium is skipped or fails, the send still succeeds (a partial-medium failure never rejects the whole send). Because sends resolve asynchronously, the per-medium outcome is not in the send response — read it back from [retrieve a notification](/api-reference/endpoint/notifications/get-notification), which carries the in-app `status` and the `email` delivery outcome.
 
 ## Unsubscribe
 

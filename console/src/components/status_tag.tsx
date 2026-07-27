@@ -28,8 +28,10 @@ export function StatusTag(props: StatusTagProps) {
     ) {
         variant = "destructive";
     } else {
-        // enqueued, muted, no_contact, suppressed, pending, sending, sent →
-        // neutral (in-flight or intentionally-not-delivered outcomes).
+        // enqueued, muted, no_contact, suppressed, pending, sending, sent,
+        // not_requested → neutral (in-flight or intentionally-not-delivered
+        // outcomes). `not_requested` in particular must NOT read as destructive:
+        // nothing failed, the sender simply never asked for in-app.
         variant = "default";
     }
 

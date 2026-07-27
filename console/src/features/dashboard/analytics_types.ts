@@ -9,6 +9,10 @@ export interface AnalyticsInAppByStatus {
     delivered: number;
     quota_exceeded: number;
     failed: number;
+    // Email-only sends — ones that carried no `payload`, so no in-app row was
+    // requested. `total` counts every notification row, so without this bucket
+    // the per-status split would not sum to it.
+    not_requested: number;
 }
 
 export interface AnalyticsInAppDay {
@@ -19,6 +23,7 @@ export interface AnalyticsInAppDay {
     delivered: number;
     quota_exceeded: number;
     failed: number;
+    not_requested: number;
 }
 
 export interface AnalyticsInApp {

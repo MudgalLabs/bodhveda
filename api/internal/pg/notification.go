@@ -18,6 +18,22 @@ import (
 	tantraRepo "github.com/mudgallabs/tantra/repository"
 )
 
+// recipientFeedVisible is the predicate separating the RECIPIENT's inbox from
+// the operator's record of everything the project sent. Every recipient-scoped
+// read path shares it, because a row hidden from the feed but counted as unread
+// (or flipped by mark-all-read) is a bug that only shows up as a badge counting
+// things the user cannot find.
+//
+//   - `muted` — the recipient's own preferences rejected it.
+//   - `quota_exceeded` — the project was over its plan limit; never delivered.
+//   - `not_requested` — the SENDER never asked for in-app. The row exists only to
+//     carry the email delivery, the analytics join, and GET /notifications/{id}.
+//
+// The operator's views deliberately do NOT use this — the console notifications
+// list and the recipient detail panel show all three, because "why didn't they
+// get it?" is answered by exactly the rows this hides. See ListNotifications.
+const recipientFeedVisible = `status NOT IN ('muted', 'quota_exceeded', 'not_requested')`
+
 type NotificationRepo struct {
 	db   dbx.DBExecutor
 	pool *pgxpool.Pool
@@ -179,9 +195,8 @@ func (r *NotificationRepo) ListForRecipient(ctx context.Context, projectID int, 
 	b.AddCompareFilter("project_id", dbx.OperatorEQ, projectID)
 	b.AddCompareFilter("recipient_external_id", dbx.OperatorEQ, recipientExtID)
 	// Only surface notifications that were actually delivered (or are still in
-	// flight). 'muted' (preference opt-out) and 'quota_exceeded' were never
-	// delivered, so they must not appear in the recipient feed.
-	b.AppendWhere("status NOT IN ('muted', 'quota_exceeded')")
+	// flight) — see recipientFeedVisible.
+	b.AppendWhere(recipientFeedVisible)
 
 	if cursor.BeforeIsValid() && !cursor.AfterIsValid() {
 		b.AddCompareFilter("id", dbx.OperatorLT, cursor.Before)
@@ -251,10 +266,13 @@ func (r *NotificationRepo) ListForRecipient(ctx context.Context, projectID int, 
 }
 
 func (r *NotificationRepo) UnreadCountForRecipient(ctx context.Context, projectID int, recipientExtID string) (int, error) {
+	// Must stay in lockstep with ListForRecipient's predicate: a badge counting
+	// rows the feed will not show is a bug the user experiences as an unread
+	// count they cannot clear.
 	sql := `
 		SELECT COUNT(*) FROM notification
 		WHERE project_id = $1 AND recipient_external_id = $2 AND read_at IS NULL
-		  AND status NOT IN ('muted', 'quota_exceeded')
+		  AND ` + recipientFeedVisible + `
 	`
 	var count int
 
@@ -273,6 +291,20 @@ func (r *NotificationRepo) UpdateForRecipient(ctx context.Context, projectID int
 	b := dbx.NewSQLBuilder(sql)
 	b.AddCompareFilter("project_id", dbx.OperatorEQ, projectID)
 	b.AddCompareFilter("recipient_external_id", dbx.OperatorEQ, recipientExtID)
+	// A recipient can only mark rows they can actually see. This query had NO
+	// status predicate before, so mark-all-read stamped `read_at` on rows the
+	// recipient was never shown — harmless while UnreadCountForRecipient excluded
+	// them anyway, but wrong, and actively misleading once email-only rows exist
+	// (marking an email delivery's bookkeeping row as "read by the recipient").
+	//
+	// Applied to the by-id form too, not just the bulk one: a recipient cannot
+	// learn a hidden row's id through the API, so naming one is either a mistake
+	// or an attempt to touch a row that is not theirs to mark.
+	//
+	// Behaviour change worth stating: the returned "updated" count is now the
+	// number of VISIBLE rows changed, so a mark-all-read on a recipient with muted
+	// rows reports a smaller number than it used to. That number is the honest one.
+	b.AppendWhere(recipientFeedVisible)
 
 	now := time.Now().UTC()
 
@@ -313,6 +345,20 @@ func (r *NotificationRepo) UpdateForRecipient(ctx context.Context, projectID int
 	return int(res.RowsAffected()), nil
 }
 
+// DeleteForRecipient deliberately does NOT apply recipientFeedVisible, unlike
+// every other recipient-scoped method here.
+//
+// The clear-my-inbox path has always deleted `muted` and `quota_exceeded` rows
+// along with visible ones, and those already cascade away any attached email
+// delivery record (notification_delivery ON DELETE CASCADE). Excluding only the
+// new `not_requested` status would make the behaviour inconsistent with itself
+// without fixing anything.
+//
+// The real wart — that a recipient clearing their inbox destroys the operator's
+// email delivery history — predates email-only sends and applies equally to a
+// `muted` row whose send carried an email block. Fixing it means deciding
+// whether delete should soft-delete or preserve deliveries, which is a change to
+// shipped behaviour and belongs in its own unit.
 func (r *NotificationRepo) DeleteForRecipient(ctx context.Context, projectID int, recipientExtID string, notificationIDs []int) (int, error) {
 	b := dbx.NewSQLBuilder("DELETE FROM notification")
 	b.AddCompareFilter("project_id", dbx.OperatorEQ, projectID)

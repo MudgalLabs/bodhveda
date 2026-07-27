@@ -125,13 +125,18 @@ Two send modes (`SendNotificationPayload`, dispatched in `service.NotificationSe
 
 - **Direct** — `recipient_id` set. Creates one `notification` row (status `enqueued`),
   enqueues `notification:delivery`, and **may also fan out to email** (below).
+  `payload` is **optional** here: absent ⇒ no in-app row (status `not_requested`).
 - **Broadcast** — no recipient, requires a matching **project preference** to exist
   (else 400). Creates a `broadcast` row, enqueues `broadcast:prepare_batches`.
-  **In-app only** — an `email` block on a broadcast is a 400.
+  **In-app only** — an `email` block on a broadcast is a 400, and `payload` is required.
+
+A send must carry **at least one** content block (`payload` or `email`), else 400.
 
 Notification statuses (`enum`): `enqueued`, `muted`, `delivered`, `quota_exceeded`,
-`failed`. Broadcast: `enqueued`, `completed`, `quota_exceeded`, `failed`. This scalar is
-the **in-app** outcome only; every other medium's outcome is a `notification_delivery` row.
+`failed`, `not_requested`. Broadcast: `enqueued`, `completed`, `quota_exceeded`, `failed`.
+This scalar is the **in-app** outcome only; every other medium's outcome is a
+`notification_delivery` row. `not_requested` is the only one set at INSERT rather than
+resolved by the worker — see Phase 10.
 
 ### Mediums
 
@@ -152,7 +157,9 @@ A **medium** is a delivery transport. `enum/medium.go`:
 
 1. **Sender intent = presence of that medium's content block.** `payload` ⇒ in-app;
    an `email: {subject, html, text}` sibling block ⇒ email is eligible. **No `email` block
-   ⇒ no email**, and there is **no payload→email fallback**.
+   ⇒ no email**, and there is **no payload→email fallback**. Symmetrically, **no `payload`
+   ⇒ no in-app** — that is an email-only send (Phase 10). This rule is now literally true
+   of both mediums; `payload` used to be the one exception, required regardless of intent.
 2. **Catalog** — see the ⚠️ under Preferences: the catalog is a *default*, not a gate.
 3. **Preference** — the per-medium recipient preference must not disable it.
 
@@ -310,6 +317,9 @@ API enqueues, worker consumes. Task types (`job/task/task.go`):
   inbox write** — `ShouldDirectNotificationBeDelivered` → if muted, status `muted`; else
   `billingService.CheckAndConsumeUsage` (`quota_exceeded` if over) → else `delivered`, and
   (3) the **email fan-out** (below). A failure returns an error so Asynq retries the whole job.
+  ⚠️ Step 2 is **skipped entirely for an email-only send** (no `payload`): there is no inbox
+  write to gate, the in_app preference is irrelevant, and the status is already terminal. It
+  still meters one usage unit — see Phase 10 for the quota handling.
 - `email:delivery` — one email. Enqueued **only from the direct-send path**, never
   broadcast. Loads project email settings **fresh** and decrypts per-send, so the provider
   secret never rides through Redis and key rotation is respected. Sends via the Resend
@@ -580,6 +590,87 @@ testable. When a phase completes, update its status here and record what changed
   The second Phase 9 sub-phase to need a **migration**: `ix_notification_project_created`
   (project_id, created_at) — the created_at index 9.4 explicitly *declined*, because analytics is
   the opposite query shape (a full aggregate with no LIMIT, selective only on created_at).
+- Phase 10 — **Email-only direct send** — **DONE** (see below). `payload` is now optional on a
+  direct send; absent ⇒ no in-app row. Needed a **migration** (`notification.payload DROP NOT
+  NULL`) but not one for `status`, which never had a CHECK.
+
+### Phase 10 — Email-only direct send (as built)
+
+**The gap.** `payload` was required, so every email send also wrote an in-app row. That made a
+*debounced* email impossible to express: a product wanting one in-app row per event but ONE email
+covering the last five minutes has to issue two sends with different timing, and the later
+email-only one would drop a duplicate row into the feed. Grahak hit this and shipped around it by
+debouncing both mediums together, giving up instant in-app.
+
+**API shape — `payload` became optional; no new field, no flag.** Considered and rejected: a
+`mediums: ["email"]` allow-list, and an `in_app: false` flag. Both are `payload`-optional PLUS a
+redundant second declaration that can *disagree* with the content blocks (`in_app: false` with a
+payload present ⇒ silently ignored payload). `in_app: false` also fails to solve the problem on
+its own — with `payload` still required the caller must still ship a body nobody reads. Making
+`payload` optional makes the rule the docs already state ("a medium fires iff its content block is
+present") true rather than aspirational, and it is the only one of the three that needs no second
+interpretation when broadcast email lands.
+
+Guard: **at least one content block** (`payload` or `email`) must be present, else 400. That is
+what keeps an accidental omission from becoming a silent no-op. ⚠️ `payload` was never checked by
+`Validate()` before — only the DB's NOT NULL enforced it, so omitting it used to be a 500.
+
+**The row still EXISTS** (suppressed, not missing): `notification_delivery.notification_id` is NOT
+NULL REFERENCES it, the analytics target breakdown joins through it, and `GET /notifications/{id}`
+is how an async send's email outcome is read back.
+
+**`enum.NotificationStatusNotRequested`** — set at INSERT, never resolved (the only status like
+that). NOT `muted`, which means the *recipient* opted out; this means the *sender* never asked.
+
+⚠️ **`json.RawMessage` nil→`null` trap.** A nil payload MARSHALS to `null` and UNMARSHALS back to
+the 4-byte slice `null`, so the worker receives `null`, not nil, through the Asynq payload. A
+`len() == 0` check would write the very inbox row the feature exists to avoid. Every "was in-app
+requested?" test goes through `dto.IsJSONContent`; `TestNotificationPayloadRoundTripsThroughTaskPayload`
+pins it.
+
+**Quota.** An email-only send meters the same single `notifications` unit. Over quota ⇒ the
+delivery row records `quota_exceeded` (previously reserved-and-never-written) and the fan-out is
+skipped — the notification's `not_requested` is NOT overwritten, because it describes the in-app
+medium and must not carry another medium's outcome. ⚠️ Deliberate asymmetry: a MIXED send still
+sends its email when over quota, because step 3 has always been independent of step 2. Gating the
+email-only path is not optional (else it bypasses plan limits entirely); making the two consistent
+is a behaviour change to a shipped path and is still **open**.
+
+**Read paths** now share one `recipientFeedVisible` predicate in `pg/notification.go`
+(`ListForRecipient`, `UnreadCountForRecipient`, `UpdateForRecipient`). `UpdateForRecipient` had
+**no status predicate at all** — mark-all-read stamped `read_at` on rows the recipient never saw.
+Its returned "updated" count is now visible-rows-only, a change to a shipped response.
+`DeleteForRecipient` is deliberately excluded — see the comment there.
+
+**Analytics needed a new bucket.** `total` is `count(*)`, so without a `not_requested` FILTER the
+per-status split silently stops summing to the total. The console's In-app "Sent" tile likewise
+subtracts it — counting email-only sends in a panel titled *In-app* would leave
+Delivered+Muted+Failed visibly short with nothing explaining the gap.
+
+**Console shows these rows on purpose** (recipient detail panel + notifications list). That panel
+is the OPERATOR's view — it already shows `muted`/`quota_exceeded` precisely because those answer
+"why didn't they get it?", and an email-only row is the same kind of evidence.
+
+### Open / next
+
+- **Broadcast email fan-out.** Broadcasts are still in-app only (`email` block ⇒ 400), so any
+  product needing email cannot use target fan-out at all — the caller must resolve recipients
+  itself and issue N direct sends. Grahak does exactly this today, which means Bodhveda's best
+  idea is doing nothing for it. Planned scope when picked up: idempotency hardening FIRST (see
+  below), an audience/dry-run count endpoint, per-project `max_broadcast_recipients` on
+  `project_email_settings` (default 100) blocking *email only* with reason `recipient_cap_exceeded`,
+  per-recipient unsubscribe tokens minted in the batch, a per-project Redis rate limiter with a
+  separate low-priority `email:bulk` queue, and address-level suppression. Explicitly refused:
+  templating/per-recipient variables (Bodhveda stores no recipient attributes to personalize FROM
+  — that is a CDP, not a feature; personalization stays a direct-send concern).
+- ⚠️ **`BroadcastDeliveryProcessor` is not idempotent — a live bug.** It commits the notification
+  `CopyFrom` in a tx and THEN updates the batch status; any failure after the commit (or a worker
+  crash) makes Asynq retry the whole task and re-insert every notification. Today that is
+  duplicate in-app rows. With broadcast email it becomes duplicate EMAILS, so it must be fixed
+  before that ships: a partial unique index on `notification (broadcast_id, recipient_external_id)`
+  plus `INSERT … ON CONFLICT DO NOTHING RETURNING id` (which `CopyFrom` cannot do, and which is
+  needed anyway to get the ids the delivery rows hang off).
+- **Quota does not gate email on a mixed send** (above).
 
 ---
 

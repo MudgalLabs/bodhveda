@@ -34,7 +34,13 @@ func (r *NotificationRepo) InAppAnalyticsSeries(ctx context.Context, projectID i
 			count(*) FILTER (WHERE status = 'muted') AS muted,
 			count(*) FILTER (WHERE status = 'delivered') AS delivered,
 			count(*) FILTER (WHERE status = 'quota_exceeded') AS quota_exceeded,
-			count(*) FILTER (WHERE status = 'failed') AS failed
+			count(*) FILTER (WHERE status = 'failed') AS failed,
+			-- Email-only sends. They MUST have a bucket of their own: total is
+			-- count(*), so without one they would inflate the total while appearing
+			-- in no band of the stacked chart, and the series would silently stop
+			-- adding up. They are not muted (the recipient did not opt out) and
+			-- not failed (nothing failed) — in-app was simply never requested.
+			count(*) FILTER (WHERE status = 'not_requested') AS not_requested
 		FROM notification
 		WHERE project_id = $1
 			AND ($2::timestamptz IS NULL OR created_at >= $2)
@@ -53,7 +59,7 @@ func (r *NotificationRepo) InAppAnalyticsSeries(ctx context.Context, projectID i
 	for rows.Next() {
 		var d dto.AnalyticsInAppDay
 		if err := rows.Scan(&d.Day, &d.Total, &d.Enqueued, &d.Muted, &d.Delivered,
-			&d.QuotaExceeded, &d.Failed); err != nil {
+			&d.QuotaExceeded, &d.Failed, &d.NotRequested); err != nil {
 			return nil, fmt.Errorf("scan in-app analytics day: %w", err)
 		}
 		series = append(series, d)

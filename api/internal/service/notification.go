@@ -128,18 +128,43 @@ func (s *NotificationService) sendDirectNotification(ctx context.Context, userID
 		event = payload.Target.Event
 	}
 
+	// In-app is requested iff the send carried a `payload` block — the same
+	// content-block-implies-intent rule that governs email. When it is absent the
+	// body is stored as SQL NULL (not JSON `null`), so `payload IS NULL` in the
+	// database means exactly "this was an email-only send".
+	inApp := payload.HasPayload()
+
+	var body json.RawMessage
+	if inApp {
+		body = payload.Payload
+	}
+
 	// The notification row references the recipient by external-id string, not a
 	// FK, so it can be inserted before the recipient row exists — the worker
 	// upserts the recipient. external_id is already lowercased by payload.Validate.
 	notification := entity.NewNotification(
 		payload.ProjectID,
 		*payload.RecipientExtID,
-		payload.Payload,
+		body,
 		nil,
 		channel,
 		topic,
 		event,
 	)
+
+	// An email-only send's in-app status is terminal at INSERT: there is nothing
+	// for the worker to resolve, because the sender never asked for in-app. It is
+	// set here rather than left for the worker so the row is never briefly
+	// `enqueued` — a state that would make it look like a pending inbox write to
+	// anything reading between the INSERT and the job running.
+	//
+	// The row still exists (suppressed, not missing): the email delivery, the
+	// analytics target join, and GET /notifications/{id} all hang off it.
+	if !inApp {
+		now := time.Now().UTC()
+		notification.Status = enum.NotificationStatusNotRequested
+		notification.CompletedAt = &now
+	}
 
 	notification, err := s.repo.Create(ctx, notification)
 	if err != nil {
@@ -174,11 +199,14 @@ func (s *NotificationService) sendDirectNotification(ctx context.Context, userID
 // notification:delivery job. It carries all the work moved off the request path:
 //
 //  1. upsert the recipient (so it exists for the inbox / recipient list),
-//  2. gate the in-app inbox write on preferences + billing and set the status,
+//  2. gate the in-app inbox write on preferences + billing and set the status —
+//     SKIPPED entirely for an email-only send (one carrying no `payload`), which
+//     has no inbox write to gate and whose status is already terminal,
 //  3. fan out email (best-effort — a failure here never fails the job).
 //
 // Returning a non-nil error lets Asynq retry the whole job (MaxRetry). A quota
-// rejection is NOT an error — it is a terminal status on the notification row.
+// rejection is NOT an error — it is a terminal status on the notification row,
+// or on the email delivery row when there is no in-app row to carry it.
 func (s *NotificationService) DeliverDirectNotification(ctx context.Context, payload dto.NotificationDeliveryTaskPayload) error {
 	notification := payload.Notification
 
@@ -192,16 +220,70 @@ func (s *NotificationService) DeliverDirectNotification(ctx context.Context, pay
 		return fmt.Errorf("create recipient: %w", err)
 	}
 
-	// 2. In-app delivery (the inbox write). Gate on the in_app medium (deliver
-	//    unless muted), then meter usage. Logic is byte-for-byte the old worker.
-	shouldDeliver, err := s.preferenceRepo.ShouldDirectNotificationBeDelivered(ctx, notification.ProjectID, notification.RecipientExtID, dto.TargetFromNotification(notification), enum.MediumInApp)
-	if err != nil {
-		return err
-	}
+	// Was in-app requested? MUST go through dto.IsJSONContent, not a len() check:
+	// a nil payload marshals into this task as `null` and unmarshals back to the
+	// 4-byte slice `null`, so a naive check would write the inbox row an
+	// email-only send exists to avoid.
+	inApp := dto.IsJSONContent(notification.Payload)
 
-	if !shouldDeliver {
-		notification.Status = enum.NotificationStatusMuted
+	// quotaExceeded records a plan-limit rejection that must still gate email
+	// below. For an in-app send it lands on the notification's status scalar; for
+	// an email-only send there is no in-app slot to put it in, so it is carried
+	// here and written to the delivery row instead.
+	quotaExceeded := false
+
+	if inApp {
+		// 2. In-app delivery (the inbox write). Gate on the in_app medium (deliver
+		//    unless muted), then meter usage. Logic is byte-for-byte the old worker.
+		shouldDeliver, err := s.preferenceRepo.ShouldDirectNotificationBeDelivered(ctx, notification.ProjectID, notification.RecipientExtID, dto.TargetFromNotification(notification), enum.MediumInApp)
+		if err != nil {
+			return err
+		}
+
+		if !shouldDeliver {
+			notification.Status = enum.NotificationStatusMuted
+		} else {
+			event := dto.UsageEvent{
+				UserID:    payload.UserID,
+				ProjectID: notification.ProjectID,
+				Metric:    entity.MetricNotifications,
+				Amount:    1,
+			}
+
+			err := s.billingService.CheckAndConsumeUsage(ctx, event)
+			if err != nil {
+				if errors.Is(err, enum.ErrQuotaExceeded) {
+					notification.Status = enum.NotificationStatusQuotaExceeded
+					quotaExceeded = true
+				} else {
+					return fmt.Errorf("check and consume usage: %w", err)
+				}
+			} else {
+				notification.Status = enum.NotificationStatusDelivered
+			}
+		}
+
+		now := time.Now().UTC()
+		notification.CompletedAt = &now
+		notification.UpdatedAt = now
+
+		if err := s.repo.Update(ctx, notification); err != nil {
+			return fmt.Errorf("update notification: %w", err)
+		}
 	} else {
+		// 2'. Email-only send: no inbox write, no in-app preference to consult (the
+		//     in_app preference is irrelevant to a send that never asked for it),
+		//     and no status to resolve — `not_requested` was set at INSERT and must
+		//     NOT be overwritten here. The one thing that still applies is billing:
+		//     an email-only send is a send, so it meters the same single
+		//     `notifications` unit an in-app one does. Metering it is also what
+		//     stops email-only from being a complete plan-limit bypass.
+		//
+		//     Asymmetry worth naming: a MUTED in-app send is not metered, but an
+		//     email-only send whose email later turns out muted/no_contact still is
+		//     — the meter runs before the email gate. Charging for a send the caller
+		//     made is the conservative side of that trade, and moving the meter
+		//     inside the email gate would risk double-metering the mixed case.
 		event := dto.UsageEvent{
 			UserID:    payload.UserID,
 			ProjectID: notification.ProjectID,
@@ -209,24 +291,13 @@ func (s *NotificationService) DeliverDirectNotification(ctx context.Context, pay
 			Amount:    1,
 		}
 
-		err := s.billingService.CheckAndConsumeUsage(ctx, event)
-		if err != nil {
+		if err := s.billingService.CheckAndConsumeUsage(ctx, event); err != nil {
 			if errors.Is(err, enum.ErrQuotaExceeded) {
-				notification.Status = enum.NotificationStatusQuotaExceeded
+				quotaExceeded = true
 			} else {
 				return fmt.Errorf("check and consume usage: %w", err)
 			}
-		} else {
-			notification.Status = enum.NotificationStatusDelivered
 		}
-	}
-
-	now := time.Now().UTC()
-	notification.CompletedAt = &now
-	notification.UpdatedAt = now
-
-	if err := s.repo.Update(ctx, notification); err != nil {
-		return fmt.Errorf("update notification: %w", err)
 	}
 
 	// 3. Email fan-out (additional medium, DIRECT-only). Presence of the `email`
@@ -235,6 +306,25 @@ func (s *NotificationService) DeliverDirectNotification(ctx context.Context, pay
 	//    of the in-app outcome above, and a failure here NEVER fails the job (old
 	//    doc #19) — the outcome is recorded on a notification_delivery row.
 	if payload.Email != nil {
+		// An email-only send that blew the quota is rejected here rather than sent,
+		// and the rejection is recorded on the delivery row (the notification's
+		// status stays `not_requested` — it describes the in-app medium, which was
+		// never requested, and must not be overwritten by another medium's outcome).
+		//
+		// NOTE the deliberate asymmetry with a MIXED send, which still sends its
+		// email when over quota: step 3 has always been independent of step 2, so
+		// quota does not gate email there. Making the two consistent is a behaviour
+		// change to a shipped path and belongs in its own unit; gating the
+		// email-only path is not optional, because without it email-only sends
+		// would ignore plan limits entirely.
+		if quotaExceeded && !inApp {
+			d := entity.NewNotificationDelivery(notification.ID, notification.ProjectID, notification.RecipientExtID, enum.MediumEmail, enum.DeliveryQuotaExceeded)
+			if _, derr := s.deliveryRepo.Create(ctx, d); derr != nil {
+				logger.Get().Errorf("record quota_exceeded email delivery for notification %d: %v", notification.ID, derr)
+			}
+			return nil
+		}
+
 		if _, ferr := s.fanOutEmail(ctx, notification, payload.Email); ferr != nil {
 			logger.Get().Errorf("email fan-out for notification %d: %v", notification.ID, ferr)
 		}
@@ -458,6 +548,7 @@ func (s *NotificationService) ProjectAnalytics(ctx context.Context, filters *dto
 		inApp.ByStatus.Delivered += d.Delivered
 		inApp.ByStatus.QuotaExceeded += d.QuotaExceeded
 		inApp.ByStatus.Failed += d.Failed
+		inApp.ByStatus.NotRequested += d.NotRequested
 	}
 
 	// Email side: aggregate notification_delivery WHERE medium='email'. The repo

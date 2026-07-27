@@ -18,6 +18,13 @@ export const STATUS_COLORS = {
     muted: "var(--color-warning-foreground)",
     quota_exceeded: "#8b5cf6",
     failed: "var(--color-error-foreground)",
+    // Email-only sends. Neutral grey on purpose: every other colour here encodes
+    // an outcome that happened (good, warned, failed), and this one encodes an
+    // in-app delivery that was never asked for. Giving it a status hue would
+    // imply something went right or wrong; nothing did. It shares the grey with
+    // email `pending` without ambiguity, since in-app and email are charted
+    // separately and never share a legend.
+    not_requested: "var(--color-muted-foreground)",
     // Email-specific outcomes reuse the same meaning-mapped hues.
     sent: "var(--color-azure-500)",
     pending: "var(--color-muted-foreground)",

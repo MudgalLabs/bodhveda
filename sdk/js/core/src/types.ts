@@ -92,6 +92,10 @@ export interface NotificationState {
 export interface Notification {
     id: number;
     recipient_id: string;
+    /**
+     * The in-app content block, as sent. `null` for an email-only send — one
+     * made with no `payload`, which created no in-app notification.
+     */
     payload: unknown;
     target: Target;
     state: NotificationState;
@@ -99,6 +103,11 @@ export interface Notification {
      * The in-app delivery outcome, resolved asynchronously by the worker:
      * `enqueued` (accepted, not yet processed), `delivered`, `muted`
      * (preferences disallow), `quota_exceeded`, or `failed`.
+     *
+     * `not_requested` is the exception — it is set when the send is accepted and
+     * never changes. It means the send carried no `payload`, so no in-app
+     * delivery was requested. Those notifications never reach the recipient's
+     * feed, but still carry the {@link email} outcome.
      */
     status: string;
     broadcast_id: number | null;
@@ -240,7 +249,22 @@ export interface EmailContent {
  * Represents a request to send a notification.
  */
 export interface SendNotificationRequest {
-    payload: unknown;
+    /**
+     * The in-app content block. Present ⇒ the notification is written to the
+     * recipient's inbox; absent ⇒ it is not.
+     *
+     * Optional on a DIRECT send: omit it (together with an {@link email} block)
+     * to deliver email *without* creating an in-app notification — useful when
+     * the two mediums want different timing, e.g. an instant in-app row per
+     * event but one debounced email covering several. Such a notification is
+     * still created and still returns an `id`, but its `status` is
+     * `not_requested` and it is hidden from the recipient's feed, unread count
+     * and mark-all-read.
+     *
+     * REQUIRED on a broadcast, which is in-app only. A send must carry at least
+     * one of `payload` or `email`; omitting both is a 400.
+     */
+    payload?: unknown;
     recipient_id?: string;
     target?: Target;
     /**

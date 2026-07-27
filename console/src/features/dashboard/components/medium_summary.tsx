@@ -90,7 +90,24 @@ export function MediumSummary({
                 subtitle="The inbox outcome — the trustworthy signal."
             >
                 <div className="grid grid-cols-2 gap-4 sm:grid-cols-4">
-                    <Stat label="Sent" value={inApp.total} />
+                    {/* In-app sends only. `inApp.total` counts every notification
+                        row INCLUDING email-only sends, which asked for no in-app
+                        delivery at all — counting those in a panel titled "In-app"
+                        would leave Delivered + Muted + Failed visibly short of
+                        Sent with nothing to explain the gap. */}
+                    <Stat
+                        label="Sent"
+                        value={inApp.total - inApp.by_status.not_requested}
+                        hint={
+                            inApp.by_status.not_requested > 0 ? (
+                                <Tooltip
+                                    content={`Excludes ${inApp.by_status.not_requested} email-only send(s), which created no in-app notification.`}
+                                >
+                                    <IconInfo />
+                                </Tooltip>
+                            ) : undefined
+                        }
+                    />
                     <Stat
                         label="Delivered"
                         value={inApp.by_status.delivered}

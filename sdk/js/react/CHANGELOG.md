@@ -1,5 +1,16 @@
 # Changelog
 
+## 0.6.0
+
+-   Bumped in lockstep with core `@bodhveda/js@0.6.0`, which makes `payload`
+    optional on a send so an email can be delivered **without** creating an in-app
+    notification. This package re-exports the updated types; no hook signature
+    changed.
+-   Worth knowing for inbox UIs: email-only notifications never appear in the
+    recipient feed or unread count, so nothing here needs to filter them out. If
+    your own code `switch`es exhaustively on `Notification["status"]`, add a case
+    for the new `not_requested`.
+
 ## 0.5.0
 
 -   Bumped in lockstep with core `@bodhveda/js@0.5.0`, which makes direct sends

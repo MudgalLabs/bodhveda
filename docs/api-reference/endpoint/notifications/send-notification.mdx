@@ -8,6 +8,8 @@ Send a **direct** notification to a specific recipient or send a **broadcast** t
 -   **Direct**: If `recipient_id` is set, `target` is optional.
 -   **Broadcast**: If `recipient_id` is null, `target` is required.
 
+A send must carry **at least one content block** — `payload` for in-app, `email` for email. Omitting both returns a `400`, since such a send names no medium.
+
 <Note>
     Sending is **asynchronous**. A direct send returns as soon as the notification is accepted — the response carries the notification `id` with `status: "enqueued"`. Preference gating, quota, and email are all resolved by a background worker. Read the resolved outcome back with [retrieve a notification](/api-reference/endpoint/notifications/get-notification).
 </Note>
@@ -20,3 +22,22 @@ Include the optional typed `email` block (`subject`, `html`, `text`) to also sen
 -   **No templating.** You render the subject/HTML/text yourself (e.g. with `@react-email`) and pass the result. `text` is optional and derived from `html` when omitted.
 -   Email fires only when the `(target, email)` pair is cataloged, the recipient's email preference is enabled, and the recipient has a **primary email** [contact](/api-reference/endpoint/recipients/contacts/create-contact). Otherwise the send still succeeds and the email is skipped.
 -   The email is delivered by a background worker, so its outcome is **not** on the send response. Read it back on the notification's `email` field via [retrieve a notification](/api-reference/endpoint/notifications/get-notification).
+
+## Email without an in-app notification
+
+On a **direct** send, `payload` is optional. Omit it and Bodhveda sends the email **without** creating an in-app notification — useful when the two mediums want different timing (an instant in-app row per event, but one debounced email covering several).
+
+```json
+{
+    "recipient_id": "recipient_123",
+    "target": { "channel": "conversation", "topic": "thread_7", "event": "reply" },
+    "email": {
+        "subject": "3 new messages on your thread",
+        "html": "<p>Vikram and 2 others replied.</p>"
+    }
+}
+```
+
+The notification is still created and still returns an `id` — you need one to read the email outcome back — but its `status` is `not_requested` and it is excluded from the recipient's [feed](/api-reference/endpoint/recipients/notifications/list-notifications), their [unread count](/api-reference/endpoint/recipients/notifications/unread-count), and mark-all-read. The recipient's **in-app** preference does not apply to it; the email gates above still do.
+
+An explicit `"payload": null` is treated the same as omitting it. `payload` remains **required on a broadcast**.

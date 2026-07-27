@@ -17,6 +17,13 @@ export const NOTIFICATION_STATUSES = [
     "delivered",
     "quota_exceeded",
     "failed",
+    // An email-only send: the caller passed an `email` block but no `payload`, so
+    // no in-app row was ever requested. Set at INSERT and never resolved, unlike
+    // every other status here. The notification row exists only to carry the
+    // email delivery, the analytics join, and GET /notifications/{id} — it is
+    // hidden from the recipient's own feed and unread count, but deliberately
+    // VISIBLE in the console, which is the operator's view.
+    "not_requested",
 ] as const;
 
 export type NotificationStatus = (typeof NOTIFICATION_STATUSES)[number];

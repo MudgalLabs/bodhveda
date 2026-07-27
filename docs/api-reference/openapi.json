@@ -1463,7 +1463,7 @@
                 "tags": [
                     "Notifications"
                 ],
-                "description": "Retrieve a paginated list of notifications for a recipient, ordered by most recent first.",
+                "description": "Retrieve a paginated list of notifications for a recipient, ordered by most recent first.\n\nThis is the **recipient-facing** feed, so it excludes notifications the recipient was never shown: `muted` (their preferences disallowed it), `quota_exceeded`, and `not_requested` (an *email-only* send, which created no in-app notification). To see those, use the Console — they are exactly the rows you need when asking “why didn't they get it?”.",
                 "parameters": [
                     {
                         "name": "recipient_id",
@@ -1576,7 +1576,7 @@
             },
             "patch": {
                 "summary": "Update notifications state",
-                "description": "Updates the state of one or more notifications for the specified recipient.",
+                "description": "Updates the state of one or more notifications for the specified recipient.\n\nOnly notifications visible in the recipient's feed are updated — `muted`, `quota_exceeded`, and `not_requested` notifications are skipped, and the returned count reflects only the rows actually changed.",
                 "parameters": [
                     {
                         "name": "recipient_id",
@@ -1781,7 +1781,7 @@
                 "tags": [
                     "Notifications"
                 ],
-                "description": "Returns the number of unread notifications for a recipient.",
+                "description": "Returns the number of unread notifications for a recipient.\n\nThis is the **recipient-facing** feed, so it excludes notifications the recipient was never shown: `muted` (their preferences disallowed it), `quota_exceeded`, and `not_requested` (an *email-only* send, which created no in-app notification). To see those, use the Console — they are exactly the rows you need when asking “why didn't they get it?”.",
                 "parameters": [
                     {
                         "name": "recipient_id",
@@ -2350,15 +2350,13 @@
                     },
                     "payload": {
                         "type": "object",
-                        "description": "Arbitrary JSON payload for the notification. This is the **in-app** content block — its presence makes the notification eligible for in-app delivery."
+                        "description": "Arbitrary JSON payload for the notification. This is the **in-app** content block — its presence is what makes the notification eligible for in-app delivery.\n\n**Optional on a direct send.** Omit it to deliver on email *without* creating an in-app notification (an *email-only* send) — the `email` block then stands alone. An explicit `null` counts as omitted.\n\n**Required on a broadcast**, which is in-app only.\n\n⚠️ A send must carry at least one content block. Omitting both `payload` and `email` is a `400` — such a send names no medium.",
+                        "nullable": true
                     },
                     "email": {
                         "$ref": "#/components/schemas/EmailContent"
                     }
-                },
-                "required": [
-                    "payload"
-                ]
+                }
             },
             "EmailContent": {
                 "type": "object",
@@ -2481,7 +2479,8 @@
                     },
                     "payload": {
                         "type": "object",
-                        "description": "JSON payload sent with the notification."
+                        "description": "JSON payload sent with the notification. `null` for an *email-only* send — one made with no `payload` block, which creates no in-app notification.",
+                        "nullable": true
                     },
                     "broadcast_id": {
                         "type": "integer",
@@ -2509,13 +2508,14 @@
                     },
                     "status": {
                         "type": "string",
-                        "description": "The in-app delivery outcome, resolved **asynchronously** after the send is accepted. `enqueued` immediately on send; then one of `delivered`, `muted` (preferences disallow), `quota_exceeded`, or `failed`.",
+                        "description": "The in-app delivery outcome, resolved **asynchronously** after the send is accepted. `enqueued` immediately on send; then one of `delivered`, `muted` (preferences disallow), `quota_exceeded`, or `failed`.\n\n`not_requested` is the exception: it is set **at send time** and never changes. It means the send carried no `payload`, so no in-app delivery was ever requested (an *email-only* send). Such a notification is hidden from the recipient's feed and unread count, but still carries the email delivery outcome.",
                         "enum": [
                             "enqueued",
                             "delivered",
                             "muted",
                             "quota_exceeded",
-                            "failed"
+                            "failed",
+                            "not_requested"
                         ]
                     },
                     "completed_at": {

@@ -25,15 +25,22 @@ type NotificationStateOptional struct {
 
 // Notification represents a notification.
 type Notification struct {
-	ID             int               `json:"id"`
-	RecipientExtID string            `json:"recipient_id"`
-	Payload        json.RawMessage   `json:"payload"`
-	BroadcastID    *int              `json:"broadcast_id"`
-	Target         Target            `json:"target"`
-	State          NotificationState `json:"state"`
+	ID             int    `json:"id"`
+	RecipientExtID string `json:"recipient_id"`
+	// Payload is the in-app content block, as sent. nil for an email-only send —
+	// one made with no Payload, which created no in-app notification.
+	Payload     json.RawMessage   `json:"payload"`
+	BroadcastID *int              `json:"broadcast_id"`
+	Target      Target            `json:"target"`
+	State       NotificationState `json:"state"`
 	// Status is the in-app delivery outcome, resolved asynchronously by the
 	// worker: "enqueued" (accepted, not yet processed), "delivered", "muted"
 	// (preferences disallow), "quota_exceeded", or "failed".
+	//
+	// "not_requested" is the exception — it is set when the send is accepted and
+	// never changes. It means the send carried no Payload, so no in-app delivery
+	// was requested. Those notifications never reach the recipient's feed, but
+	// still carry the Email outcome.
 	Status string `json:"status"`
 	// CompletedAt is when the worker finished processing this notification.
 	CompletedAt *time.Time `json:"completed_at,omitempty"`
@@ -323,7 +330,23 @@ type EmailContent struct {
 
 // SendNotificationRequest represents the request to send a notification.
 type SendNotificationRequest struct {
-	Payload     json.RawMessage `json:"payload"`
+	// Payload is the in-app content block. Present => the notification is written
+	// to the recipient's inbox; nil => it is not.
+	//
+	// Optional on a DIRECT send: leave it nil (together with an Email block) to
+	// deliver email WITHOUT creating an in-app notification — useful when the two
+	// mediums want different timing, e.g. an instant in-app row per event but one
+	// debounced email covering several. Such a notification is still created and
+	// still returns an id, but its Status is "not_requested" and it is hidden from
+	// the recipient's feed, unread count and mark-all-read.
+	//
+	// REQUIRED on a broadcast, which is in-app only. A send must carry at least
+	// one of Payload or Email; omitting both is a 400.
+	//
+	// omitempty so a nil payload omits the key entirely rather than sending
+	// `"payload": null` (the API treats both as absent, but omitting is clearer
+	// on the wire).
+	Payload     json.RawMessage `json:"payload,omitempty"`
 	RecipientID *string         `json:"recipient_id"`
 	Target      *Target         `json:"target"`
 	// Email, when present, attempts an email delivery (direct sends only). It is

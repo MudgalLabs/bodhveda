@@ -12,6 +12,25 @@ Notifications include a payload (custom data) and are categorized by their targe
 
 A direct notification can also fan out to **email** by including an `email` block on the send — see [mediums](/docs/concepts/mediums). Email is direct-only; broadcasts remain in-app.
 
+On a direct send the `payload` is **optional**: omit it and Bodhveda delivers the email without creating an in-app notification (an [email-only send](/docs/concepts/mediums#email-only-sends)). A send must carry at least one of `payload` or `email`. Broadcasts always require a `payload`.
+
+### Status
+
+Every notification carries a `status` — the **in-app** outcome, resolved asynchronously after the send is accepted:
+
+| Status | Meaning |
+| --- | --- |
+| `enqueued` | Accepted; the worker has not resolved it yet. |
+| `delivered` | Written to the recipient's inbox. |
+| `muted` | The recipient's preferences disallowed it. |
+| `quota_exceeded` | The project was over its plan limit. |
+| `failed` | Delivery failed. |
+| `not_requested` | The send carried no `payload`, so no in-app delivery was requested. |
+
+`not_requested` is the odd one out: it is set **when the send is accepted** and never changes, because there is nothing to resolve. Those notifications are hidden from the recipient's feed, unread count, and mark-all-read — but they still carry the email delivery outcome, so you can retrieve one by `id` to see whether the email sent.
+
+Each *other* medium's outcome lives on its own delivery record rather than on this scalar — retrieve a notification by `id` to read the `email` outcome alongside `status`.
+
 A direct notification will always be delivered to the recipient unless the recipient has unsubscribed that target.
 
 A broadcast notification will only be delivered to the recipients who are subscribed to the target.

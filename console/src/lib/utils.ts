@@ -48,6 +48,10 @@ export function statusToString(
             return "Suppressed";
         case "rejected":
             return "Rejected";
+        // Reads as a statement about the SEND, not about a delivery that went
+        // wrong — "Not requested" would be ambiguous next to statuses like Muted.
+        case "not_requested":
+            return "No in-app";
         default:
             return status;
     }

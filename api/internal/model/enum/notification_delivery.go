@@ -16,10 +16,17 @@ package enum
 //     provider webhooks (Phase 5, pg.ApplyWebhookStatus). Bounced/complained are
 //     sticky terminals. "opened"/"clicked" are NOT statuses — they are soft
 //     signals stamped only on the opened_at/clicked_at columns.
+//   - DeliveryQuotaExceeded is written for an EMAIL-ONLY send (one carrying no
+//     `payload`) whose project is over its plan limit. Such a send has no in-app
+//     row to carry the `quota_exceeded` NotificationStatus — its notification is
+//     `not_requested`, which must not be overwritten by an outcome belonging to a
+//     different medium — so the quota rejection is recorded where every other
+//     email outcome lives: on the delivery row. See
+//     NotificationService.DeliverDirectNotification.
 //
-// The remaining values (sending, suppressed, quota_exceeded, rejected) exist to
-// match the table CHECK but are not set yet (suppressed is reserved for the
-// Phase 6 unsubscribe/complaint-suppression work).
+// The remaining values (sending, suppressed, rejected) exist to match the table
+// CHECK but are not set yet (suppressed is reserved for address-level
+// suppression, still deferred).
 type DeliveryStatus string
 
 const (

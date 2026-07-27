@@ -95,7 +95,14 @@ export function SendNotificationModal({
         }
 
         try {
-            const parsedPayload = JSON.parse(state.payload);
+            // A blank payload with the email block on is an EMAIL-ONLY send:
+            // `payload` is omitted entirely so no in-app row is created. Sending
+            // `null` would not do — the API treats an explicit null as absent, but
+            // omitting the key is what the content-block-presence rule reads.
+            const emailOnly = emailEnabled && state.payload.trim() === "";
+            const parsedPayload = emailOnly
+                ? undefined
+                : JSON.parse(state.payload);
 
             sendNotification({
                 recipient_id: state.recipient_id ? state.recipient_id : null,
@@ -137,7 +144,11 @@ export function SendNotificationModal({
             return true;
         }
 
-        if (state.payload.trim() === "") {
+        // A send must carry at least one content block. The payload is required
+        // UNLESS the email block is on and complete — that combination is an
+        // email-only send, which is exactly the case a blank payload expresses.
+        // Broadcasts are in-app only, so their payload is always required.
+        if (state.payload.trim() === "" && !emailEnabled) {
             return true;
         }
 
@@ -224,6 +235,7 @@ export function SendNotificationModal({
                                 state={state}
                                 setState={setState}
                                 isBroadcast={isBroadcast}
+                                emailEnabled={emailEnabled}
                             />
                         </MultiStep.Step>
                     </MultiStep.Content>
@@ -380,10 +392,12 @@ function PayloadStep({
     state,
     setState,
     isBroadcast,
+    emailEnabled,
 }: {
     state: State;
     setState: React.Dispatch<React.SetStateAction<State>>;
     isBroadcast: boolean;
+    emailEnabled: boolean;
 }) {
     const placeholder = `{
     "key": "value"
@@ -420,7 +434,9 @@ function PayloadStep({
                 Label={
                     <span className="flex-x justify-between">
                         <span className="flex-x">
-                            <Label required>Payload</Label>
+                            {/* Optional only when the email block is on: that
+                                combination is an email-only send. */}
+                            <Label required={!emailEnabled}>Payload</Label>
                             <Tooltip
                                 content={
                                     <>
@@ -429,6 +445,13 @@ function PayloadStep({
                                             notification.
                                         </p>
                                         <p>Must be valid JSON.</p>
+                                        {emailEnabled && (
+                                            <p>
+                                                Leave this blank to send the
+                                                email <em>without</em> creating
+                                                an in-app notification.
+                                            </p>
+                                        )}
                                     </>
                                 }
                             >
