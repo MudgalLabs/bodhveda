@@ -25,6 +25,13 @@ var (
 	GOOGLE_CLIENT_SECRET string
 	CipherKey            string
 	HashKey              string
+	// AlertDiscordWebhookURL is where the infra monitor posts health alerts
+	// (BODHVEDA_ALERT_DISCORD_WEBHOOK_URL). OPTIONAL — when empty the monitor
+	// still runs every check and logs its findings, it just has nowhere to push
+	// them. That keeps local dev and any self-hosted stack working without a
+	// Discord server, and means a missing var degrades to log-only rather than
+	// failing startup.
+	AlertDiscordWebhookURL string
 )
 
 func IsProd() bool {
@@ -54,6 +61,7 @@ func Init(path string) {
 	GOOGLE_CLIENT_SECRET = os.Getenv("BODHVEDA_GOOGLE_CLIENT_SECRET")
 	CipherKey = os.Getenv("BODHVEDA_API_CIPHER_KEY")
 	HashKey = os.Getenv("BODHVEDA_API_HASH_KEY")
+	AlertDiscordWebhookURL = os.Getenv("BODHVEDA_ALERT_DISCORD_WEBHOOK_URL")
 
 	// TODO: We should validate the environment variables here to ensure they are set correctly.
 

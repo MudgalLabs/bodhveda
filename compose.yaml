@@ -39,6 +39,12 @@ services:
             BODHVEDA_GOOGLE_CLIENT_SECRET: ${BODHVEDA_GOOGLE_CLIENT_SECRET}
             BODHVEDA_API_CIPHER_KEY: ${BODHVEDA_API_CIPHER_KEY}
             BODHVEDA_API_HASH_KEY: ${BODHVEDA_API_HASH_KEY}
+            # Infra monitor (internal/monitor). OPTIONAL — hence the `:-` default,
+            # which keeps `docker compose` from warning when it is unset. Unset =>
+            # the monitor still runs every check, it just logs instead of pushing.
+            # Runs on the api, NOT the worker: a monitor on the same queue it
+            # watches dies in the incident it exists to report.
+            BODHVEDA_ALERT_DISCORD_WEBHOOK_URL: ${BODHVEDA_ALERT_DISCORD_WEBHOOK_URL:-}
             TZ: ${TZ}
         ports:
             - 1338:1338

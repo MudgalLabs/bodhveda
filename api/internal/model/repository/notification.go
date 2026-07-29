@@ -30,6 +30,17 @@ type NotificationReader interface {
 	// TargetVolumes returns the top `limit` targets by in-app notification volume
 	// over the range (Phase 9.5).
 	TargetVolumes(ctx context.Context, projectID int, from, to *time.Time, limit int) ([]dto.AnalyticsTargetStat, error)
+	// CountStuck counts notifications ACROSS ALL PROJECTS that were created before
+	// `olderThan` but after `newerThan`, and are still in the only non-terminal
+	// status (`enqueued`).
+	//
+	// Feeds internal/monitor's stuck_sends check. It is deliberately
+	// cross-project: this answers "is Bodhveda's send path stalled?", which is an
+	// operator question about the whole install, not a tenant-scoped one.
+	//
+	// `newerThan` bounds the lookback so this can never become a full-history
+	// scan — see the note in the implementation about indexing.
+	CountStuck(ctx context.Context, olderThan, newerThan time.Time) (int, error)
 }
 
 type NotificationWriter interface {

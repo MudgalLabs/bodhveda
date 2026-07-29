@@ -284,6 +284,42 @@ func (r *NotificationRepo) UnreadCountForRecipient(ctx context.Context, projectI
 	return count, nil
 }
 
+// CountStuck counts notifications stalled in `enqueued` across all projects.
+// See the interface doc in model/repository/notification.go for why it is not
+// project-scoped.
+//
+// `enqueued` is the only non-terminal NotificationStatus, and the
+// notification:delivery task normally resolves it sub-second, so a row still
+// sitting there minutes later means the send path stopped after the initial
+// INSERT — which is precisely what a dead or failing worker looks like from the
+// database side.
+//
+// ⚠️ Deliberately NOT indexed. `notification` is on the send hot path and
+// carries only two indexes for that reason (see agent-docs/overview.md), and a
+// partial index on status='enqueued' would add an index write on INSERT plus an
+// index delete on resolve to EVERY send — taxing the hot path to serve a query
+// that runs once a minute. The `newerThan` bound keeps the scan proportional to
+// recent volume rather than all history. If this ever shows up in query stats,
+// the fix is `CREATE INDEX ... ON notification (created_at) WHERE status =
+// 'enqueued'` — tiny, since it indexes only unresolved rows — but measure first.
+func (r *NotificationRepo) CountStuck(ctx context.Context, olderThan, newerThan time.Time) (int, error) {
+	sql := `
+		SELECT COUNT(*) FROM notification
+		WHERE status = 'enqueued'
+		  AND created_at < $1
+		  AND created_at > $2
+	`
+
+	var count int
+
+	err := r.db.QueryRow(ctx, sql, olderThan, newerThan).Scan(&count)
+	if err != nil {
+		return 0, fmt.Errorf("query and scan: %w", err)
+	}
+
+	return count, nil
+}
+
 func (r *NotificationRepo) UpdateForRecipient(ctx context.Context, projectID int, recipientExtID string, payload dto.UpdateRecipientNotificationsPayload) (int, error) {
 	sql := `
 		UPDATE notification
