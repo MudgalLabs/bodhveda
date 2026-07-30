@@ -80,7 +80,7 @@ func TestBroadcastDeliveryWritesDeliveredNotifications(t *testing.T) {
 		t.Fatalf("create broadcast: %v", err)
 	}
 
-	batch, err := batchRepo.Create(ctx, entity.NewBroadcastBatch(broadcast.ID, 2))
+	batch, err := batchRepo.Create(ctx, entity.NewBroadcastBatch(broadcast.ID, []string{"r1", "r2"}))
 	if err != nil {
 		t.Fatalf("create batch: %v", err)
 	}
@@ -244,7 +244,7 @@ func TestBroadcastDeliveryIsIdempotentOnRetry(t *testing.T) {
 		t.Fatalf("create broadcast: %v", err)
 	}
 
-	batch, err := batchRepo.Create(ctx, entity.NewBroadcastBatch(broadcast.ID, 3))
+	batch, err := batchRepo.Create(ctx, entity.NewBroadcastBatch(broadcast.ID, []string{"r1", "r2", "r3"}))
 	if err != nil {
 		t.Fatalf("create batch: %v", err)
 	}
@@ -371,5 +371,148 @@ func TestBroadcastDeliveryReturnsErrorSoAsynqRetries(t *testing.T) {
 	}
 	if written != 0 {
 		t.Errorf("%d notifications survived a failed batch; the insert must roll back with it", written)
+	}
+}
+
+// TestPrepareBatchesDoesNotRePrepareOnRetry pins the fix for the
+// prepare_batches idempotency bug.
+//
+// Everything in preparation used to run unguarded on every delivery of the task,
+// so an Asynq retry re-listed the audience, consumed the quota A SECOND TIME, and
+// created a whole new set of batches. Those duplicates carry fresh batch ids, so
+// BroadcastDeliveryProcessor's per-batch guard does not catch them — every one
+// fans out and every recipient receives the broadcast again.
+//
+// ⚠️ The asynq client and the billing service are deliberately nil. A retry must
+// touch neither: the quota was consumed by the first attempt, and a batch already
+// marked `success` has nothing left to enqueue. Reaching either is a nil panic,
+// which is the assertion.
+func TestPrepareBatchesDoesNotRePrepareOnRetry(t *testing.T) {
+	pool := testPool(t)
+	ctx := context.Background()
+	projectID := testProject(t, pool, "bcast-prepare-idem-test")
+
+	broadcastRepo := pg.NewBroadcastRepo(pool)
+	preferenceRepo := pg.NewPreferenceRepo(pool)
+	batchRepo := pg.NewBroadcastBatchRepo(pool)
+
+	// ⚠️ The audience must be NON-EMPTY for this test to mean anything. With no
+	// eligible recipient the unguarded path takes the empty-audience early return,
+	// which creates no batch and never reaches billing — so the test would pass
+	// even with the guard removed. A recipient plus an enabled project-level
+	// catalog entry is what makes re-preparation actually do damage.
+	if _, err := pool.Exec(ctx, `
+		INSERT INTO recipient (project_id, external_id, created_at, updated_at)
+		VALUES ($1, 'r1', now(), now()), ($1, 'r2', now(), now())
+	`, projectID); err != nil {
+		t.Fatalf("insert recipients: %v", err)
+	}
+	if _, err := pool.Exec(ctx, `
+		INSERT INTO preference (project_id, recipient_external_id, channel, topic, event, name, medium, enabled, created_at, updated_at)
+		VALUES ($1, NULL, 'product', 'updates', 'released', 'Updates', 'in_app', true, now(), now())
+	`, projectID); err != nil {
+		t.Fatalf("insert catalog preference: %v", err)
+	}
+
+	broadcast, err := broadcastRepo.Create(ctx, entity.NewBroadcast(projectID, []byte(`{"t":"hi"}`), "product", "updates", "released"))
+	if err != nil {
+		t.Fatalf("create broadcast: %v", err)
+	}
+
+	// Stand in for a first attempt that completed preparation: one batch exists
+	// and has already been delivered.
+	batch, err := batchRepo.Create(ctx, entity.NewBroadcastBatch(broadcast.ID, []string{"r1", "r2"}))
+	if err != nil {
+		t.Fatalf("create batch: %v", err)
+	}
+	if err := batchRepo.Update(ctx, batch.ID, entity.NewBroadcastBatchUpdatePayload(
+		enum.BroadcastBatchStatusSuccess, 1, 5,
+	)); err != nil {
+		t.Fatalf("mark batch success: %v", err)
+	}
+
+	payload, err := json.Marshal(dto.PrepareBroadcastBatchesPayload{
+		UserID:    1,
+		Broadcast: broadcast,
+	})
+	if err != nil {
+		t.Fatalf("marshal payload: %v", err)
+	}
+
+	p := NewPrepareBroadcastBatchesProcessor(pool, nil, preferenceRepo, broadcastRepo, batchRepo, nil)
+	if err := p.ProcessTask(ctx, asynq.NewTask(task.TaskTypePrepareBroadcastBatches, payload)); err != nil {
+		t.Fatalf("a redelivery of an already-prepared broadcast must be a no-op: %v", err)
+	}
+
+	var batches int
+	if err := pool.QueryRow(ctx, `SELECT COUNT(*) FROM broadcast_batch WHERE broadcast_id = $1`, broadcast.ID).Scan(&batches); err != nil {
+		t.Fatalf("count batches: %v", err)
+	}
+	if batches != 1 {
+		t.Errorf("batch count = %d, want 1 — the retry re-prepared the broadcast", batches)
+	}
+}
+
+// TestBroadcastBatchPersistsItsRecipients pins the column that makes preparation
+// resumable, and the rule that a batch which cannot be resumed is skipped rather
+// than treated as empty.
+//
+// Before this, the batch→recipient mapping existed only in the Asynq payload, so
+// a batch whose task was never enqueued could not be recovered by anything.
+func TestBroadcastBatchPersistsItsRecipients(t *testing.T) {
+	pool := testPool(t)
+	ctx := context.Background()
+	projectID := testProject(t, pool, "bcast-batch-recipients-test")
+
+	broadcastRepo := pg.NewBroadcastRepo(pool)
+	batchRepo := pg.NewBroadcastBatchRepo(pool)
+
+	broadcast, err := broadcastRepo.Create(ctx, entity.NewBroadcast(projectID, []byte(`{}`), "product", "updates", "released"))
+	if err != nil {
+		t.Fatalf("create broadcast: %v", err)
+	}
+
+	want := []string{"r1", "r2", "r3"}
+
+	created, err := batchRepo.Create(ctx, entity.NewBroadcastBatch(broadcast.ID, want))
+	if err != nil {
+		t.Fatalf("create batch: %v", err)
+	}
+	if len(created.RecipientExtIDs) != len(want) {
+		t.Fatalf("recipient ids round-tripped as %v, want %v", created.RecipientExtIDs, want)
+	}
+	if created.Recipients != len(want) {
+		t.Errorf("recipients count = %d, want %d — it must stay consistent with the id list", created.Recipients, len(want))
+	}
+
+	// A legacy batch: no recipient ids, because the column did not exist when it
+	// was written. It must NOT come back as resumable — delivering to an empty set
+	// would mark it successful having reached nobody.
+	var legacyID int
+	if err := pool.QueryRow(ctx, `
+		INSERT INTO broadcast_batch (broadcast_id, recipients, status, attempt, duration, created_at, updated_at)
+		VALUES ($1, 5, 'enqueued', 0, 0, now(), now()) RETURNING id
+	`, broadcast.ID).Scan(&legacyID); err != nil {
+		t.Fatalf("insert legacy batch: %v", err)
+	}
+
+	tx, err := pool.Begin(ctx)
+	if err != nil {
+		t.Fatalf("begin: %v", err)
+	}
+	defer tx.Rollback(ctx)
+
+	resumable, err := batchRepo.ResumableForBroadcastTx(ctx, tx, broadcast.ID)
+	if err != nil {
+		t.Fatalf("list resumable: %v", err)
+	}
+	if len(resumable) != 1 {
+		t.Fatalf("resumable = %d batches, want 1 (the legacy NULL-recipient batch must be skipped)", len(resumable))
+	}
+	if resumable[0].ID != created.ID {
+		t.Errorf("resumable batch id = %d, want %d", resumable[0].ID, created.ID)
+	}
+	if len(resumable[0].RecipientExtIDs) != len(want) {
+		t.Errorf("resumable batch carries %v, want %v", resumable[0].RecipientExtIDs, want)
 	}
 }

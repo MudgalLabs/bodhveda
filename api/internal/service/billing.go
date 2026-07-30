@@ -109,7 +109,35 @@ func (s *BillingService) GetUsage(ctx context.Context, userID int, planID entity
 // row lock, so concurrent sends can overshoot a limit slightly. That race exists
 // in the shipped behaviour above too — closing it needs a locking read and is a
 // deliberate behaviour change, not part of this fix.
+// CheckAndConsumeUsageTx is CheckAndConsumeUsage with the usage write enrolled in
+// the caller's transaction instead of its own.
+//
+// It exists so a broadcast's usage and its batches commit as one unit. Consuming
+// usage in a separate transaction meant a retry after the consume but before the
+// batches were written billed the same broadcast twice, with nothing recording
+// that it had already been charged — `usage_log` is append-only and carries no
+// idempotency key. Sharing the transaction makes "batches exist" and "usage
+// consumed" the same fact, which is what lets the caller's guard trust either one.
+//
+// ⚠️ The quota CHECK still reads outside the caller's write set, so it remains a
+// check-then-act against concurrent consumption. That is unchanged from
+// CheckAndConsumeUsage and is not what this fixes.
+func (s *BillingService) CheckAndConsumeUsageTx(ctx context.Context, tx pgx.Tx, event dto.UsageEvent) error {
+	return s.checkAndConsumeUsage(ctx, event, func(ctx context.Context, write func(pgx.Tx) error) error {
+		return write(tx)
+	})
+}
+
 func (s *BillingService) CheckAndConsumeUsage(ctx context.Context, event dto.UsageEvent) error {
+	return s.checkAndConsumeUsage(ctx, event, func(ctx context.Context, write func(pgx.Tx) error) error {
+		return dbx.WithTx(ctx, s.db, write)
+	})
+}
+
+func (s *BillingService) checkAndConsumeUsage(
+	ctx context.Context, event dto.UsageEvent,
+	runWrite func(ctx context.Context, write func(pgx.Tx) error) error,
+) error {
 	now := time.Now().UTC()
 
 	// Load subscription
@@ -169,10 +197,10 @@ func (s *BillingService) CheckAndConsumeUsage(ctx context.Context, event dto.Usa
 		return enum.ErrQuotaExceeded
 	}
 
-	// Record usage. The transaction is scoped to just this write, which is the
-	// only part that needs to be atomic: usage_log and usage_aggregate must move
-	// together or not at all.
-	return dbx.WithTx(ctx, s.db, func(tx pgx.Tx) error {
+	// Record usage. Only this write needs to be atomic: usage_log and
+	// usage_aggregate must move together or not at all. runWrite decides whether
+	// that happens in its own transaction or the caller's.
+	return runWrite(ctx, func(tx pgx.Tx) error {
 		return s.usageLogRepo.Add(ctx, tx, event.ProjectID, event.Metric, event.Amount, sub.CurrentPeriodStart, sub.CurrentPeriodEnd)
 	})
 }

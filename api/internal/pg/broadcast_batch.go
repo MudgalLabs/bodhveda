@@ -26,27 +26,79 @@ func NewBroadcastBatchRepo(db *pgxpool.Pool) repository.BroadcastBatchRepository
 }
 
 func (r *BroadcastBatchRepo) Create(ctx context.Context, broadcastBatch *entity.BroadcastBatch) (*entity.BroadcastBatch, error) {
+	return createBroadcastBatch(ctx, r.db, broadcastBatch)
+}
+
+func (r *BroadcastBatchRepo) CreateTx(ctx context.Context, tx pgx.Tx, broadcastBatch *entity.BroadcastBatch) (*entity.BroadcastBatch, error) {
+	return createBroadcastBatch(ctx, tx, broadcastBatch)
+}
+
+func createBroadcastBatch(ctx context.Context, db dbx.DBExecutor, broadcastBatch *entity.BroadcastBatch) (*entity.BroadcastBatch, error) {
 	sql := `
 		INSERT INTO broadcast_batch (
-			broadcast_id, recipients, status, attempt, duration, created_at, updated_at
+			broadcast_id, recipients, recipient_external_ids, status, attempt, duration, created_at, updated_at
 		)
-		VALUES ($1, $2, $3, $4, $5, $6, $7)
-		RETURNING id, broadcast_id, recipients, status, attempt, duration, created_at, updated_at
+		VALUES ($1, $2, $3, $4, $5, $6, $7, $8)
+		RETURNING id, broadcast_id, recipients, recipient_external_ids, status, attempt, duration, created_at, updated_at
 	`
-	row := r.db.QueryRow(ctx, sql, broadcastBatch.BroadcastID, broadcastBatch.Recipients, broadcastBatch.Status,
-		broadcastBatch.Attempt, broadcastBatch.Duration, broadcastBatch.CreatedAt, broadcastBatch.UpdatedAt,
+	row := db.QueryRow(ctx, sql, broadcastBatch.BroadcastID, broadcastBatch.Recipients, broadcastBatch.RecipientExtIDs,
+		broadcastBatch.Status, broadcastBatch.Attempt, broadcastBatch.Duration, broadcastBatch.CreatedAt, broadcastBatch.UpdatedAt,
 	)
 
 	var newBatch entity.BroadcastBatch
 
-	err := row.Scan(&newBatch.ID, &newBatch.BroadcastID, &newBatch.Recipients, &newBatch.Status, &newBatch.Attempt,
-		&newBatch.Duration, &newBatch.CreatedAt, &newBatch.UpdatedAt,
+	err := row.Scan(&newBatch.ID, &newBatch.BroadcastID, &newBatch.Recipients, &newBatch.RecipientExtIDs,
+		&newBatch.Status, &newBatch.Attempt, &newBatch.Duration, &newBatch.CreatedAt, &newBatch.UpdatedAt,
 	)
 	if err != nil {
 		return nil, err
 	}
 
 	return &newBatch, nil
+}
+
+// ResumableForBroadcastTx returns the broadcast's batches that are still
+// `enqueued`, so a retry can re-enqueue exactly the outstanding ones.
+//
+// ⚠️ Batches with a NULL recipient_external_ids predate the column and are
+// skipped here rather than returned empty — see the migration. Delivering to an
+// empty set would silently mark such a batch successful having reached nobody.
+func (r *BroadcastBatchRepo) ResumableForBroadcastTx(ctx context.Context, tx pgx.Tx, broadcastID int) ([]*entity.BroadcastBatch, error) {
+	sql := `
+		SELECT id, broadcast_id, recipients, recipient_external_ids, status, attempt, duration, created_at, updated_at
+		FROM broadcast_batch
+		WHERE broadcast_id = $1 AND status = $2 AND recipient_external_ids IS NOT NULL
+		ORDER BY id
+	`
+
+	rows, err := tx.Query(ctx, sql, broadcastID, enum.BroadcastBatchStatusEnqueued)
+	if err != nil {
+		return nil, err
+	}
+	defer rows.Close()
+
+	var batches []*entity.BroadcastBatch
+
+	for rows.Next() {
+		var b entity.BroadcastBatch
+		if err := rows.Scan(&b.ID, &b.BroadcastID, &b.Recipients, &b.RecipientExtIDs,
+			&b.Status, &b.Attempt, &b.Duration, &b.CreatedAt, &b.UpdatedAt,
+		); err != nil {
+			return nil, err
+		}
+		batches = append(batches, &b)
+	}
+
+	return batches, rows.Err()
+}
+
+// CountForBroadcastTx counts every batch of a broadcast, regardless of status.
+// Non-zero means preparation already ran, which is what tells a retry not to
+// bill or fan out a second time.
+func (r *BroadcastBatchRepo) CountForBroadcastTx(ctx context.Context, tx pgx.Tx, broadcastID int) (int, error) {
+	var count int
+	err := tx.QueryRow(ctx, `SELECT COUNT(*) FROM broadcast_batch WHERE broadcast_id = $1`, broadcastID).Scan(&count)
+	return count, err
 }
 
 func (r *BroadcastBatchRepo) Update(ctx context.Context, batchID int, payload *entity.BroadcastBatchUpdatePayload) error {

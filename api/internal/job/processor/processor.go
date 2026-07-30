@@ -202,11 +202,77 @@ func (processor *PrepareBroadcastBatchesProcessor) ProcessTask(ctx context.Conte
 	// Broadcasts fan out in-app only (email is direct-only).
 	target := dto.TargetFromBroadcast(broadcast)
 
-	recipientExtIDs, err := processor.preferenceRepo.ListEligibleRecipientExtIDsForBroadcast(ctx, broadcast.ProjectID, target, enum.MediumInApp)
+	// ⚠️ Preparation must be safe to run twice, and it was not.
+	//
+	// Everything below used to run unguarded on every delivery of this task, so an
+	// Asynq retry — after a failed enqueue, a crash, or an expired lease —
+	// re-listed the audience, consumed the quota A SECOND TIME, and created a
+	// whole new set of batches. Those duplicate batches carry fresh ids, so
+	// BroadcastDeliveryProcessor's per-batch guard does not catch them: every one
+	// fans out, and every recipient gets the broadcast again.
+	//
+	// The broadcast row is the guard. Locking it serialises concurrent attempts,
+	// and the existence of batches is the durable record that preparation already
+	// happened — the two are made the same fact by creating the batches and
+	// consuming the usage in ONE transaction.
+	//
+	// A retry therefore does not re-prepare. It re-enqueues the batches still
+	// awaiting delivery, which is safe precisely because delivery is idempotent
+	// per batch.
+	var batchesToEnqueue []*entity.BroadcastBatch
+
+	err := dbx.WithTx(ctx, processor.db, func(tx pgx.Tx) error {
+		status, err := processor.broadcastRepo.StatusForUpdateTx(ctx, tx, broadcast.ID)
+		if err != nil {
+			return fmt.Errorf("lock broadcast: %w", err)
+		}
+
+		// Already finished — completed, or refused for quota. Nothing to prepare
+		// and nothing to resume.
+		if status != enum.BroadcastStatusEnqueued {
+			return nil
+		}
+
+		prepared, err := processor.broadcastBatchRepo.CountForBroadcastTx(ctx, tx, broadcast.ID)
+		if err != nil {
+			return fmt.Errorf("count existing batches: %w", err)
+		}
+
+		if prepared > 0 {
+			// Preparation committed on an earlier attempt; the audience is already
+			// frozen and the quota already consumed. All that can be outstanding is
+			// the enqueue, so resume exactly that.
+			batchesToEnqueue, err = processor.broadcastBatchRepo.ResumableForBroadcastTx(ctx, tx, broadcast.ID)
+			if err != nil {
+				return fmt.Errorf("list resumable batches: %w", err)
+			}
+			return nil
+		}
+
+		return processor.prepareTx(ctx, tx, broadcast, target, payload.UserID, &batchesToEnqueue)
+	})
 	if err != nil {
-		err = fmt.Errorf("list eligible recipient external IDs: %w", err)
 		logger.Get().Error(err)
 		return err
+	}
+
+	return processor.enqueueBatches(ctx, broadcast, batchesToEnqueue)
+}
+
+// prepareTx does the first-time preparation of a broadcast: freeze the audience,
+// consume the quota, and write the batches — all inside the caller's transaction,
+// so there is no such thing as a partially prepared broadcast to recover from.
+//
+// It appends the batches it creates to enqueue, which the caller sends to Asynq
+// AFTER the transaction commits. Enqueuing from inside would publish a task
+// referencing rows that may still roll back.
+func (processor *PrepareBroadcastBatchesProcessor) prepareTx(
+	ctx context.Context, tx pgx.Tx, broadcast *entity.Broadcast,
+	target dto.Target, userID int, enqueue *[]*entity.BroadcastBatch,
+) error {
+	recipientExtIDs, err := processor.preferenceRepo.ListEligibleRecipientExtIDsForBroadcast(ctx, broadcast.ProjectID, target, enum.MediumInApp)
+	if err != nil {
+		return fmt.Errorf("list eligible recipient external IDs: %w", err)
 	}
 
 	// Freeze the audience breakdown NOW — this is the only moment these numbers
@@ -225,13 +291,15 @@ func (processor *PrepareBroadcastBatchesProcessor) ProcessTask(ctx context.Conte
 		// would make the stored count disagree with the notifications written.
 		audience.Eligible = len(recipientExtIDs)
 
-		if err := processor.broadcastRepo.SetAudience(ctx, broadcast.ID, audience); err != nil {
+		// ⚠️ Tx variant, not the pool one. We hold this row via FOR UPDATE, so a
+		// pool connection would block on our own lock and hang the worker.
+		if err := processor.broadcastRepo.SetAudienceTx(ctx, tx, broadcast.ID, audience); err != nil {
 			logger.Get().Errorf("PrepareBroadcastBatchesProcessor: set audience for broadcast %d: %v", broadcast.ID, err)
 		}
 	}
 
 	event := dto.UsageEvent{
-		UserID:    payload.UserID,
+		UserID:    userID,
 		ProjectID: broadcast.ProjectID,
 		Metric:    entity.MetricNotifications,
 		Amount:    int64(len(recipientExtIDs)),
@@ -259,38 +327,33 @@ func (processor *PrepareBroadcastBatchesProcessor) ProcessTask(ctx context.Conte
 		broadcast.CompletedAt = &now
 		broadcast.UpdatedAt = now
 
-		if err := processor.broadcastRepo.Update(ctx, broadcast); err != nil {
-			err = fmt.Errorf("update broadcast with empty audience: %w", err)
-			logger.Get().Error(err)
-			return err
+		if err := processor.broadcastRepo.UpdateTx(ctx, tx, broadcast); err != nil {
+			return fmt.Errorf("update broadcast with empty audience: %w", err)
 		}
 
 		logger.Get().Infof("PrepareBroadcastBatchesProcessor: broadcast %d matched no eligible recipients; completed with no batches", broadcast.ID)
 		return nil
 	}
 
-	err = processor.billingService.CheckAndConsumeUsage(ctx, event)
-	if err != nil {
-		if errors.Is(err, enum.ErrQuotaExceeded) {
-			broadcast.Status = enum.BroadcastStatusQuotaExceeded
-		} else {
-			err = fmt.Errorf("check and consume usage: %w", err)
-			logger.Get().Error(err)
-			return err
+	// ⚠️ In the caller's transaction, so the usage and the batches below commit as
+	// one fact. Consuming in a separate transaction meant a retry after the
+	// consume but before the batches billed the same broadcast twice, with
+	// nothing recording that it had already been charged.
+	if err := processor.billingService.CheckAndConsumeUsageTx(ctx, tx, event); err != nil {
+		if !errors.Is(err, enum.ErrQuotaExceeded) {
+			return fmt.Errorf("check and consume usage: %w", err)
 		}
 
 		now := time.Now().UTC()
+		broadcast.Status = enum.BroadcastStatusQuotaExceeded
 		broadcast.CompletedAt = &now
 		broadcast.UpdatedAt = now
 
-		err = processor.broadcastRepo.Update(ctx, broadcast)
-		if err != nil {
-			err = fmt.Errorf("update broadcast: %w", err)
-			logger.Get().Error(err)
-			return err
+		if err := processor.broadcastRepo.UpdateTx(ctx, tx, broadcast); err != nil {
+			return fmt.Errorf("update quota-exceeded broadcast: %w", err)
 		}
 
-		logger.Get().Infof("PrepareBroadcastBatchesProcessor: Successfully processed task for broadcast %d with %d recipients", broadcast.ID, len(recipientExtIDs))
+		logger.Get().Infof("PrepareBroadcastBatchesProcessor: broadcast %d exceeded quota with %d recipients", broadcast.ID, len(recipientExtIDs))
 		return nil
 	}
 
@@ -305,21 +368,36 @@ func (processor *PrepareBroadcastBatchesProcessor) ProcessTask(ctx context.Conte
 	for i := 0; i < len(recipientExtIDs); i += batchSize {
 		end := min(i+batchSize, len(recipientExtIDs))
 
-		recipientsBatch := recipientExtIDs[i:end]
-		broadcastBatch := entity.NewBroadcastBatch(broadcast.ID, len(recipientsBatch))
-
-		broadcastBatch, err := processor.broadcastBatchRepo.Create(ctx, broadcastBatch)
+		broadcastBatch, err := processor.broadcastBatchRepo.CreateTx(ctx, tx, entity.NewBroadcastBatch(broadcast.ID, recipientExtIDs[i:end]))
 		if err != nil {
-			err = fmt.Errorf("create broadcast batch: %w", err)
-			logger.Get().Error(err)
-			return err
+			return fmt.Errorf("create broadcast batch: %w", err)
 		}
 
+		*enqueue = append(*enqueue, broadcastBatch)
+	}
+
+	logger.Get().Infof("PrepareBroadcastBatchesProcessor: prepared broadcast %d into %d batches for %d recipients",
+		broadcast.ID, len(*enqueue), len(recipientExtIDs))
+
+	return nil
+}
+
+// enqueueBatches publishes one delivery task per batch, AFTER the preparation
+// transaction has committed.
+//
+// ⚠️ A failure here is not work loss any more. The batches are already durable
+// and carry their own recipient ids, so returning the error lets Asynq retry the
+// whole task, and the retry re-enqueues exactly the batches still outstanding
+// rather than preparing the broadcast again.
+func (processor *PrepareBroadcastBatchesProcessor) enqueueBatches(
+	ctx context.Context, broadcast *entity.Broadcast, batches []*entity.BroadcastBatch,
+) error {
+	for _, batch := range batches {
 		payload, err := json.Marshal(dto.BroadcastDeliveryTaskPayload{
 			ProjectID:       broadcast.ProjectID,
 			BroadcastID:     broadcast.ID,
-			BatchID:         broadcastBatch.ID,
-			RecipientExtIDs: recipientsBatch,
+			BatchID:         batch.ID,
+			RecipientExtIDs: batch.RecipientExtIDs,
 			Payload:         broadcast.Payload,
 			Channel:         broadcast.Channel,
 			Topic:           broadcast.Topic,
@@ -331,17 +409,26 @@ func (processor *PrepareBroadcastBatchesProcessor) ProcessTask(ctx context.Conte
 			return err
 		}
 
-		task := asynq.NewTask(task.TaskTypeBroadcastDelivery, payload)
-
-		_, err = processor.asynqClient.Enqueue(task, asynq.MaxRetry(3))
+		// ⚠️ A stable per-batch task id makes the re-enqueue on a retry a no-op
+		// instead of a second copy of the same work. Asynq rejects a duplicate id
+		// while the task is still in the queue; once it has run and been retained,
+		// the batch's own `success` guard is what stops the redelivery.
+		_, err = processor.asynqClient.EnqueueContext(ctx,
+			asynq.NewTask(task.TaskTypeBroadcastDelivery, payload),
+			asynq.MaxRetry(3),
+			asynq.TaskID(fmt.Sprintf("broadcast-batch-%d", batch.ID)),
+		)
 		if err != nil {
+			if errors.Is(err, asynq.ErrTaskIDConflict) {
+				// Already queued by a previous attempt — exactly the outcome wanted.
+				continue
+			}
 			err = fmt.Errorf("enqueue broadcast delivery task: %w", err)
 			logger.Get().Error(err)
 			return err
 		}
 	}
 
-	logger.Get().Infof("PrepareBroadcastBatchesProcessor: Successfully processed task for broadcast %d with %d recipients", broadcast.ID, len(recipientExtIDs))
 	return nil
 }
 

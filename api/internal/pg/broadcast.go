@@ -4,9 +4,11 @@ import (
 	"context"
 	"fmt"
 
+	"github.com/jackc/pgx/v5"
 	"github.com/jackc/pgx/v5/pgxpool"
 	"github.com/mudgallabs/bodhveda/internal/model/dto"
 	"github.com/mudgallabs/bodhveda/internal/model/entity"
+	"github.com/mudgallabs/bodhveda/internal/model/enum"
 	"github.com/mudgallabs/bodhveda/internal/model/repository"
 	"github.com/mudgallabs/tantra/dbx"
 	"github.com/mudgallabs/tantra/query"
@@ -101,6 +103,20 @@ func derefOrZero(v *int) int {
 // Audience. Putting these columns in Update's SET clause would blank them out on
 // every such call.
 func (r *BroadcastRepo) SetAudience(ctx context.Context, broadcastID int, a *entity.BroadcastAudience) error {
+	return setBroadcastAudience(ctx, r.db, broadcastID, a)
+}
+
+// SetAudienceTx is SetAudience enrolled in the caller's transaction.
+//
+// ⚠️ Not optional when the caller holds the broadcast row. prepare_batches opens
+// its transaction with SELECT ... FOR UPDATE on this row, so writing the audience
+// through the POOL takes a second connection that blocks on a lock the caller
+// itself holds — a self-deadlock that hangs until the statement timeout.
+func (r *BroadcastRepo) SetAudienceTx(ctx context.Context, tx pgx.Tx, broadcastID int, a *entity.BroadcastAudience) error {
+	return setBroadcastAudience(ctx, tx, broadcastID, a)
+}
+
+func setBroadcastAudience(ctx context.Context, db dbx.DBExecutor, broadcastID int, a *entity.BroadcastAudience) error {
 	if a == nil {
 		return nil
 	}
@@ -111,7 +127,7 @@ func (r *BroadcastRepo) SetAudience(ctx context.Context, broadcastID int, a *ent
 		excluded_not_cataloged = $5
 		WHERE id = $1
 	`
-	_, err := r.db.Exec(ctx, sql, broadcastID, a.Total, a.Eligible, a.ExcludedDisabled, a.ExcludedNotCataloged)
+	_, err := db.Exec(ctx, sql, broadcastID, a.Total, a.Eligible, a.ExcludedDisabled, a.ExcludedNotCataloged)
 	if err != nil {
 		return fmt.Errorf("set broadcast audience: %w", err)
 	}
@@ -120,17 +136,40 @@ func (r *BroadcastRepo) SetAudience(ctx context.Context, broadcastID int, a *ent
 }
 
 func (r *BroadcastRepo) Update(ctx context.Context, broadcast *entity.Broadcast) error {
+	return updateBroadcast(ctx, r.db, broadcast)
+}
+
+func (r *BroadcastRepo) UpdateTx(ctx context.Context, tx pgx.Tx, broadcast *entity.Broadcast) error {
+	return updateBroadcast(ctx, tx, broadcast)
+}
+
+func updateBroadcast(ctx context.Context, db dbx.DBExecutor, broadcast *entity.Broadcast) error {
 	sql := `
 		UPDATE broadcast
 		SET payload = $2, channel = $3, topic = $4, event = $5, completed_at = $6,
 		updated_at = $7, status = $8
 		WHERE id = $1
 	`
-	_, err := r.db.Exec(
+	_, err := db.Exec(
 		ctx, sql, broadcast.ID, broadcast.Payload, broadcast.Channel, broadcast.Topic, broadcast.Event,
 		broadcast.CompletedAt, broadcast.UpdatedAt, broadcast.Status,
 	)
 	return err
+}
+
+// StatusForUpdateTx takes a row lock on the broadcast and returns its status.
+//
+// The lock is what serialises two workers holding the same prepare_batches task:
+// the second blocks until the first commits, then sees the batches it created
+// and declines to prepare the broadcast a second time.
+func (r *BroadcastRepo) StatusForUpdateTx(ctx context.Context, tx pgx.Tx, broadcastID int) (enum.BroadcastStatus, error) {
+	var status enum.BroadcastStatus
+
+	if err := tx.QueryRow(ctx, `SELECT status FROM broadcast WHERE id = $1 FOR UPDATE`, broadcastID).Scan(&status); err != nil {
+		return "", err
+	}
+
+	return status, nil
 }
 
 func (r *BroadcastRepo) DeleteForProject(ctx context.Context, projectID int) (int, error) {
