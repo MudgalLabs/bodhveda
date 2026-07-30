@@ -25,6 +25,10 @@ export const API_ROUTES = {
         broadcasts: {
             list: (projectId: string | number) =>
                 `/console/projects/${projectId}/broadcasts`,
+            // Per-medium delivery breakdown for one broadcast: the frozen
+            // audience counts plus the per-status rollup. Console-only.
+            tree: (projectId: string | number, broadcastId: number) =>
+                `/console/projects/${projectId}/broadcasts/${broadcastId}/tree`,
         },
 
         // Home-page analytics: time-series + per-target/medium breakdowns over a

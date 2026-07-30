@@ -10,6 +10,7 @@ import { API_ROUTES, APIRes, client } from "@/lib/api";
 import { getRecipientsKey } from "@/features/recipient/recipient_hooks";
 import { notificationFiltersToParams } from "@/features/notification/notification_filters";
 import {
+    DeliveryTree,
     ListBroadcastsPayload,
     ListBroadcastsResult,
     ListNotificationDeliveriesResult,
@@ -164,5 +165,25 @@ export function useBroadcasts(projectID: string, page: number, limit: number) {
         },
         select: (res) => res.data as APIRes<ListBroadcastsResult>,
         placeholderData: keepPreviousData,
+    });
+}
+
+// useBroadcastDeliveryTree fetches the per-medium delivery breakdown for ONE
+// broadcast.
+//
+// `enabled` gates the fetch to when an operator actually opens the tree, in the
+// same spirit as useNotificationDeliveries: the rollup is an aggregate over every
+// notification in the broadcast, so it has no business riding every list refetch.
+export function useBroadcastDeliveryTree(
+    projectID: string,
+    broadcastID: number,
+    enabled = true
+) {
+    return useQuery({
+        queryKey: ["useBroadcastDeliveryTree", projectID, broadcastID],
+        queryFn: () =>
+            client.get(API_ROUTES.project.broadcasts.tree(projectID, broadcastID)),
+        select: (res) => res.data as APIRes<DeliveryTree>,
+        enabled: enabled && !!projectID && !!broadcastID,
     });
 }

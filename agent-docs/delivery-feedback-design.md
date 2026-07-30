@@ -1,7 +1,6 @@
 # Delivery feedback — design note
 
-**Status:** Unit 1 **BUILT** (2026-07-29, §2.6). Unit 2 **backend BUILT** (§3.6); console UI
-next.
+**Status:** Unit 1 **BUILT** (2026-07-29, §2.6). Unit 2 **BUILT** — backend §3.6, console UI §3.8.
 **Scope:** Unit 1 — infra alerting (Discord). Unit 2 — delivery tree in the console.
 **Shelved:** outbound webhooks, public delivery-status API. See §5.
 
@@ -375,6 +374,41 @@ notification in `enqueued` is a *genuinely* stalled send and must keep showing a
 Pinned by `TestBroadcastDeliveryWritesDeliveredNotifications` (asserts nothing non-terminal
 remains) and `TestPrepareBatchesCompletesEmptyBroadcast` (passes nil asynq client and billing
 service, so reaching either panics).
+
+### 3.8 As built — console UI (2026-07-30)
+
+`features/notification/components/delivery_tree.tsx` (the renderer) +
+`broadcast_tree_dialog.tsx` (dialog and the row trigger). Opened from a `Details` cell on the
+broadcast table, mirroring `DeliveryDetailCell` on the direct table so both kinds open the same
+way. The tree is fetched only when the dialog opens — it is an aggregate over every
+notification in the broadcast and has no business riding every list refetch.
+
+`DeliveryTreeView` takes a `DeliveryTree` and nothing else, so the direct-send detail dialog
+can reuse it unchanged when that is wired up.
+
+Presentation decisions that carry meaning:
+
+- ⚠️ **`suppressed` renders NEUTRAL, never as an error.** It means the recipient opted out —
+  the system working. Red would make a healthy project look broken and train the reader to
+  ignore real failures. Same for `not_requested`.
+- **`excluded_not_cataloged` renders AMBER, with copy naming it a project-config problem**
+  ("no enabled in-app catalog entry … add or enable it in Preferences"), while
+  `excluded_disabled` renders muted with "working as intended". Same tree level, opposite
+  meanings, deliberately different weight.
+- **The Excluded node carries a tooltip saying it is a count only** when `expandable` is false.
+  Honest about a drill-down that cannot exist rather than silently offering none.
+- **"Audience not recorded" is distinct from "reached nobody"** — different facts, different
+  copy.
+- ⚠️ **Raw statuses nest under an outcome bucket only when they add information.** A bucket
+  holding one status whose label matches the bucket's renders as just the bucket — otherwise
+  every healthy broadcast read "Delivered 20 → Delivered 20", which looks like a rendering
+  fault. `Failed → Quota Exceeded / Failed` is the case that earns children. Caught by looking
+  at the rendered page; `statusChildren` holds the rule.
+
+**Verified in the browser** (Playwright + a borrowed session, per the console's OAuth-only
+auth): the healthy broadcast, the reaches-nobody broadcast, and a temporarily-injected
+mixed-status broadcast to exercise the nesting branch (reverted after). No console-side test
+infrastructure exists in this repo, so that was the available verification.
 
 **Tests.** `TestBroadcastAudienceMatchesEligibleList` is the load-bearing one: the aggregate
 and the list duplicate the same eligibility expression in two shapes, so it cross-checks them

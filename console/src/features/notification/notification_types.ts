@@ -282,3 +282,59 @@ export interface ListBroadcastsResult {
     broadcasts: BroadcastListItem[];
     pagination: PaginationMeta;
 }
+
+// Outcome is the coarse, medium-independent answer to "how did this end up?",
+// mirroring enum.Outcome server-side.
+//
+// ⚠️ `suppressed` is NOT a failure. It means the recipient opted out or has no
+// contact address — the system working as designed. Rendering it as an error
+// makes a healthy project look broken and makes every failure count wrong.
+//
+// `not_requested` is in-app only: the SENDER never asked for this medium (an
+// email-only send). Not a success, not a failure — the request restated.
+export type DeliveryOutcome =
+    | "pending"
+    | "succeeded"
+    | "suppressed"
+    | "failed"
+    | "not_requested";
+
+// DeliveryTreeAudience is the recipient breakdown FROZEN when the broadcast
+// fanned out. Absent on broadcasts sent before the counts existed, and on ones
+// whose fan-out has not run — the UI must say "not recorded", never show 0.
+export interface DeliveryTreeAudience {
+    total: number;
+    eligible: number;
+    // The RECIPIENT opted out. Healthy; nothing to fix.
+    excluded_disabled: number;
+    // The PROJECT never offered this target for in-app (no catalog row, or a
+    // disabled one). A config mistake, and the usual reason a broadcast reaches
+    // nobody.
+    excluded_not_cataloged: number;
+    // ⚠️ false for broadcasts, and the UI must respect it: excluded recipients
+    // are filtered out before any row is written, so there is nothing to drill
+    // into. On a direct send the same case produces a real `muted` row you CAN
+    // open. Rendering both identically would promise a drill-down that cannot
+    // exist.
+    expandable: boolean;
+}
+
+export interface DeliveryTreeMedium {
+    medium: string;
+    total: number;
+    // Raw per-status counts, e.g. { delivered: 380, muted: 18 }.
+    statuses: Record<string, number>;
+    // The same data folded into DeliveryOutcome buckets. Both are carried: the
+    // bucket colours the branch, the raw status explains it.
+    outcomes: Record<string, number>;
+    // Still in flight. Non-zero long after the send is the signature of a
+    // stalled worker.
+    pending: number;
+}
+
+export interface DeliveryTree {
+    kind: "direct" | "broadcast";
+    target: Target;
+    audience?: DeliveryTreeAudience;
+    mediums: DeliveryTreeMedium[];
+}

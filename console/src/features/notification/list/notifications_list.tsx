@@ -27,6 +27,7 @@ import {
 } from "@/features/notification/notification_types";
 import { SendNotificationModal } from "@/features/notification/components/send_notification_modal";
 import { NotificationKindToggle } from "@/features/notification/components/notification_kind_toggle";
+import { BroadcastTreeCell } from "@/features/notification/components/broadcast_tree_dialog";
 import { NotificationFilterBar } from "@/features/notification/components/notification_filter_bar";
 import { notificationFiltersToParams } from "@/features/notification/notification_filters";
 import {
@@ -387,6 +388,11 @@ const broadcastColumns: ColumnDef<BroadcastListItem>[] = [
                 />
             );
         },
+    },
+    {
+        id: "details",
+        header: () => <DataTableColumnHeader title="" />,
+        cell: ({ row }) => <BroadcastTreeCell broadcast={row.original} />,
     },
 ];
 
