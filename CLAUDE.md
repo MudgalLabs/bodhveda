@@ -17,6 +17,28 @@ This file provides guidance to Claude Code (claude.ai/code) when working with co
 - `compose.yaml` — base stack: db, redis, api, worker, migrate, plus dev-only console and asynqmon. `compose.deploy.yaml` — production overlay that only overrides `image:` on api/worker/migrate to the DockerHub-published image. Deploy runs `docker compose -f compose.yaml -f compose.deploy.yaml ...` and targets services explicitly (so console/asynqmon are never started in prod).
 - `Makefile` — orchestrates local dev via `tmux`.
 
+## ⚠️ Never start or stop the dev servers
+
+**The dev stack is the user's, not yours.** They keep `make dev` running in their own tmux
+session. Do NOT run any of these:
+
+- `npm run dev` (console, `:6970`)
+- `go run ./cmd/api` / `go run ./cmd/worker` / `air` (api `:1338`, worker)
+- `make dev`, `make kill`, `make down`
+- `kill`/`pkill`/`lsof -ti:6970`/`lsof -ti:1338` against those ports
+
+Starting them collides with the session already on those ports, and killing "leftover"
+processes kills **their running session** mid-work. That has happened repeatedly.
+
+**If you need the app running:** check first (`curl -sf localhost:1338/ping`,
+`curl -sf localhost:6970`). If it is up, just use it. If it is not, **ask the user to run
+`make dev`** rather than starting it yourself. When you are done, leave everything running —
+do not "clean up".
+
+Safe to use without asking: `go build`, `go vet`, `go test`, `npm run build`, `npm run lint`,
+`npx tsc --noEmit`, `psql`/`docker exec` reads, and Playwright against an already-running
+console.
+
 ## Common commands
 
 ```bash
