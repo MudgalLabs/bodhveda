@@ -1,17 +1,21 @@
 import {
     ErrorMessage,
-    IconBell,
+    IconArrowLeft,
     Loading,
-    PageHeading,
-    Separator,
     Tooltip,
     formatDate,
+    formatDuration,
 } from "netra";
 import { Link } from "@tanstack/react-router";
 import { ReactNode, useMemo } from "react";
 
 import { DeliveryTreeView } from "@/features/notification/components/delivery_tree";
 import { StatusTag } from "@/components/status_tag";
+import {
+    Verdict,
+    VerdictTone,
+    verdictFor,
+} from "@/features/notification/detail/delivery_verdict";
 import {
     useBroadcast,
     useBroadcastDeliveryTree,
@@ -38,17 +42,79 @@ import { targetToString } from "@/lib/utils";
 //
 // Why a page and not just the modals it supplements: a notification id is the
 // natural thing to paste into an incident note, and a modal cannot be linked.
-// This whole surface exists for debugging ("here is the one that failed"), so a
-// stable URL is the point, not a nicety. The modals stay for triage-in-place —
-// peeking at rows while scanning a filtered list is a real workflow, and
-// navigating away loses your filters and scroll position.
+// This surface exists for debugging ("here is the one that failed"), so a stable
+// URL is the point rather than a nicety.
 //
 // ⚠️ Direct and broadcast get SEPARATE routes (/notifications/:id and
-// /broadcasts/:id) rather than one route with a kind discriminator, because
-// notification.id and broadcast.id are independent SERIAL sequences whose ranges
-// overlap — measured 2026-07-30: notifications 1–750563, broadcasts 23–31. One
-// path could not tell /notifications/25 apart. They still share this component,
-// so the two never drift into unrelated screens.
+// /broadcasts/:id) because notification.id and broadcast.id are independent
+// SERIAL sequences whose ranges overlap — measured 2026-07-30: notifications
+// 1–750563, broadcasts 23–31. One path could not tell /notifications/25 apart.
+// They share this component, so the two never drift into unrelated screens.
+//
+// LAYOUT: the verdict leads, the evidence follows. The first version of this page
+// was a flat run of label/value pairs with the tree floating under it, which meant
+// the reader had to compute the outcome themselves from five nested counts. The
+// verdict band states the conclusion; the fan-out proves it; the rail holds the
+// metadata you only want once you have a reason to care.
+
+const TONE_STYLE: Record<VerdictTone, { rail: string; text: string }> = {
+    success: { rail: "bg-success-foreground", text: "text-success-foreground" },
+    warning: { rail: "bg-warning-foreground", text: "text-warning-foreground" },
+    error: { rail: "bg-error-foreground", text: "text-error-foreground" },
+    neutral: { rail: "bg-text-muted", text: "text-text-primary" },
+};
+
+// VerdictBand is this page's signature: the answer, stated, before any evidence.
+function VerdictBand({ verdict }: { verdict: Verdict }) {
+    const tone = TONE_STYLE[verdict.tone];
+
+    return (
+        <div className="flex gap-4">
+            {/* The rail carries the outcome as colour, so the verdict reads before
+                any of the words do. It is the only saturated element on the page. */}
+            <span
+                aria-hidden
+                className={`w-[3px] shrink-0 rounded-full ${tone.rail}`}
+            />
+            <div className="min-w-0 py-1">
+                <p
+                    className={`text-2xl leading-tight font-medium tabular-nums ${tone.text}`}
+                >
+                    {verdict.headline}
+                </p>
+                {verdict.unit && (
+                    <p className="text-text-muted mt-0.5 text-sm">
+                        {verdict.unit}
+                    </p>
+                )}
+                {verdict.detail && (
+                    <p className="text-text-primary mt-2 max-w-prose text-sm">
+                        {verdict.detail}
+                    </p>
+                )}
+            </div>
+        </div>
+    );
+}
+
+// Eyebrow labels. Uppercase micro-type is the structural device here because the
+// page has exactly three kinds of region and they need separating without another
+// box or rule competing with the verdict rail.
+function Eyebrow({ children }: { children: ReactNode }) {
+    return (
+        <h2 className="text-text-muted mb-3 text-[11px] font-medium tracking-[0.08em] uppercase">
+            {children}
+        </h2>
+    );
+}
+
+function Card({ children }: { children: ReactNode }) {
+    return (
+        <div className="border-border-subtle bg-surface-bg/40 rounded-lg border p-4">
+            {children}
+        </div>
+    );
+}
 
 interface Fact {
     label: string;
@@ -56,48 +122,38 @@ interface Fact {
     hint?: string;
 }
 
-function FactStrip({ facts }: { facts: Fact[] }) {
+function FactList({ facts }: { facts: Fact[] }) {
     return (
-        <div className="border-border-subtle mb-4 flex flex-wrap items-center gap-x-6 gap-y-2 border-b pb-3 text-sm">
-            {facts.map(({ label, value, hint }) => {
-                const body = (
-                    <div className="flex flex-col">
-                        <span className="text-text-muted text-xs">{label}</span>
-                        <span className="text-text-primary">{value}</span>
-                    </div>
-                );
-                return hint ? (
-                    <Tooltip key={label} content={hint}>
-                        <span className="cursor-help">{body}</span>
-                    </Tooltip>
-                ) : (
-                    <span key={label}>{body}</span>
-                );
-            })}
-        </div>
+        <dl className="space-y-3 text-sm">
+            {facts.map(({ label, value, hint }) => (
+                <div key={label} className="flex flex-col gap-0.5">
+                    <dt className="text-text-muted text-xs">
+                        {hint ? (
+                            <Tooltip content={hint}>
+                                <span className="cursor-help underline decoration-dotted underline-offset-2">
+                                    {label}
+                                </span>
+                            </Tooltip>
+                        ) : (
+                            label
+                        )}
+                    </dt>
+                    <dd className="text-text-primary">{value}</dd>
+                </div>
+            ))}
+        </dl>
     );
 }
 
-function Section({
-    title,
-    children,
-}: {
-    title: string;
-    children: ReactNode;
-}) {
+function Mono({ children }: { children: ReactNode }) {
     return (
-        <section className="mb-6">
-            <h2 className="text-text-primary mb-2 text-sm font-medium">
-                {title}
-            </h2>
-            {children}
-        </section>
+        <span className="select-text! font-mono text-[13px]">{children}</span>
     );
 }
 
 function PayloadBlock({ payload }: { payload: unknown }) {
-    // A payload-less send is normal (email-only), so say so rather than showing
-    // an empty box that reads like a loading state.
+    // A payload-less send is normal (email-only), so say so rather than showing an
+    // empty box that reads like a loading state.
     if (payload === null || payload === undefined) {
         return (
             <p className="text-text-muted text-sm">
@@ -106,8 +162,16 @@ function PayloadBlock({ payload }: { payload: unknown }) {
         );
     }
 
+    // ⚠️ index.css styles `pre` globally as an inline-block chip with its own
+    // background, padding and radius. Wrapping it in another card produced a box
+    // inside a box, sized to the content instead of the column. So the <pre> IS
+    // the container here — overridden to block/full-width and scrollable.
+    //
+    // The `!` is needed because netra's stylesheet loads after the console's
+    // Tailwind and wins on source order at equal specificity. See
+    // agent-docs/overview.md.
     return (
-        <pre className="bg-surface-bg text-text-primary select-text! max-h-64 overflow-auto rounded-md p-3 text-xs">
+        <pre className="text-text-primary! block! max-h-72 w-full! max-w-full! overflow-auto p-4! text-xs! leading-relaxed select-text!">
             {JSON.stringify(payload, null, 2)}
         </pre>
     );
@@ -122,10 +186,14 @@ const NEVER_SENT_STATUSES = new Set<string>([
     "quota_exceeded",
 ]);
 
-// EmailEventTimeline renders the raw provider webhook history for a direct
-// send's email delivery. Fetched separately from everything else because it is
-// unbounded — one raw provider event body appended per webhook. See
-// agent-docs/overview.md, Phase 9.1.
+// EmailEventTimeline renders the provider webhook history for a direct send's
+// email delivery. Fetched separately from everything else because it is unbounded
+// — one raw provider event body appended per webhook. See agent-docs/overview.md,
+// Phase 9.1.
+//
+// ⚠️ It does NOT repeat the status tag. The tree one column over already renders
+// that outcome; showing it twice made the page look like it was reporting two
+// different things. This block's job is the REASON and the timeline.
 function EmailEventTimeline({
     delivery,
 }: {
@@ -138,46 +206,35 @@ function EmailEventTimeline({
 
     return (
         <div className="space-y-3 text-sm">
-            <div className="flex-x flex-wrap items-center gap-2">
-                <StatusTag status={delivery.status} />
-                {delivery.address_snapshot && (
-                    <span className="text-text-muted select-text! text-xs">
-                        {delivery.address_snapshot}
-                    </span>
-                )}
-                {delivery.attempt > 1 && (
-                    <span className="text-text-muted text-xs">
-                        attempt {delivery.attempt}
-                    </span>
-                )}
-            </div>
+            {copy && <p className="text-text-primary">{copy.long}</p>}
 
-            {/* The prose behind the status slug. `muted` in particular has two
-                opposite causes — the project never cataloged email, or the
-                recipient opted out — and only this copy separates them. */}
-            {copy && <p className="text-text-muted">{copy.long}</p>}
+            {delivery.address_snapshot && (
+                <p className="text-text-muted text-xs">
+                    Sent to <Mono>{delivery.address_snapshot}</Mono>
+                    {delivery.attempt > 1 && ` · attempt ${delivery.attempt}`}
+                </p>
+            )}
 
             {delivery.events.length === 0 ? (
-                // ⚠️ "No events YET" is only honest when events could still
-                // arrive. For an email that never reached the provider — muted,
-                // no contact, over quota — there will never be any, and implying
-                // otherwise leaves the reader waiting for something that is not
-                // coming. Same trap as a resolved alert echoing the broken-state
-                // copy: technically-empty is not the same as pending.
+                // ⚠️ "No events YET" is only honest when events could still arrive.
+                // For an email that never reached the provider there will never be
+                // any, and "yet" leaves the reader waiting for something that is
+                // not coming.
                 <p className="text-text-muted text-xs">
                     {NEVER_SENT_STATUSES.has(delivery.status)
                         ? "This email was never sent, so there are no provider events."
                         : "No provider events recorded yet."}
                 </p>
             ) : (
-                <ol className="space-y-1">
+                <ol className="border-border-subtle space-y-2 border-l pl-4">
                     {delivery.events.map((event, i) => (
-                        <li key={i} className="flex-x items-baseline gap-2">
+                        <li key={i} className="relative">
+                            <span className="bg-text-muted absolute -left-[1.3rem] top-[0.45rem] size-1.5 rounded-full" />
                             <span className="text-text-primary">
                                 {EVENT_KIND_LABEL[event.kind] ?? event.kind}
                             </span>
                             {event.at && (
-                                <span className="text-text-muted text-xs">
+                                <span className="text-text-muted ml-2 text-xs">
                                     {formatDate(new Date(event.at), {
                                         time: true,
                                     })}
@@ -186,7 +243,7 @@ function EmailEventTimeline({
                             {(event.kind === "opened" ||
                                 event.kind === "clicked") && (
                                 <Tooltip content={OPEN_SOFT_SIGNAL_COPY}>
-                                    <span className="text-text-muted cursor-help text-xs underline underline-offset-2">
+                                    <span className="text-text-muted ml-2 cursor-help text-xs underline decoration-dotted underline-offset-2">
                                         soft signal
                                     </span>
                                 </Tooltip>
@@ -199,52 +256,92 @@ function EmailEventTimeline({
     );
 }
 
-// DetailShell is everything the two kinds share, so a direct send and a
-// broadcast are read the same way.
 function DetailShell({
-    heading,
+    title,
+    target,
+    status,
     facts,
     payload,
     tree,
     treeLoading,
     treeError,
     extra,
-    isFetching,
+    backKind,
 }: {
-    heading: string;
+    title: string;
+    target: string;
+    status: ReactNode;
     facts: Fact[];
     payload: unknown;
     tree?: DeliveryTree;
     treeLoading: boolean;
     treeError: boolean;
-    extra?: ReactNode;
-    isFetching?: boolean;
+    extra?: { label: string; body: ReactNode };
+    /** Which list tab the breadcrumb returns to. */
+    backKind: "direct" | "broadcast";
 }) {
+    const projectID = useGetProjectIDFromParams();
+    const verdict = tree ? verdictFor(tree) : undefined;
+
     return (
-        <div>
-            <PageHeading>
-                <IconBell size={18} />
-                <h1 className="select-text!">{heading}</h1>
-                {isFetching && <Loading />}
-            </PageHeading>
+        <div className="mx-auto max-w-6xl px-1 pb-16">
+            {/* Breadcrumb, not a back button: it names where you are, and it is the
+                only navigation this page needs. */}
+            <Link
+                to="/projects/$id/notifications"
+                params={{ id: projectID }}
+                search={{ kind: backKind }}
+                className="text-text-muted hover:text-text-primary flex-x mb-5 w-fit items-center gap-1.5 text-sm"
+            >
+                <IconArrowLeft size={14} />
+                Notifications
+            </Link>
 
-            <FactStrip facts={facts} />
+            <header className="mb-6 flex flex-wrap items-baseline gap-x-4 gap-y-2">
+                <h1 className="text-text-primary text-xl font-medium">
+                    {title}
+                </h1>
+                <Mono>
+                    <span className="text-text-muted">{target}</span>
+                </Mono>
+                {status}
+            </header>
 
-            <Section title="Delivery">
-                {treeLoading && <Loading />}
-                {treeError && (
-                    <ErrorMessage errorMsg="Error loading delivery breakdown" />
-                )}
-                {tree && <DeliveryTreeView tree={tree} />}
-            </Section>
+            {verdict && (
+                <div className="border-border-subtle mb-8 border-y py-5">
+                    <VerdictBand verdict={verdict} />
+                </div>
+            )}
 
-            {extra}
+            <div className="grid gap-10 lg:grid-cols-[minmax(0,1fr)_260px]">
+                <div className="min-w-0 space-y-8">
+                    <section>
+                        <Eyebrow>Fan-out</Eyebrow>
+                        {treeLoading && <Loading />}
+                        {treeError && (
+                            <ErrorMessage errorMsg="Could not load the delivery breakdown." />
+                        )}
+                        {tree && <DeliveryTreeView tree={tree} />}
+                    </section>
 
-            <Separator />
+                    {extra && (
+                        <section>
+                            <Eyebrow>{extra.label}</Eyebrow>
+                            {extra.body}
+                        </section>
+                    )}
 
-            <Section title="Payload">
-                <PayloadBlock payload={payload} />
-            </Section>
+                    <section>
+                        <Eyebrow>Payload</Eyebrow>
+                        <PayloadBlock payload={payload} />
+                    </section>
+                </div>
+
+                <aside>
+                    <Eyebrow>Details</Eyebrow>
+                    <FactList facts={facts} />
+                </aside>
+            </div>
         </div>
     );
 }
@@ -256,12 +353,11 @@ export function DirectNotificationDetail({
 }) {
     const projectID = useGetProjectIDFromParams();
 
-    const { data, isLoading, isError, isFetching } = useNotification(
+    const { data, isLoading, isError } = useNotification(
         projectID,
         notificationID
     );
     const treeQuery = useNotificationDeliveryTree(projectID, notificationID);
-    // Numeric id for the deliveries endpoint, which predates this page.
     const deliveriesQuery = useNotificationDeliveries(
         projectID,
         Number(notificationID)
@@ -272,36 +368,29 @@ export function DirectNotificationDetail({
     const facts = useMemo<Fact[]>(() => {
         if (!notification) return [];
 
+        const sent = new Date(notification.created_at);
+        const completed = notification.completed_at
+            ? new Date(notification.completed_at)
+            : null;
+
         return [
-            { label: "Kind", value: "Direct" },
-            {
-                label: "Target",
-                value: (
-                    <span className="select-text!">
-                        {targetToString(notification.target)}
-                    </span>
-                ),
-            },
             {
                 label: "Recipient",
                 value: (
                     <RecipientLink recipientID={notification.recipient_id} />
                 ),
             },
-            {
-                label: "In-app status",
-                value: <StatusTag status={notification.status} />,
-            },
-            {
-                label: "Sent",
-                value: formatDate(new Date(notification.created_at), {
-                    time: true,
-                }),
-            },
-            {
-                label: "Read",
-                value: notification.state.read ? "Yes" : "No",
-            },
+            { label: "Sent", value: formatDate(sent, { time: true }) },
+            ...(completed
+                ? [
+                      {
+                          label: "Resolved in",
+                          value: formatDuration(sent, completed),
+                          hint: "Time from the send request to the in-app outcome being resolved by the worker.",
+                      },
+                  ]
+                : []),
+            { label: "Read", value: notification.state.read ? "Yes" : "No" },
             {
                 label: "Opened",
                 value: notification.state.opened ? "Yes" : "No",
@@ -310,7 +399,7 @@ export function DirectNotificationDetail({
             ...(notification.broadcast_id
                 ? [
                       {
-                          label: "Broadcast",
+                          label: "From broadcast",
                           value: (
                               <Link
                                   to="/projects/$id/broadcasts/$broadcastId"
@@ -333,30 +422,39 @@ export function DirectNotificationDetail({
 
     if (isLoading) return <Loading />;
     if (isError || !notification) {
-        return <ErrorMessage errorMsg="Error loading notification" />;
+        return <ErrorMessage errorMsg="Could not load this notification." />;
     }
 
     // Only ever one email delivery row per notification (UNIQUE on
-    // (notification_id, medium)), so the first is the email one.
+    // (notification_id, medium)).
     const emailDelivery = deliveriesQuery.data?.data?.deliveries?.find(
         (d) => d.medium === "email"
     );
 
     return (
         <DetailShell
-            heading={`Notification #${notification.id}`}
+            backKind="direct"
+            title={`Notification #${notification.id}`}
+            target={targetToString(notification.target)}
+            status={<StatusTag status={notification.status} />}
             facts={facts}
             payload={notification.payload}
             tree={treeQuery.data?.data}
             treeLoading={treeQuery.isLoading}
             treeError={treeQuery.isError}
-            isFetching={isFetching}
             extra={
-                emailDelivery ? (
-                    <Section title="Email">
-                        <EmailEventTimeline delivery={emailDelivery} />
-                    </Section>
-                ) : undefined
+                emailDelivery
+                    ? {
+                          label: "Email",
+                          body: (
+                              <Card>
+                                  <EmailEventTimeline
+                                      delivery={emailDelivery}
+                                  />
+                              </Card>
+                          ),
+                      }
+                    : undefined
             }
         />
     );
@@ -369,10 +467,7 @@ export function BroadcastNotificationDetail({
 }) {
     const projectID = useGetProjectIDFromParams();
 
-    const { data, isLoading, isError, isFetching } = useBroadcast(
-        projectID,
-        broadcastID
-    );
+    const { data, isLoading, isError } = useBroadcast(projectID, broadcastID);
     const treeQuery = useBroadcastDeliveryTree(projectID, Number(broadcastID));
 
     const broadcast = data?.data as Broadcast | undefined;
@@ -380,48 +475,46 @@ export function BroadcastNotificationDetail({
     const facts = useMemo<Fact[]>(() => {
         if (!broadcast) return [];
 
+        const sent = new Date(broadcast.created_at);
+        const completed = broadcast.completed_at
+            ? new Date(broadcast.completed_at)
+            : null;
+
         return [
-            { label: "Kind", value: "Broadcast" },
-            {
-                label: "Target",
-                value: (
-                    <span className="select-text!">
-                        {targetToString(broadcast.target)}
-                    </span>
-                ),
-            },
-            { label: "Status", value: <StatusTag status={broadcast.status} /> },
-            {
-                label: "Sent",
-                value: formatDate(new Date(broadcast.created_at), {
-                    time: true,
-                }),
-            },
-            {
-                label: "Completed",
-                value: broadcast.completed_at ? (
-                    formatDate(new Date(broadcast.completed_at), { time: true })
-                ) : (
-                    <span className="text-text-muted">—</span>
-                ),
-            },
+            { label: "Sent", value: formatDate(sent, { time: true }) },
+            completed
+                ? {
+                      label: "Fanned out in",
+                      value: formatDuration(sent, completed),
+                      hint: "Time from the send request to the last batch completing.",
+                  }
+                : {
+                      label: "Fanned out in",
+                      value: (
+                          <span className="text-text-muted">
+                              still running
+                          </span>
+                      ),
+                  },
         ];
     }, [broadcast]);
 
     if (isLoading) return <Loading />;
     if (isError || !broadcast) {
-        return <ErrorMessage errorMsg="Error loading broadcast" />;
+        return <ErrorMessage errorMsg="Could not load this broadcast." />;
     }
 
     return (
         <DetailShell
-            heading={`Broadcast #${broadcast.id}`}
+            backKind="broadcast"
+            title={`Broadcast #${broadcast.id}`}
+            target={targetToString(broadcast.target)}
+            status={<StatusTag status={broadcast.status} />}
             facts={facts}
             payload={broadcast.payload}
             tree={treeQuery.data?.data}
             treeLoading={treeQuery.isLoading}
             treeError={treeQuery.isError}
-            isFetching={isFetching}
         />
     );
 }

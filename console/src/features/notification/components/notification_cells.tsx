@@ -1,7 +1,7 @@
-import { Link } from "@tanstack/react-router";
-import { useState } from "react";
-
 import { useGetProjectIDFromParams } from "@/features/project/project_hooks";
+import { Link } from "@tanstack/react-router";
+
+import { ROW_NAV_LINK_CLASS } from "@/features/notification/components/row_nav";
 import { formatDuration, IconInfo, Loading, Tooltip } from "netra";
 
 import {
@@ -10,7 +10,6 @@ import {
     Notification,
     NotificationStatus,
 } from "@/features/notification/notification_types";
-import { DeliveryDetailDialog } from "@/features/notification/components/delivery_detail_dialog";
 import { deliveryOutcomeText } from "@/features/notification/delivery_copy";
 import { StatusTag } from "@/components/status_tag";
 
@@ -122,47 +121,26 @@ export function MediumStatusLine({
 // its own column rather than on the Status cell's email line because the dialog
 // is NOTIFICATION-scoped (in-app + email), not email-scoped — so every row gets
 // one, including the in-app-only sends that are still the common case.
-export function DeliveryDetailCell({
+// NotificationRowNavCell renders the invisible full-row link for a direct
+// notification row. It draws nothing itself — the whole row is the affordance.
+//
+// This replaced a pair of "Peek" / "Open" text links. Two verbs per row on a
+// debugging table is a decision the reader has to make before they can look at
+// anything, and the dialog they chose between was strictly less capable than the
+// page. One destination, whole row clickable.
+export function NotificationRowNavCell({
     notification,
 }: {
     notification: Notification;
 }) {
-    const [open, setOpen] = useState(false);
     const projectID = useGetProjectIDFromParams();
 
-    // TWO affordances on purpose, and they are for different jobs:
-    //
-    //   Peek  — opens the dialog. For triage while scanning a filtered list;
-    //           navigating away would lose the filters and scroll position.
-    //   Open  — goes to the detail page. For investigating one send, and for
-    //           getting a URL you can paste into an incident note. A dialog
-    //           cannot be linked, which is the whole reason the page exists.
     return (
-        <span className="flex-x items-center gap-3">
-            <button
-                type="button"
-                onClick={() => setOpen(true)}
-                className="text-text-muted hover:text-text-primary cursor-pointer text-xs underline underline-offset-2"
-            >
-                Peek
-            </button>
-
-            <Link
-                to="/projects/$id/notifications/$notificationId"
-                params={{
-                    id: projectID,
-                    notificationId: String(notification.id),
-                }}
-                className="text-text-muted hover:text-text-primary text-xs underline underline-offset-2"
-            >
-                Open
-            </Link>
-
-            <DeliveryDetailDialog
-                notification={notification}
-                open={open}
-                setOpen={setOpen}
-            />
-        </span>
+        <Link
+            to="/projects/$id/notifications/$notificationId"
+            params={{ id: projectID, notificationId: String(notification.id) }}
+            aria-label={`Notification ${notification.id}`}
+            className={ROW_NAV_LINK_CLASS}
+        />
     );
 }

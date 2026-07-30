@@ -17,9 +17,12 @@ import {
 
 import { Notification } from "@/features/notification/notification_types";
 import {
-    DeliveryDetailCell,
+    NotificationRowNavCell,
     NotificationStatusCell,
 } from "@/features/notification/components/notification_cells";
+import {
+    ROW_NAV_TABLE_CLASS,
+} from "@/features/notification/components/row_nav";
 import { useNotifications } from "@/features/notification/notification_hooks";
 import { TargetInfoTooltip } from "@/components/target_info_tooltip";
 import { targetToString } from "@/lib/utils";
@@ -87,7 +90,7 @@ export function RecipientNotificationsPanel({
             isFetching={isFetching}
         >
             {(table) => (
-                <div className="space-y-4">
+                <div className={`space-y-4 ${ROW_NAV_TABLE_CLASS}`}>
                     <DataTable table={table} />
                     {totalItems > tableState.pagination.pageSize && (
                         <DataTablePagination table={table} total={totalItems} />
@@ -156,8 +159,13 @@ const columns: ColumnDef<Notification>[] = [
         ),
     },
     {
-        id: "details",
-        header: () => <DataTableColumnHeader title="" />,
-        cell: ({ row }) => <DeliveryDetailCell notification={row.original} />,
+        // Full-row navigation to the notification page, same as the main
+        // notifications list. This panel used to open the delivery dialog, which
+        // showed strictly less than the page and could not be linked.
+        id: "nav",
+        header: () => null,
+        cell: ({ row }) => (
+            <NotificationRowNavCell notification={row.original} />
+        ),
     },
 ];

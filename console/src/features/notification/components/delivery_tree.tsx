@@ -104,16 +104,16 @@ function Branch({
     last?: boolean;
 }) {
     return (
-        <div className="relative pl-5">
-            {/* Vertical rule. Stops halfway down on the last child so the trunk
+        <div className="relative pl-6">
+            {/* Vertical rule. Stops at the elbow on the last child so the trunk
                 visibly ends rather than dangling past the final node. */}
             <span
-                className={`border-border-subtle absolute left-0 border-l ${
-                    last ? "top-0 h-[0.9rem]" : "inset-y-0"
+                className={`bg-border absolute left-0 w-px ${
+                    last ? "top-0 h-[1.05rem]" : "inset-y-0"
                 }`}
             />
             {/* Elbow into this node. */}
-            <span className="border-border-subtle absolute left-0 top-[0.9rem] w-3 border-t" />
+            <span className="bg-border absolute left-0 top-[1.05rem] h-px w-3.5" />
             {children}
         </div>
     );
@@ -133,16 +133,14 @@ function NodeLine({
     note?: string;
 }) {
     const line = (
-        <div className="flex-x flex-wrap items-baseline gap-x-2 py-1">
+        <div className="flex flex-wrap items-baseline gap-x-2 py-1.5">
             <span className={`text-sm ${tone}`}>{label}</span>
             {count !== undefined && (
                 <span className="text-text-primary text-sm font-medium tabular-nums">
                     {count}
                 </span>
             )}
-            {note && (
-                <span className="text-text-muted text-xs">{note}</span>
-            )}
+            {note && <span className="text-text-muted text-xs">{note}</span>}
         </div>
     );
 
@@ -166,7 +164,7 @@ function StackedBar({ outcomes }: { outcomes: Record<string, number> }) {
     if (total === 0 || entries.length < 2) return null;
 
     return (
-        <div className="bg-surface-bg my-1 flex h-1.5 w-full max-w-md overflow-hidden rounded-full">
+        <div className="bg-surface-bg my-2 flex h-2 w-full max-w-sm overflow-hidden rounded-full">
             {entries.map(([outcome, n]) => (
                 <span
                     key={outcome}

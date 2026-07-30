@@ -448,6 +448,53 @@ the entire point), the reaches-nobody broadcast, and a direct send whose in-app 
 while its email was **suppressed/muted** — the diverging-outcome case the shared shape exists
 for. No browser console errors.
 
+### 3.10 Detail page redesign + full-row navigation (2026-07-30)
+
+**The verdict band is the page's signature.** The first version was a flat run of label/value
+pairs with the tree floating underneath, which meant the reader had to compute the outcome
+themselves from five nested counts. The tree is *evidence*; the verdict is the *conclusion*, and
+it is what an operator opening the page actually wants — so it leads, with an accent rail
+coloured by outcome as the only saturated element on the page.
+
+`delivery_verdict.ts` derives it. ⚠️ Broadcast and direct get **different verdict shapes** on
+purpose: "20 of 25 recipients reached" is right for a fan-out, but for a fan-out of one it would
+always read "1 of 1" and say nothing — so a direct send states per-medium outcomes instead
+("In-app delivered · Email suppressed"). `suppressed` maps to a NEUTRAL tone, never error.
+
+Layout is verdict → fan-out → payload, with metadata in a 260px rail. The old page put metadata
+first and the answer last.
+
+**Full-row navigation, replacing Peek/Open.** Two verbs per row on a debugging table is a
+decision the reader must make before they can look at anything, and the dialog they were choosing
+between showed strictly less than the page. Both dialogs are now DELETED
+(`delivery_detail_dialog.tsx`, 448 lines, and `broadcast_tree_dialog.tsx`) — unreachable code is
+worse than none.
+
+⚠️ netra's `DataTable` renders its own `<tr>` and exposes no `onRowClick`, so the mechanism is an
+absolutely-positioned `<Link>` covering the row (`row_nav.tsx`). Rejected alternatives: a `<Link>`
+per cell gives eight tab stops per row; an `onClick` per cell has no keyboard path and breaks
+cmd-click. One link per row gets whole-row hit area, one tab stop, and normal browser link
+behaviour. Interactive cell content must be wrapped in `RowNavShield` (`relative z-10`) or the
+overlay swallows its clicks — the recipient link needs it.
+
+`row_nav.tsx` exports CLASS CONSTANTS rather than a `<RowNavLink>` component: TanStack Router
+types `to` and `params` together per route, so a wrapper taking `to: string` would throw that
+checking away and fail to compile. Each cell builds its own typed `<Link>`.
+
+Two things the build caught that `tsc --noEmit` did not:
+
+- `recipient_notifications_panel.tsx` was a **second consumer** of the deleted dialog. It now
+  navigates to the page too.
+- The notifications route requires search params, so the breadcrumb needed one. It now returns to
+  the tab you came from — a broadcast page goes back to the Broadcast list.
+
+⚠️ `index.css` styles `pre` globally as an **inline-block chip** with its own background and
+radius. Wrapping payload in a card produced a box inside a box sized to its content instead of
+the column; the `<pre>` is now the container, overridden to block/full-width/scrollable.
+
+Verified in the browser: all three verdict tones, full-row click on both tables landing on the
+right URL, and the shielded recipient link still reaching the recipient page.
+
 **Tests.** `TestNotificationDeliveryTree` covers the direct tree: in-app-only (one branch, no
 audience node), email-only (`not_requested` its own bucket, neither success nor failure), muted
 (suppressed not failed), the in-app-delivered/email-bounced divergence, and cross-project 404.

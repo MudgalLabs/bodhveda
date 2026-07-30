@@ -27,11 +27,15 @@ import {
 } from "@/features/notification/notification_types";
 import { SendNotificationModal } from "@/features/notification/components/send_notification_modal";
 import { NotificationKindToggle } from "@/features/notification/components/notification_kind_toggle";
-import { BroadcastTreeCell } from "@/features/notification/components/broadcast_tree_dialog";
+import { BroadcastRowNavCell } from "@/features/notification/components/broadcast_row_nav";
+import {
+    ROW_NAV_TABLE_CLASS,
+    RowNavShield,
+} from "@/features/notification/components/row_nav";
 import { NotificationFilterBar } from "@/features/notification/components/notification_filter_bar";
 import { notificationFiltersToParams } from "@/features/notification/notification_filters";
 import {
-    DeliveryDetailCell,
+    NotificationRowNavCell,
     MediumStatusLine,
     NotificationStatusCell,
 } from "@/features/notification/components/notification_cells";
@@ -256,7 +260,11 @@ const columns: ColumnDef<Notification>[] = [
         accessorKey: "recipient_id",
         header: () => <DataTableColumnHeader title="Recipient ID" />,
         cell: ({ row }) => (
-            <RecipientLink recipientID={row.original.recipient_id} />
+            // Raised above the row-wide nav link, or the row would swallow the
+            // click and you could never reach the recipient from here.
+            <RowNavShield>
+                <RecipientLink recipientID={row.original.recipient_id} />
+            </RowNavShield>
         ),
     },
     {
@@ -290,9 +298,13 @@ const columns: ColumnDef<Notification>[] = [
         cell: ({ row }) => <NotificationStatusCell notification={row.original} />,
     },
     {
-        id: "details",
-        header: () => <DataTableColumnHeader title="" />,
-        cell: ({ row }) => <DeliveryDetailCell notification={row.original} />,
+        // The row-wide navigation link lives here. No header, no visible content —
+        // the whole row is the affordance.
+        id: "nav",
+        header: () => null,
+        cell: ({ row }) => (
+            <NotificationRowNavCell notification={row.original} />
+        ),
     },
 ];
 
@@ -316,7 +328,7 @@ function NotificationTable(props: NotificationTableProps) {
             isFetching={isFetching}
         >
             {(table) => (
-                <div className="space-y-4">
+                <div className={`space-y-4 ${ROW_NAV_TABLE_CLASS}`}>
                     <DataTable table={table} />
                     {totalItems > state.pagination.pageSize && (
                         <DataTablePagination table={table} total={totalItems} />
@@ -390,9 +402,11 @@ const broadcastColumns: ColumnDef<BroadcastListItem>[] = [
         },
     },
     {
-        id: "details",
-        header: () => <DataTableColumnHeader title="" />,
-        cell: ({ row }) => <BroadcastTreeCell broadcast={row.original} />,
+        // The row-wide navigation link lives here. No header, no visible content —
+        // the whole row is the affordance.
+        id: "nav",
+        header: () => null,
+        cell: ({ row }) => <BroadcastRowNavCell broadcast={row.original} />,
     },
 ];
 
@@ -416,7 +430,7 @@ function BroadcastsTable(props: BroadcastsTableProps) {
             isFetching={isFetching}
         >
             {(table) => (
-                <div className="space-y-4">
+                <div className={`space-y-4 ${ROW_NAV_TABLE_CLASS}`}>
                     <DataTable table={table} />
                     {totalItems > state.pagination.pageSize && (
                         <DataTablePagination table={table} total={totalItems} />
