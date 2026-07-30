@@ -210,6 +210,11 @@ func initRouter() http.Handler {
 
 				r.Route("/broadcasts", func(r chi.Router) {
 					r.Get("/", handler.ListBroadcasts(app.APP.Service.Broadcast))
+					// Per-medium delivery breakdown for one broadcast. Console-only:
+					// the Developer API has no broadcast read surface, and this
+					// shape is opinionated enough that locking it into a public
+					// contract with no external caller would be premature.
+					r.Get("/{broadcast_id}/tree", handler.GetBroadcastDeliveryTree(app.APP.Service.Broadcast))
 				})
 
 				r.Route("/email-settings", func(r chi.Router) {

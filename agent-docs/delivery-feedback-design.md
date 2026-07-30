@@ -1,6 +1,7 @@
 # Delivery feedback — design note
 
-**Status:** Unit 1 **BUILT** (2026-07-29, see §2.6 for what shipped). Unit 2 not started.
+**Status:** Unit 1 **BUILT** (2026-07-29, §2.6). Unit 2 **backend BUILT** (§3.6); console UI
+next.
 **Scope:** Unit 1 — infra alerting (Discord). Unit 2 — delivery tree in the console.
 **Shelved:** outbound webhooks, public delivery-status API. See §5.
 
@@ -290,6 +291,96 @@ counting it as one makes every failure number permanently wrong.
 
 ⚠️ `sent` is terminal only when inbound provider webhooks are *not* configured; with Resend
 webhooks wired it still advances to `delivered`/`bounced`.
+
+### 3.6 As built — backend (2026-07-29)
+
+**Two migrations.** `20260729120000` adds four nullable audience columns to `broadcast`;
+`20260729130000` adds `ix_notification_broadcast (broadcast_id) INCLUDE (status) WHERE
+broadcast_id IS NOT NULL`, CONCURRENTLY. Verified the rollup now plans as an **Index Only
+Scan** — the `INCLUDE` makes it covering, so the aggregate never touches the heap. The index
+is PARTIAL so direct sends (NULL `broadcast_id`, the bulk of inserts) never touch it, which is
+what makes it acceptable on the hot-path `notification` table.
+
+**Four audience columns, not two.** The plan said `total` + `eligible`. Reading
+`ListEligibleRecipientExtIDsForBroadcast` showed the eligibility rule folds together two
+*completely different* exclusions:
+
+- `excluded_disabled` — the RECIPIENT opted out. Healthy, nothing to fix.
+- `excluded_not_cataloged` — the PROJECT never offered the target (no catalog row, or a
+  disabled one). A config mistake, and **the usual reason a broadcast silently reaches
+  nobody**.
+
+Collapsing them into one "excluded" number would hide the single most useful thing the tree
+can tell an operator. They deliberately reuse the vocabulary the direct-send path already
+writes to `notification_delivery.failure_reason`, so the console has one vocabulary for both
+send kinds.
+
+**`enum.Outcome`** (`model/enum/outcome.go`) with `Outcome()`/`Terminal()` on both
+`DeliveryStatus` and `NotificationStatus`. `suppressed` is its own bucket, separate from
+`failed`. An unrecognised status classifies as `failed`, never `succeeded` — a value that
+reached the DB without reaching the switch is a bug, and a green number would hide it.
+
+**Layering:** `handler/broadcast.go` → `service/broadcast.go` → `pg/{broadcast,notification,
+preference}.go`. New route `GET /console/projects/{id}/broadcasts/{broadcast_id}/tree`.
+`BroadcastService` now takes the notification repo (`app.go` updated).
+
+Traps worth remembering:
+
+- ⚠️ **`SetAudience` is separate from `Update`.** `Update` is called with a whole entity —
+  including from the quota-exceeded path in `PrepareBroadcastBatchesProcessor`, where the
+  broadcast was deserialised from the Asynq payload and carries no audience. Putting these
+  columns in `Update`'s SET clause would blank them on every such call.
+- ⚠️ **Ownership is checked in the service, not the rollup query.** The rollup is keyed by
+  `broadcast_id` alone so it stays index-covered; without the service check, another
+  project's broadcast id would return zero counts and render as a legitimately empty
+  broadcast. `TestBroadcastDeliveryTreeRejectsCrossProjectAccess` pins the 404.
+- ⚠️ **`eligible` is stored from the fan-out list, not the aggregate.** They are separate
+  queries, so a recipient created between them would make the stored count disagree with the
+  notifications actually written. The list is ground truth.
+- ⚠️ **Audience is nil, not zero, when unrecorded.** Scanned through `*int`. A broadcast that
+  legitimately reached nobody and one whose audience was never measured are different facts.
+- The audience write is **best-effort** — it is reporting, and a failure there must never fail
+  a fan-out.
+
+### 3.7 Two pre-existing bugs found by dogfooding (fixed 2026-07-30)
+
+Seeding demo broadcasts through the real pipeline surfaced two bugs that predate this work.
+Neither was in Unit 2's scope, but Unit 2 could not ship honestly without them.
+
+**(1) A broadcast matching nobody crashed its worker task and was ARCHIVED.**
+`prepare_batches` called `CheckAndConsumeUsage` with `Amount: 0`, and `usage_log` has
+`CHECK (amount > 0)` — SQLSTATE 23514, Asynq retried, then archived. Silent work loss with a
+failing queue: *the exact shape of the 2026-07-27 incident*, reproducible by broadcasting to a
+target nobody has enabled. Compounding it, with no recipients there are no batches, and it is
+the **last batch** that marks a broadcast `completed` — so even without the crash it sat in
+`enqueued` forever. Fixed with an early return that records the audience, completes the
+broadcast, and touches neither billing nor the queue.
+
+**(2) EVERY broadcast notification sat permanently in `enqueued`.**
+`entity.NewNotification` defaults to `enqueued` — correct for a DIRECT send, where
+`notification:delivery` still resolves preferences and billing. A broadcast has no such second
+step: `prepare_batches` already did that work, so the row is in the inbox the moment it is
+written. But `BroadcastDeliveryProcessor` never updated the status.
+
+Invisible for as long as nothing read it — `recipientFeedVisible` treats `enqueued` as
+visible, so inboxes always looked right. It became load-bearing the instant both new units
+existed: the tree reported every broadcast as **100% pending**, and `stuck_sends` would have
+counted all of them as stalled and alerted every 30 minutes forever — the precise
+alert-fatigue failure §2.3 exists to prevent. **90 of 90 broadcast rows were affected.**
+
+Fixed at the write path (`delivered` + `completed_at`), plus backfill migration
+`20260730120000`. ⚠️ The backfill is scoped to `broadcast_id IS NOT NULL`: a DIRECT
+notification in `enqueued` is a *genuinely* stalled send and must keep showing as one.
+
+Pinned by `TestBroadcastDeliveryWritesDeliveredNotifications` (asserts nothing non-terminal
+remains) and `TestPrepareBatchesCompletesEmptyBroadcast` (passes nil asynq client and billing
+service, so reaching either panics).
+
+**Tests.** `TestBroadcastAudienceMatchesEligibleList` is the load-bearing one: the aggregate
+and the list duplicate the same eligibility expression in two shapes, so it cross-checks them
+against a live Postgres across every recipient/catalog preference combination and asserts the
+four buckets partition the total exactly. Plus outcome-folding unit tests, the cross-project
+404, and the nil-audience case. Full suite green with `TEST_DB_URL` set.
 
 ---
 

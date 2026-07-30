@@ -30,23 +30,33 @@ type Sink interface {
 // DiscordSink posts alerts to a Discord incoming webhook.
 type DiscordSink struct {
 	url    string
+	origin string
 	client *http.Client
 }
 
 // NewDiscordSink builds a sink for a Discord webhook URL. An EMPTY url yields a
 // nil Sink, which the Monitor treats as log-only — see env.AlertDiscordWebhookURL.
 //
+// `origin` identifies the process that raised the alert and is stamped on every
+// embed. It exists because a dev machine and production post to the SAME webhook
+// (the URL comes from the shared root .env), so an unstamped card is ambiguous:
+// a real 90-stuck-sends alert fired from a laptop at 00:12 IST on 2026-07-30 and
+// cost a round of prod investigation before the API log proved it was local.
+// Callers build it; this package deliberately does not read env or the hostname
+// itself. Empty is allowed and simply omits the stamp.
+//
 // ⚠️ The return type is the Sink INTERFACE, not *DiscordSink, and that is
 // load-bearing. Returning a typed nil pointer would produce a non-nil interface
 // value once assigned to Config.Sink, so the Monitor's `sink == nil` log-only
 // check would be false and every alert would panic on a nil receiver — turning
 // "no Discord configured" into a crash on the first incident.
-func NewDiscordSink(url string) Sink {
+func NewDiscordSink(url, origin string) Sink {
 	if strings.TrimSpace(url) == "" {
 		return nil
 	}
 	return &DiscordSink{
 		url:    url,
+		origin: strings.TrimSpace(origin),
 		client: &http.Client{Timeout: discordTimeout},
 	}
 }
@@ -69,7 +79,7 @@ type discordEmbed struct {
 // them and carries on, because a broken alert channel must not take down the API
 // process it runs inside.
 func (s *DiscordSink) Send(ctx context.Context, alert Alert) error {
-	body, err := json.Marshal(buildPayload(alert))
+	body, err := json.Marshal(buildPayload(alert, s.origin))
 	if err != nil {
 		return fmt.Errorf("marshal discord payload: %w", err)
 	}
@@ -97,7 +107,7 @@ func (s *DiscordSink) Send(ctx context.Context, alert Alert) error {
 	return nil
 }
 
-func buildPayload(alert Alert) discordPayload {
+func buildPayload(alert Alert, origin string) discordPayload {
 	var description strings.Builder
 
 	if alert.Kind == AlertResolved {
@@ -116,7 +126,7 @@ func buildPayload(alert Alert) discordPayload {
 			description.WriteString("\n\nWas: " + alert.Summary)
 		}
 
-		return discordPayload{Embeds: []discordEmbed{finishEmbed(alert, description.String())}}
+		return discordPayload{Embeds: []discordEmbed{finishEmbed(alert, description.String(), origin)}}
 	}
 
 	description.WriteString(alert.Summary)
@@ -127,11 +137,11 @@ func buildPayload(alert Alert) discordPayload {
 		description.WriteString("\n```")
 	}
 
-	return discordPayload{Embeds: []discordEmbed{finishEmbed(alert, description.String())}}
+	return discordPayload{Embeds: []discordEmbed{finishEmbed(alert, description.String(), origin)}}
 }
 
 // finishEmbed applies the parts common to every kind of alert.
-func finishEmbed(alert Alert, description string) discordEmbed {
+func finishEmbed(alert Alert, description, origin string) discordEmbed {
 	embed := discordEmbed{
 		Title:       alert.Title(),
 		Description: description,
@@ -139,12 +149,25 @@ func finishEmbed(alert Alert, description string) discordEmbed {
 		Timestamp:   time.Now().UTC().Format(time.RFC3339),
 	}
 
+	// The footer carries provenance, not the problem. Origin comes FIRST because
+	// "is this even prod?" gates whether you act at all, and it is stamped on
+	// every kind — including a fresh open, which previously had no footer and so
+	// was the one card that could not be attributed.
+	var footer []string
+	if origin != "" {
+		footer = append(footer, origin)
+	}
+
 	// On anything but a fresh open, say when this started — usually the first
 	// thing you want to know when you read the message.
 	if alert.Kind != AlertOpened && !alert.Since.IsZero() {
+		footer = append(footer, "started "+alert.Since.UTC().Format(time.RFC3339))
+	}
+
+	if len(footer) > 0 {
 		embed.Footer = &struct {
 			Text string `json:"text"`
-		}{Text: "Started " + alert.Since.UTC().Format(time.RFC3339)}
+		}{Text: strings.Join(footer, " · ")}
 	}
 
 	return embed

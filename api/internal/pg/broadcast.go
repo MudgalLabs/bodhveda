@@ -52,21 +52,71 @@ func (r *BroadcastRepo) Create(ctx context.Context, broadcast *entity.Broadcast)
 func (r *BroadcastRepo) GetByID(ctx context.Context, id int) (*entity.Broadcast, error) {
 	sql := `
 		SELECT id, project_id, payload, channel, topic, event, completed_at, created_at,
-		updated_at, status
+		updated_at, status, total_recipients, eligible_recipients, excluded_disabled,
+		excluded_not_cataloged
 		FROM broadcast
 		WHERE id = $1
 	`
 	row := r.db.QueryRow(ctx, sql, id)
 
 	var broadcast entity.Broadcast
+	// Nullable: broadcasts predating the audience columns, and ones whose fan-out
+	// has not run yet, have none. Scanned through pointers so "never recorded"
+	// stays distinguishable from a real zero — a broadcast that legitimately
+	// reached nobody and one whose audience was never measured are different
+	// facts, and the console renders them differently.
+	var total, eligible, excludedDisabled, excludedNotCataloged *int
 
 	err := row.Scan(&broadcast.ID, &broadcast.ProjectID, &broadcast.Payload, &broadcast.Channel, &broadcast.Topic,
-		&broadcast.Event, &broadcast.CompletedAt, &broadcast.CreatedAt, &broadcast.UpdatedAt, &broadcast.Status)
+		&broadcast.Event, &broadcast.CompletedAt, &broadcast.CreatedAt, &broadcast.UpdatedAt, &broadcast.Status,
+		&total, &eligible, &excludedDisabled, &excludedNotCataloged)
 	if err != nil {
 		return nil, fmt.Errorf("scan broadcast by id: %w", err)
 	}
 
+	if total != nil {
+		broadcast.Audience = &entity.BroadcastAudience{
+			Total:                *total,
+			Eligible:             derefOrZero(eligible),
+			ExcludedDisabled:     derefOrZero(excludedDisabled),
+			ExcludedNotCataloged: derefOrZero(excludedNotCataloged),
+		}
+	}
+
 	return &broadcast, nil
+}
+
+func derefOrZero(v *int) int {
+	if v == nil {
+		return 0
+	}
+	return *v
+}
+
+// SetAudience records the frozen audience breakdown for a broadcast.
+//
+// ⚠️ Deliberately NOT folded into Update. Update is called with a whole entity —
+// including from the quota-exceeded path in PrepareBroadcastBatchesProcessor,
+// where the broadcast was deserialised from the Asynq payload and carries no
+// Audience. Putting these columns in Update's SET clause would blank them out on
+// every such call.
+func (r *BroadcastRepo) SetAudience(ctx context.Context, broadcastID int, a *entity.BroadcastAudience) error {
+	if a == nil {
+		return nil
+	}
+
+	sql := `
+		UPDATE broadcast
+		SET total_recipients = $2, eligible_recipients = $3, excluded_disabled = $4,
+		excluded_not_cataloged = $5
+		WHERE id = $1
+	`
+	_, err := r.db.Exec(ctx, sql, broadcastID, a.Total, a.Eligible, a.ExcludedDisabled, a.ExcludedNotCataloged)
+	if err != nil {
+		return fmt.Errorf("set broadcast audience: %w", err)
+	}
+
+	return nil
 }
 
 func (r *BroadcastRepo) Update(ctx context.Context, broadcast *entity.Broadcast) error {

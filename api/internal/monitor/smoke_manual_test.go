@@ -46,7 +46,7 @@ func TestSmokeDiscordAlerting(t *testing.T) {
 	inspector := asynq.NewInspector(opt)
 	defer inspector.Close()
 
-	sink := NewDiscordSink(webhookURL)
+	sink := NewDiscordSink(webhookURL, "smoke-test")
 	if sink == nil {
 		t.Fatal("expected a non-nil sink for a configured webhook URL")
 	}

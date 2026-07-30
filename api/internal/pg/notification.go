@@ -284,6 +284,46 @@ func (r *NotificationRepo) UnreadCountForRecipient(ctx context.Context, projectI
 	return count, nil
 }
 
+// StatusRollupForBroadcast returns the per-status notification counts for one
+// broadcast — the in_app branch of the console's delivery tree.
+//
+// Scoped by broadcast_id ALONE, with no project_id predicate, so it is served
+// entirely from `ix_notification_broadcast (broadcast_id) INCLUDE (status)`
+// without touching the heap. Ownership is the caller's job: the service loads
+// the broadcast first and checks its project, which is where that check belongs
+// anyway (a broadcast id that is not in the project must 404, not return zero
+// counts and look like an empty broadcast).
+func (r *NotificationRepo) StatusRollupForBroadcast(ctx context.Context, broadcastID int) (map[enum.NotificationStatus]int, error) {
+	sql := `
+		SELECT status, COUNT(*)
+		FROM notification
+		WHERE broadcast_id = $1
+		GROUP BY status
+	`
+
+	rows, err := r.db.Query(ctx, sql, broadcastID)
+	if err != nil {
+		return nil, fmt.Errorf("query: %w", err)
+	}
+	defer rows.Close()
+
+	rollup := make(map[enum.NotificationStatus]int)
+	for rows.Next() {
+		var status enum.NotificationStatus
+		var count int
+		if err := rows.Scan(&status, &count); err != nil {
+			return nil, fmt.Errorf("scan: %w", err)
+		}
+		rollup[status] = count
+	}
+
+	if err := rows.Err(); err != nil {
+		return nil, fmt.Errorf("rows: %w", err)
+	}
+
+	return rollup, nil
+}
+
 // CountStuck counts notifications stalled in `enqueued` across all projects.
 // See the interface doc in model/repository/notification.go for why it is not
 // project-scoped.

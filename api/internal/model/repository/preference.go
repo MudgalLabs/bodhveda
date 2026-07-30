@@ -25,6 +25,15 @@ type PreferenceReader interface {
 	GetProjectPreferenceByID(ctx context.Context, projectID int, preferenceID int) (*entity.Preference, error)
 	ShouldDirectNotificationBeDelivered(ctx context.Context, projectID int, recipientExtID string, target dto.Target, medium enum.Medium) (bool, error)
 	ListEligibleRecipientExtIDsForBroadcast(ctx context.Context, projectID int, target dto.Target, medium enum.Medium) ([]string, error)
+	// CountBroadcastAudience returns the recipient breakdown for a target: total,
+	// eligible, and the two DIFFERENT reasons a recipient is excluded (their own
+	// opt-out vs the project never cataloging the target).
+	//
+	// ⚠️ Its eligibility predicate MUST stay identical to
+	// ListEligibleRecipientExtIDsForBroadcast's — they are two views of one rule,
+	// and a drift between them shows up as a tree whose numbers do not add up.
+	// pg keeps them adjacent and cross-checks them in a test for that reason.
+	CountBroadcastAudience(ctx context.Context, projectID int, target dto.Target, medium enum.Medium) (*entity.BroadcastAudience, error)
 	// ResolveRecipientPreferences answers every known (target, medium) for one
 	// recipient with the SAME cascade ShouldDirectNotificationBeDelivered uses,
 	// in one query. Callers pass the mediums to resolve (see enum.ActiveMediums).

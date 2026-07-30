@@ -21,5 +21,8 @@ type BroadcastReader interface {
 type BroadcastWriter interface {
 	Create(ctx context.Context, notification *entity.Broadcast) (*entity.Broadcast, error)
 	Update(ctx context.Context, notification *entity.Broadcast) error
+	// SetAudience records the frozen audience breakdown, written once by
+	// prepare_batches. Separate from Update on purpose — see the implementation.
+	SetAudience(ctx context.Context, broadcastID int, audience *entity.BroadcastAudience) error
 	DeleteForProject(ctx context.Context, projectID int) (int, error)
 }

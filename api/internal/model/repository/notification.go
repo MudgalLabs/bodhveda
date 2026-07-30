@@ -7,6 +7,7 @@ import (
 	"github.com/jackc/pgx/v5"
 	"github.com/mudgallabs/bodhveda/internal/model/dto"
 	"github.com/mudgallabs/bodhveda/internal/model/entity"
+	"github.com/mudgallabs/bodhveda/internal/model/enum"
 	"github.com/mudgallabs/tantra/query"
 )
 
@@ -30,6 +31,11 @@ type NotificationReader interface {
 	// TargetVolumes returns the top `limit` targets by in-app notification volume
 	// over the range (Phase 9.5).
 	TargetVolumes(ctx context.Context, projectID int, from, to *time.Time, limit int) ([]dto.AnalyticsTargetStat, error)
+	// StatusRollupForBroadcast returns per-status notification counts for one
+	// broadcast — the in_app branch of the console's delivery tree. Not
+	// project-scoped: the caller must verify ownership first (see the
+	// implementation for why that is the right place for it).
+	StatusRollupForBroadcast(ctx context.Context, broadcastID int) (map[enum.NotificationStatus]int, error)
 	// CountStuck counts notifications ACROSS ALL PROJECTS that were created before
 	// `olderThan` but after `newerThan`, and are still in the only non-terminal
 	// status (`enqueued`).

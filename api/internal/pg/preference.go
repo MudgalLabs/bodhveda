@@ -611,6 +611,59 @@ func (r *PreferenceRepo) resolvePreferences(ctx context.Context, projectID int, 
 // is direct-only — see the HARD RULE in agent-docs/overview.md), so callers pass
 // enum.MediumInApp; the medium filter keeps the query correct now that
 // preferences are per-medium.
+// CountBroadcastAudience is the aggregate twin of
+// ListEligibleRecipientExtIDsForBroadcast below. Keep them adjacent: the
+// eligibility expression is duplicated between them, and if one drifts the
+// console tree silently stops adding up. `TestBroadcastAudienceMatchesEligibleList`
+// pins them together.
+//
+// The four buckets partition the project's recipients exactly, because
+// `preference.enabled` is NOT NULL so the recipient-level row is either present
+// (true or false) or absent:
+//
+//	rp.enabled = true                                  -> eligible
+//	rp.enabled = false                                 -> excluded_disabled
+//	rp absent AND pp.enabled = true                    -> eligible
+//	rp absent AND (pp absent OR pp.enabled = false)    -> excluded_not_cataloged
+func (r *PreferenceRepo) CountBroadcastAudience(ctx context.Context, projectID int, target dto.Target, medium enum.Medium) (*entity.BroadcastAudience, error) {
+	sql := `
+		SELECT
+			COUNT(*) AS total,
+			COUNT(*) FILTER (
+				WHERE rp.enabled = true OR (rp.id IS NULL AND pp.enabled = true)
+			) AS eligible,
+			COUNT(*) FILTER (WHERE rp.enabled = false) AS excluded_disabled,
+			COUNT(*) FILTER (
+				WHERE rp.id IS NULL AND (pp.id IS NULL OR pp.enabled = false)
+			) AS excluded_not_cataloged
+		FROM recipient r
+		LEFT JOIN preference rp
+			ON rp.project_id = r.project_id
+			AND rp.recipient_external_id = r.external_id
+			AND rp.channel = $2
+			AND rp.topic = $3
+			AND rp.event = $4
+			AND rp.medium = $5
+		LEFT JOIN preference pp
+			ON pp.project_id = r.project_id
+			AND pp.recipient_external_id IS NULL
+			AND pp.channel = $2
+			AND pp.topic = $3
+			AND pp.event = $4
+			AND pp.medium = $5
+		WHERE r.project_id = $1
+	`
+
+	var a entity.BroadcastAudience
+	err := r.db.QueryRow(ctx, sql, projectID, target.Channel, target.Topic, target.Event, string(medium)).
+		Scan(&a.Total, &a.Eligible, &a.ExcludedDisabled, &a.ExcludedNotCataloged)
+	if err != nil {
+		return nil, fmt.Errorf("query and scan: %w", err)
+	}
+
+	return &a, nil
+}
+
 func (r *PreferenceRepo) ListEligibleRecipientExtIDsForBroadcast(ctx context.Context, projectID int, target dto.Target, medium enum.Medium) ([]string, error) {
 	sql := `
 		-- INPUTS:

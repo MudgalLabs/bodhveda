@@ -200,11 +200,34 @@ func (processor *PrepareBroadcastBatchesProcessor) ProcessTask(ctx context.Conte
 	broadcast := payload.Broadcast
 
 	// Broadcasts fan out in-app only (email is direct-only).
-	recipientExtIDs, err := processor.preferenceRepo.ListEligibleRecipientExtIDsForBroadcast(ctx, broadcast.ProjectID, dto.TargetFromBroadcast(broadcast), enum.MediumInApp)
+	target := dto.TargetFromBroadcast(broadcast)
+
+	recipientExtIDs, err := processor.preferenceRepo.ListEligibleRecipientExtIDsForBroadcast(ctx, broadcast.ProjectID, target, enum.MediumInApp)
 	if err != nil {
 		err = fmt.Errorf("list eligible recipient external IDs: %w", err)
 		logger.Get().Error(err)
 		return err
+	}
+
+	// Freeze the audience breakdown NOW — this is the only moment these numbers
+	// are true. Recomputing them later against a live recipient count is wrong as
+	// soon as anyone signs up or leaves. Recorded before the quota check below so
+	// a quota-rejected broadcast still shows who it WOULD have reached, which is
+	// exactly the question asked when a send does nothing.
+	//
+	// Best-effort: this is reporting, so a failure here must never fail the
+	// fan-out. The tree renders a missing audience as "not recorded".
+	if audience, err := processor.preferenceRepo.CountBroadcastAudience(ctx, broadcast.ProjectID, target, enum.MediumInApp); err != nil {
+		logger.Get().Errorf("PrepareBroadcastBatchesProcessor: count audience for broadcast %d: %v", broadcast.ID, err)
+	} else {
+		// Eligible comes from the list we actually fan out to, not the aggregate:
+		// the two run as separate queries, so a recipient created between them
+		// would make the stored count disagree with the notifications written.
+		audience.Eligible = len(recipientExtIDs)
+
+		if err := processor.broadcastRepo.SetAudience(ctx, broadcast.ID, audience); err != nil {
+			logger.Get().Errorf("PrepareBroadcastBatchesProcessor: set audience for broadcast %d: %v", broadcast.ID, err)
+		}
 	}
 
 	event := dto.UsageEvent{
@@ -212,6 +235,38 @@ func (processor *PrepareBroadcastBatchesProcessor) ProcessTask(ctx context.Conte
 		ProjectID: broadcast.ProjectID,
 		Metric:    entity.MetricNotifications,
 		Amount:    int64(len(recipientExtIDs)),
+	}
+
+	// ⚠️ A broadcast can legitimately match NOBODY — nobody has the target
+	// enabled, or the catalog only offers it on another medium. That is a normal
+	// outcome (the audience breakdown recorded above is exactly how an operator
+	// diagnoses it), not an error.
+	//
+	// It has to be handled before the usage call, twice over:
+	//
+	//  1. `usage_log` has CHECK (amount > 0), so consuming 0 units raised
+	//     SQLSTATE 23514, the task errored, and Asynq retried it until it was
+	//     ARCHIVED. Silent work loss with a failing queue — the exact shape of
+	//     the 2026-07-27 incident, reproduced here by an empty audience.
+	//  2. With no recipients there are no batches, and it is the LAST BATCH that
+	//     marks a broadcast `completed`. So even without the crash the broadcast
+	//     would sit in `enqueued` forever, with nothing left to move it.
+	//
+	// Found by dogfooding on 2026-07-29.
+	if len(recipientExtIDs) == 0 {
+		now := time.Now().UTC()
+		broadcast.Status = enum.BroadcastStatusCompleted
+		broadcast.CompletedAt = &now
+		broadcast.UpdatedAt = now
+
+		if err := processor.broadcastRepo.Update(ctx, broadcast); err != nil {
+			err = fmt.Errorf("update broadcast with empty audience: %w", err)
+			logger.Get().Error(err)
+			return err
+		}
+
+		logger.Get().Infof("PrepareBroadcastBatchesProcessor: broadcast %d matched no eligible recipients; completed with no batches", broadcast.ID)
+		return nil
 	}
 
 	err = processor.billingService.CheckAndConsumeUsage(ctx, event)
@@ -322,11 +377,34 @@ func (processor *BroadcastDeliveryProcessor) ProcessTask(ctx context.Context, t 
 	err := dbx.WithTx(ctx, processor.db, func(tx pgx.Tx) error {
 		notifications := make([]*entity.Notification, 0, len(payload.RecipientExtIDs))
 
+		// ⚠️ Broadcast notifications are DELIVERED at insert, not `enqueued`.
+		//
+		// entity.NewNotification defaults to `enqueued` because that is right for
+		// a DIRECT send, where notification:delivery still has to resolve
+		// preferences and billing afterwards. A broadcast has no such second step:
+		// prepare_batches already resolved eligibility and consumed usage, so by
+		// the time a row is written it IS in the recipient's inbox and nothing
+		// will ever touch it again.
+		//
+		// Leaving it `enqueued` meant every broadcast notification sat
+		// permanently in the only non-terminal status. That was invisible while
+		// `recipientFeedVisible` treated `enqueued` as visible (inboxes looked
+		// fine), but it made two things wrong the moment they existed: the console
+		// delivery tree reported every broadcast as 100% pending, and
+		// internal/monitor's stuck_sends check counted all of them as stalled
+		// sends and alerted forever. Found by dogfooding on 2026-07-29 — 90 of 90
+		// broadcast rows were affected.
+		now := time.Now().UTC()
+
 		for _, recipientExtID := range payload.RecipientExtIDs {
-			notifications = append(notifications, entity.NewNotification(
+			n := entity.NewNotification(
 				payload.ProjectID, recipientExtID, payload.Payload,
 				&payload.BroadcastID, payload.Channel, payload.Topic, payload.Event,
-			))
+			)
+			n.Status = enum.NotificationStatusDelivered
+			n.CompletedAt = &now
+
+			notifications = append(notifications, n)
 		}
 
 		err := processor.notificationRepo.BatchCreateTx(ctx, tx, notifications)

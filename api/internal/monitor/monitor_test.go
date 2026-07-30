@@ -148,17 +148,17 @@ func TestMonitorRunsLogOnlyWithoutASink(t *testing.T) {
 // pointer, and the first alert would panic on a nil receiver — turning "no
 // Discord configured" into a crash on the first real incident.
 func TestEmptyDiscordURLYieldsATrulyNilSink(t *testing.T) {
-	if sink := NewDiscordSink(""); sink != nil {
+	if sink := NewDiscordSink("", "test"); sink != nil {
 		t.Fatal("an empty webhook URL must yield a nil Sink interface, not a typed nil")
 	}
-	if sink := NewDiscordSink("   "); sink != nil {
+	if sink := NewDiscordSink("   ", "test"); sink != nil {
 		t.Fatal("a blank webhook URL must yield a nil Sink interface")
 	}
 
 	finding := firing("worker is gone")
 	m := New(Config{
 		Checks: []Check{staticCheck("worker_absent", &finding)},
-		Sink:   NewDiscordSink(""),
+		Sink:   NewDiscordSink("", "test"),
 	})
 
 	// Would panic if the nil-interface handling were wrong.
@@ -230,7 +230,7 @@ func TestDiscordSinkPostsAnEmbed(t *testing.T) {
 	}))
 	defer srv.Close()
 
-	sink := NewDiscordSink(srv.URL)
+	sink := NewDiscordSink(srv.URL, "test")
 	err := sink.Send(context.Background(), Alert{
 		Condition: "task_failure_ratio",
 		Kind:      AlertOpened,
@@ -275,7 +275,7 @@ func TestDiscordSinkReportsNon2xx(t *testing.T) {
 	}))
 	defer srv.Close()
 
-	err := NewDiscordSink(srv.URL).Send(context.Background(), Alert{Condition: "x", Kind: AlertOpened})
+	err := NewDiscordSink(srv.URL, "test").Send(context.Background(), Alert{Condition: "x", Kind: AlertOpened})
 	if err == nil {
 		t.Fatal("expected an error for a non-2xx response")
 	}
@@ -297,7 +297,7 @@ func TestResolvedEmbedDoesNotReadLikeALiveProblem(t *testing.T) {
 		Fields:        map[string]string{"hint": "check the worker container/process", "queue": "default"},
 		Since:         time.Date(2026, 7, 29, 10, 47, 45, 0, time.UTC),
 		ResolvedAfter: 92 * time.Second,
-	}).Embeds[0]
+	}, "test").Embeds[0]
 
 	if !strings.HasPrefix(embed.Description, "Recovered after 1m.") {
 		t.Errorf("a resolve must LEAD with the recovery, got %q", embed.Description)
@@ -329,13 +329,71 @@ func TestOpenedEmbedKeepsFieldsAndHints(t *testing.T) {
 		Kind:      AlertOpened,
 		Summary:   "No Asynq worker is registered — nothing is consuming the queue.",
 		Fields:    map[string]string{"hint": "check the worker container/process", "queue": "default"},
-	}).Embeds[0]
+	}, "test").Embeds[0]
 
 	if !strings.Contains(embed.Description, "check the worker container/process") {
 		t.Errorf("an opened alert must carry its action hint, got %q", embed.Description)
 	}
 	if strings.Contains(embed.Description, "Recovered after") {
 		t.Errorf("an opened alert must not claim recovery, got %q", embed.Description)
+	}
+}
+
+// Regression guard for a real incident: a `stuck_sends` card fired at 00:12 IST
+// on 2026-07-30 from a DEV machine, and because dev and production post to the
+// same webhook the card was indistinguishable from a production outage. Every
+// embed must be attributable — including a fresh open, which is the kind you get
+// woken up by and the only kind that used to carry no footer at all.
+func TestEveryEmbedIsAttributableToItsOrigin(t *testing.T) {
+	kinds := []AlertKind{AlertOpened, AlertOngoing, AlertResolved}
+
+	for _, kind := range kinds {
+		embed := buildPayload(Alert{
+			Condition: "stuck_sends",
+			Kind:      kind,
+			Summary:   "90 notification(s) have been stuck in `enqueued` for over 10m0s.",
+			Since:     time.Date(2026, 7, 30, 0, 2, 7, 0, time.UTC),
+		}, "local @ laptop").Embeds[0]
+
+		if embed.Footer == nil {
+			t.Fatalf("kind %q: embed has no footer, so the alert cannot be attributed", kind)
+		}
+		if !strings.Contains(embed.Footer.Text, "local @ laptop") {
+			t.Errorf("kind %q: footer = %q, want the origin in it", kind, embed.Footer.Text)
+		}
+	}
+}
+
+// The origin leads the footer, because "is this even production?" decides whether
+// you act at all — and the start time is still appended for a non-fresh alert.
+func TestFooterLeadsWithOriginThenStartTime(t *testing.T) {
+	embed := buildPayload(Alert{
+		Condition: "stuck_sends",
+		Kind:      AlertOngoing,
+		Since:     time.Date(2026, 7, 30, 0, 2, 7, 0, time.UTC),
+	}, "production @ vps-1").Embeds[0]
+
+	want := "production @ vps-1 · started 2026-07-30T00:02:07Z"
+	if embed.Footer.Text != want {
+		t.Errorf("footer = %q, want %q", embed.Footer.Text, want)
+	}
+}
+
+// An empty origin must not render a stray separator or an empty footer — the
+// monitor is usable without one, it just loses attribution.
+func TestEmptyOriginOmitsTheStamp(t *testing.T) {
+	opened := buildPayload(Alert{Condition: "stuck_sends", Kind: AlertOpened}, "").Embeds[0]
+	if opened.Footer != nil {
+		t.Errorf("no origin and a fresh open should mean no footer, got %q", opened.Footer.Text)
+	}
+
+	ongoing := buildPayload(Alert{
+		Condition: "stuck_sends",
+		Kind:      AlertOngoing,
+		Since:     time.Date(2026, 7, 30, 0, 2, 7, 0, time.UTC),
+	}, "").Embeds[0]
+	if got, want := ongoing.Footer.Text, "started 2026-07-30T00:02:07Z"; got != want {
+		t.Errorf("footer = %q, want %q with no leading separator", got, want)
 	}
 }
 
@@ -371,7 +429,7 @@ func TestDiscordSinkColoursByKind(t *testing.T) {
 	}
 
 	for _, tc := range tests {
-		got := buildPayload(Alert{Kind: tc.kind}).Embeds[0].Color
+		got := buildPayload(Alert{Kind: tc.kind}, "test").Embeds[0].Color
 		if got != tc.want {
 			t.Errorf("kind %q colour = %d, want %d", tc.kind, got, tc.want)
 		}

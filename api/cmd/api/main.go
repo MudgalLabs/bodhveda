@@ -52,10 +52,34 @@ func startMonitor(ctx context.Context) {
 
 	m := monitor.New(monitor.Config{
 		Checks: monitor.DefaultChecks(inspector, app.APP.Repository.Notification, nil),
-		Sink:   monitor.NewDiscordSink(env.AlertDiscordWebhookURL),
+		Sink:   monitor.NewDiscordSink(env.AlertDiscordWebhookURL, alertOrigin()),
 	})
 
 	go m.Run(ctx)
+}
+
+// alertOrigin labels which process an alert came from, for the footer of every
+// Discord embed. Dev and production share ONE webhook (it comes from the root
+// .env), so without this a red card at midnight is unattributable.
+//
+// ⚠️ It reports the hostname alongside the env, and that redundancy is the whole
+// point — BODHVEDA_API_ENV is NOT in .env, it is hardcoded to "production" in
+// compose.yaml, so `env.APIEnv` is empty under `air` and a misleading
+// "production" under a local `make compose`. The hostname is the part that cannot
+// lie: a laptop and a VPS container never share one.
+func alertOrigin() string {
+	label := env.APIEnv
+	if label == "" {
+		// Empty means nothing set it — i.e. not one of the compose services.
+		label = "local"
+	}
+
+	host, err := os.Hostname()
+	if err != nil || host == "" {
+		return label
+	}
+
+	return label + " @ " + host
 }
 
 func run(router http.Handler) error {
