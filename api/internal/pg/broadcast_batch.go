@@ -5,6 +5,7 @@ import (
 	"fmt"
 	"time"
 
+	"github.com/jackc/pgx/v5"
 	"github.com/jackc/pgx/v5/pgxpool"
 	"github.com/mudgallabs/bodhveda/internal/model/entity"
 	"github.com/mudgallabs/bodhveda/internal/model/enum"
@@ -49,13 +50,35 @@ func (r *BroadcastBatchRepo) Create(ctx context.Context, broadcastBatch *entity.
 }
 
 func (r *BroadcastBatchRepo) Update(ctx context.Context, batchID int, payload *entity.BroadcastBatchUpdatePayload) error {
+	return updateBroadcastBatch(ctx, r.db, batchID, payload)
+}
+
+func (r *BroadcastBatchRepo) UpdateTx(ctx context.Context, tx pgx.Tx, batchID int, payload *entity.BroadcastBatchUpdatePayload) error {
+	return updateBroadcastBatch(ctx, tx, batchID, payload)
+}
+
+func updateBroadcastBatch(ctx context.Context, db dbx.DBExecutor, batchID int, payload *entity.BroadcastBatchUpdatePayload) error {
 	sql := `
 		UPDATE broadcast_batch
 		SET updated_at = $2, status = $3, attempt = $4, duration = $5
 		WHERE id = $1
 	`
-	_, err := r.db.Exec(ctx, sql, batchID, time.Now().UTC(), payload.Status, payload.Attempt, payload.Duration)
+	_, err := db.Exec(ctx, sql, batchID, time.Now().UTC(), payload.Status, payload.Attempt, payload.Duration)
 	return err
+}
+
+// StatusForUpdateTx takes a row lock on the batch and returns its status. See the
+// interface doc for why the lock — not the read — is the reason this exists.
+func (r *BroadcastBatchRepo) StatusForUpdateTx(ctx context.Context, tx pgx.Tx, batchID int) (enum.BroadcastBatchStatus, error) {
+	sql := `SELECT status FROM broadcast_batch WHERE id = $1 FOR UPDATE`
+
+	var status enum.BroadcastBatchStatus
+
+	if err := tx.QueryRow(ctx, sql, batchID).Scan(&status); err != nil {
+		return "", err
+	}
+
+	return status, nil
 }
 
 func (r *BroadcastBatchRepo) PendingCount(ctx context.Context, broadcastID int) (int, error) {

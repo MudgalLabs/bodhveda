@@ -217,3 +217,159 @@ func TestPrepareBatchesCompletesEmptyBroadcast(t *testing.T) {
 		t.Errorf("no batches should be created for an empty audience, got %d", batches)
 	}
 }
+
+// TestBroadcastDeliveryIsIdempotentOnRetry pins the fix for the duplicate-fan-out
+// bug.
+//
+// Asynq is at-least-once: it acks only after ProcessTask returns, so a crash or
+// an expired lease between the commit and the ack re-delivers the batch. The
+// fan-out used to commit in its own transaction and write the batch status in a
+// second one, so a redelivery re-ran the insert and wrote every notification
+// again. Today that is duplicate rows in real inboxes; with broadcast email it
+// would be duplicate mail to real people.
+//
+// Running the identical task twice is exactly what a redelivery looks like to
+// this processor, so that is what the test does.
+func TestBroadcastDeliveryIsIdempotentOnRetry(t *testing.T) {
+	pool := testPool(t)
+	ctx := context.Background()
+	projectID := testProject(t, pool, "bcast-idempotency-test")
+
+	broadcastRepo := pg.NewBroadcastRepo(pool)
+	notificationRepo := pg.NewNotificationRepo(pool)
+	batchRepo := pg.NewBroadcastBatchRepo(pool)
+
+	broadcast, err := broadcastRepo.Create(ctx, entity.NewBroadcast(projectID, []byte(`{"t":"hi"}`), "product", "updates", "released"))
+	if err != nil {
+		t.Fatalf("create broadcast: %v", err)
+	}
+
+	batch, err := batchRepo.Create(ctx, entity.NewBroadcastBatch(broadcast.ID, 3))
+	if err != nil {
+		t.Fatalf("create batch: %v", err)
+	}
+
+	payload, err := json.Marshal(dto.BroadcastDeliveryTaskPayload{
+		ProjectID:       projectID,
+		BroadcastID:     broadcast.ID,
+		BatchID:         batch.ID,
+		RecipientExtIDs: []string{"r1", "r2", "r3"},
+		Payload:         []byte(`{"t":"hi"}`),
+		Channel:         "product",
+		Topic:           "updates",
+		Event:           "released",
+	})
+	if err != nil {
+		t.Fatalf("marshal payload: %v", err)
+	}
+
+	p := NewBroadcastDeliveryProcessor(pool, notificationRepo, broadcastRepo, batchRepo)
+	t2 := asynq.NewTask(task.TaskTypeBroadcastDelivery, payload)
+
+	if err := p.ProcessTask(ctx, t2); err != nil {
+		t.Fatalf("first run: %v", err)
+	}
+	// The redelivery. It must succeed — a retry of already-committed work is not
+	// an error, it is a no-op — and must not write a second copy of anything.
+	if err := p.ProcessTask(ctx, t2); err != nil {
+		t.Fatalf("second run (the redelivery) must be a successful no-op: %v", err)
+	}
+
+	var total int
+	if err := pool.QueryRow(ctx, `
+		SELECT COUNT(*) FROM notification WHERE broadcast_id = $1
+	`, broadcast.ID).Scan(&total); err != nil {
+		t.Fatalf("count notifications: %v", err)
+	}
+	if total != 3 {
+		t.Fatalf("notification count = %d, want 3 — the redelivery duplicated the fan-out", total)
+	}
+
+	// Per recipient, not just in aggregate: three rows could also be one recipient
+	// written three times.
+	rows, err := pool.Query(ctx, `
+		SELECT recipient_external_id, COUNT(*)
+		FROM notification WHERE broadcast_id = $1
+		GROUP BY recipient_external_id HAVING COUNT(*) > 1
+	`, broadcast.ID)
+	if err != nil {
+		t.Fatalf("query duplicates: %v", err)
+	}
+	defer rows.Close()
+
+	for rows.Next() {
+		var extID string
+		var n int
+		if err := rows.Scan(&extID, &n); err != nil {
+			t.Fatalf("scan: %v", err)
+		}
+		t.Errorf("recipient %q got %d notifications from one broadcast, want 1", extID, n)
+	}
+
+	// The broadcast must still be completed — the retry skips the insert but must
+	// NOT skip the completion check, or a crash between commit and ack would
+	// strand the broadcast in `enqueued` forever.
+	reloaded, err := broadcastRepo.GetByID(ctx, broadcast.ID)
+	if err != nil {
+		t.Fatalf("reload broadcast: %v", err)
+	}
+	if reloaded.Status != enum.BroadcastStatusCompleted {
+		t.Errorf("broadcast status = %q, want %q after the retry", reloaded.Status, enum.BroadcastStatusCompleted)
+	}
+}
+
+// TestBroadcastDeliveryReturnsErrorSoAsynqRetries pins the swallowed-error half of
+// the same bug.
+//
+// The delivery error used to be overwritten by the batch-status update's own
+// (nil) error, and ProcessTask returned nil — so a batch that inserted NOTHING
+// was acked as a success and never retried. The failure was written to the
+// database and then dropped on the floor, which is precisely the silent-work-loss
+// shape of the 2026-07-27 incident.
+func TestBroadcastDeliveryReturnsErrorSoAsynqRetries(t *testing.T) {
+	pool := testPool(t)
+	ctx := context.Background()
+	projectID := testProject(t, pool, "bcast-retry-test")
+
+	broadcastRepo := pg.NewBroadcastRepo(pool)
+	notificationRepo := pg.NewNotificationRepo(pool)
+	batchRepo := pg.NewBroadcastBatchRepo(pool)
+
+	broadcast, err := broadcastRepo.Create(ctx, entity.NewBroadcast(projectID, []byte(`{"t":"hi"}`), "product", "updates", "released"))
+	if err != nil {
+		t.Fatalf("create broadcast: %v", err)
+	}
+
+	// A batch id that does not exist stands in for any failure inside the
+	// transaction: the work cannot be recorded, so the task must report failure
+	// rather than claim success.
+	payload, err := json.Marshal(dto.BroadcastDeliveryTaskPayload{
+		ProjectID:       projectID,
+		BroadcastID:     broadcast.ID,
+		BatchID:         -1,
+		RecipientExtIDs: []string{"r1"},
+		Payload:         []byte(`{"t":"hi"}`),
+		Channel:         "product",
+		Topic:           "updates",
+		Event:           "released",
+	})
+	if err != nil {
+		t.Fatalf("marshal payload: %v", err)
+	}
+
+	p := NewBroadcastDeliveryProcessor(pool, notificationRepo, broadcastRepo, batchRepo)
+	if err := p.ProcessTask(ctx, asynq.NewTask(task.TaskTypeBroadcastDelivery, payload)); err == nil {
+		t.Fatal("ProcessTask returned nil for a batch that could not be delivered; Asynq would ack it and never retry")
+	}
+
+	// And nothing may be left behind by the rolled-back attempt.
+	var written int
+	if err := pool.QueryRow(ctx, `
+		SELECT COUNT(*) FROM notification WHERE broadcast_id = $1
+	`, broadcast.ID).Scan(&written); err != nil {
+		t.Fatalf("count notifications: %v", err)
+	}
+	if written != 0 {
+		t.Errorf("%d notifications survived a failed batch; the insert must roll back with it", written)
+	}
+}

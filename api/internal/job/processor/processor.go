@@ -374,7 +374,42 @@ func (processor *BroadcastDeliveryProcessor) ProcessTask(ctx context.Context, t 
 		return err
 	}
 
+	attempt := currentAttempt(ctx)
+
+	// ⚠️ This task must be safe to run twice, and it was not.
+	//
+	// Asynq is at-least-once: it acks only after ProcessTask returns, so a crash
+	// or an expired lease between the commit and the ack re-delivers the batch.
+	// The fan-out used to commit in its own transaction and then write the batch
+	// status in a SECOND one, so a redelivery re-ran the whole insert and wrote
+	// every notification again. Today that is duplicate rows in real inboxes;
+	// once broadcasts can carry email it would be duplicate mail to real people.
+	//
+	// The guard is the batch row itself: lock it, and if it already reads
+	// `success` the fan-out is known to have committed, so skip the insert and
+	// fall through to the completion check. Locking rather than plainly reading
+	// is what makes this hold when two workers hold the same batch at once — the
+	// second blocks until the first commits, then sees `success`.
+	//
+	// A partial unique index on (broadcast_id, recipient_external_id) was the
+	// other candidate and is deliberately NOT used: BatchCreateTx inserts via
+	// COPY, and COPY has no ON CONFLICT, so a duplicate would abort the batch
+	// with an error instead of being absorbed — it would convert a benign retry
+	// into a failed one. It would also put a second index on `notification`,
+	// which is the send hot path. See agent-docs/delivery-feedback-design.md §3.3.
+	var alreadyDelivered bool
+
 	err := dbx.WithTx(ctx, processor.db, func(tx pgx.Tx) error {
+		status, err := processor.broadcastBatchRepo.StatusForUpdateTx(ctx, tx, payload.BatchID)
+		if err != nil {
+			return fmt.Errorf("lock broadcast batch: %w", err)
+		}
+
+		if status == enum.BroadcastBatchStatusSuccess {
+			alreadyDelivered = true
+			return nil
+		}
+
 		notifications := make([]*entity.Notification, 0, len(payload.RecipientExtIDs))
 
 		// ⚠️ Broadcast notifications are DELIVERED at insert, not `enqueued`.
@@ -407,48 +442,65 @@ func (processor *BroadcastDeliveryProcessor) ProcessTask(ctx context.Context, t 
 			notifications = append(notifications, n)
 		}
 
-		err := processor.notificationRepo.BatchCreateTx(ctx, tx, notifications)
-		if err != nil {
-			err = fmt.Errorf("batch create notifications: %w", err)
-			logger.Get().Error(err)
-			return err
+		if err := processor.notificationRepo.BatchCreateTx(ctx, tx, notifications); err != nil {
+			return fmt.Errorf("batch create notifications: %w", err)
 		}
 
-		return err
+		// In the SAME transaction as the insert: either the notifications and the
+		// batch's `success` both land, or neither does. That is what lets the
+		// status above be trusted as the record of whether the work happened.
+		return processor.broadcastBatchRepo.UpdateTx(ctx, tx, payload.BatchID, entity.NewBroadcastBatchUpdatePayload(
+			enum.BroadcastBatchStatusSuccess, attempt, int(time.Since(start).Milliseconds()),
+		))
 	})
-
-	duration := time.Since(start)
-
-	var status enum.BroadcastBatchStatus
 	if err != nil {
-		status = enum.BroadcastBatchStatusFailed
-	} else {
-		status = enum.BroadcastBatchStatusSuccess
-	}
-
-	attempt := currentAttempt(ctx)
-
-	err = processor.broadcastBatchRepo.Update(ctx, payload.BatchID, entity.NewBroadcastBatchUpdatePayload(
-		status, attempt, int(duration.Milliseconds()),
-	))
-	if err != nil {
-		err = fmt.Errorf("update broadcast batch status: %w", err)
 		logger.Get().Error(err)
+
+		// Record the failure OUTSIDE the rolled-back transaction. Best-effort: it
+		// is reporting, and losing it must not mask the real error being returned.
+		if updateErr := processor.broadcastBatchRepo.Update(ctx, payload.BatchID, entity.NewBroadcastBatchUpdatePayload(
+			enum.BroadcastBatchStatusFailed, attempt, int(time.Since(start).Milliseconds()),
+		)); updateErr != nil {
+			logger.Get().Errorw("update broadcast batch to failed",
+				"error", updateErr, "batch_id", payload.BatchID)
+		}
+
+		// ⚠️ Return the delivery error so Asynq retries. It used to be overwritten
+		// by the batch-status update's own (nil) error and the function returned
+		// nil, so a batch that inserted NOTHING was acked as a success and never
+		// retried — the failure was recorded in the DB and then dropped.
 		return err
 	}
 
+	if alreadyDelivered {
+		logger.Get().Infow("broadcast batch already delivered, skipping re-insert",
+			"batch_id", payload.BatchID, "broadcast_id", payload.BroadcastID, "attempt", attempt)
+	}
+
+	// ⚠️ Runs even when alreadyDelivered. A previous attempt may have committed
+	// the fan-out and then died before completing the broadcast, and skipping this
+	// on the retry would strand the broadcast in `enqueued` forever — trading the
+	// duplicate-insert bug for a never-completes one.
 	remaining, err := processor.broadcastBatchRepo.PendingCount(ctx, payload.BroadcastID)
 	if err != nil {
+		// ⚠️ Must return, not fall through. `remaining` is 0 when the count fails,
+		// which reads as "every batch is done" and would complete the broadcast on
+		// the strength of a failed query. Retrying is safe now that the batch lock
+		// above makes a second run a no-op.
 		err = fmt.Errorf("count pending batches: %w", err)
 		logger.Get().Error(err)
+		return err
 	}
 
 	// All batches processed, we can mark the broadcast as completed.
 	if remaining == 0 {
 		broadcast, err := processor.broadcastRepo.GetByID(ctx, payload.BroadcastID)
 		if err != nil {
+			// ⚠️ Must return: the next line dereferences `broadcast`, so falling
+			// through here panicked the worker on any lookup failure.
 			err = fmt.Errorf("get broadcast by ID: %w", err)
 			logger.Get().Error(err)
+			return err
 		}
 
 		now := time.Now().UTC()

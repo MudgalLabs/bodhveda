@@ -147,6 +147,9 @@ heartbeat's only unique coverage was "API serving fine but the monitor goroutine
 which is narrow given `Tick` already recovers panics, and it costs an env var plus a
 false-alarm mode when VPS egress is blocked.
 
+**LIVE (2026-07-31).** BetterStack polls `https://api.bodhveda.com/ping` and reports on
+`status.ceoshikhar.com`. This section is closed — it is no longer an open gap.
+
 ### 2.5 Layering
 
 This is infra, not a domain, and does not fit handler→service→pg. Proposal: a self-contained
@@ -259,6 +262,13 @@ Coordinate with `overview.md` §Open/next, which already plans a partial unique 
 bug. That index serves `WHERE broadcast_id = $1` as a prefix, so **one index may satisfy both**
 — though the rollup also reads `status`, so `(broadcast_id) INCLUDE (status)` may plan better.
 Measure; don't add two indexes to the hot-path `notification` table without checking.
+
+**RESOLVED (2026-07-31): one index, and it is this one.** The idempotency bug was fixed with a
+`FOR UPDATE` lock on the `broadcast_batch` row plus writing the batch status in the same
+transaction as the insert, so no unique index was needed. It was also the wrong tool here:
+`BatchCreateTx` uses COPY, which has no `ON CONFLICT`, so a duplicate would abort the batch
+instead of being absorbed — turning a benign retry into a failed one. `ix_notification_broadcast`
+therefore stays the only index on `notification (broadcast_id)`. See `overview.md` §Open/next.
 
 Build the API per-medium from day one (one branch today) so broadcast email — and SMS/push —
 slot in without a contract change.

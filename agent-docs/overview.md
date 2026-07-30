@@ -715,18 +715,27 @@ is the OPERATOR's view — it already shows `muted`/`quota_exceeded` precisely b
   separate low-priority `email:bulk` queue, and address-level suppression. Explicitly refused:
   templating/per-recipient variables (Bodhveda stores no recipient attributes to personalize FROM
   — that is a CDP, not a feature; personalization stays a direct-send concern).
-- ⚠️ **`BroadcastDeliveryProcessor` is not idempotent — a live bug.** It commits the notification
-  `CopyFrom` in a tx and THEN updates the batch status; any failure after the commit (or a worker
-  crash) makes Asynq retry the whole task and re-insert every notification. Today that is
-  duplicate in-app rows. With broadcast email it becomes duplicate EMAILS, so it must be fixed
-  before that ships: a partial unique index on `notification (broadcast_id, recipient_external_id)`
-  plus `INSERT … ON CONFLICT DO NOTHING RETURNING id` (which `CopyFrom` cannot do, and which is
-  needed anyway to get the ids the delivery rows hang off).
-  ⚠️ **Coordinate with `ix_notification_broadcast`**, added in Phase 11 —
-  `(broadcast_id) INCLUDE (status) WHERE broadcast_id IS NOT NULL`, serving the delivery tree's
-  rollup as an Index Only Scan. The planned unique index has `broadcast_id` as its prefix, so it
-  would serve that rollup too (minus the covering `status`). Re-measure when it lands and drop
-  whichever is redundant rather than carrying two indexes on the hot-path `notification` table.
+- ✅ **`BroadcastDeliveryProcessor` idempotency — FIXED (2026-07-31).** It used to commit the
+  notification `CopyFrom` in one tx and update the batch status in a SECOND one, so a crash or an
+  expired lease between the commit and Asynq's ack re-delivered the task and re-inserted every
+  notification. Fixed by making the batch row the guard: `SELECT status … FOR UPDATE` opens the
+  transaction, an already-`success` batch short-circuits, and the batch's `success` is written
+  **inside the same tx as the insert** — so the status is a trustworthy record of whether the
+  fan-out happened. The lock (not a plain read) is what holds when two workers get the same batch
+  at once. Two adjacent faults fixed with it: the delivery error was overwritten by the
+  batch-update's own nil error so failures were acked and never retried, and both `PendingCount`
+  and `GetByID` logged-and-fell-through — the first completing a broadcast on the strength of a
+  failed count, the second panicking the worker on a nil deref.
+  ⚠️ **The planned partial unique index on `(broadcast_id, recipient_external_id)` was NOT added,
+  deliberately.** `BatchCreateTx` inserts via COPY, and COPY has no `ON CONFLICT`, so a duplicate
+  would abort the batch rather than be absorbed — converting a benign retry into a failed one. It
+  would also put a second index on the send hot path for a guarantee the batch lock already gives.
+  So `ix_notification_broadcast` stays the **single** index on `notification (broadcast_id)`, and
+  the "keep one, not two" coordination is resolved by not adding the second.
+  ⚠️ Still open for broadcast email: it needs the inserted **ids** to hang delivery rows off, which
+  COPY does not return. That is the real reason to move to `INSERT … RETURNING id` — a broadcast
+  email requirement, not an idempotency one. Revisit the unique index then, if it still earns its
+  write cost.
 - **Quota does not gate email on a mixed send** (above).
 
 ---
