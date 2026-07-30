@@ -1,7 +1,14 @@
 import {
+    Breadcrumb,
+    BreadcrumbItem,
+    BreadcrumbLink,
+    BreadcrumbList,
+    BreadcrumbPage,
+    BreadcrumbSeparator,
     ErrorMessage,
-    IconArrowLeft,
+    IconBell,
     Loading,
+    PageHeading,
     Tooltip,
     formatDate,
     formatDuration,
@@ -284,31 +291,48 @@ function DetailShell({
     const verdict = tree ? verdictFor(tree) : undefined;
 
     return (
-        <div className="mx-auto max-w-6xl px-1 pb-16">
-            {/* Breadcrumb, not a back button: it names where you are, and it is the
-                only navigation this page needs. */}
-            <Link
-                to="/projects/$id/notifications"
-                params={{ id: projectID }}
-                search={{ kind: backKind }}
-                className="text-text-muted hover:text-text-primary flex-x mb-5 w-fit items-center gap-1.5 text-sm"
-            >
-                <IconArrowLeft size={14} />
-                Notifications
-            </Link>
+        // Structurally identical to recipient_detail.tsx: a plain root, PageHeading,
+        // then content. The previous version wrapped everything in its own
+        // max-width + px container, so it lost the PageHeading bar (and its sidebar
+        // toggle) and sat at a different inset from every other page in the console.
+        <div>
+            <PageHeading>
+                <IconBell size={18} />
+                <Breadcrumb className="min-w-0">
+                    <BreadcrumbList className="flex min-w-0 items-center gap-x-2">
+                        <BreadcrumbItem>
+                            <BreadcrumbLink asChild>
+                                <Link
+                                    to="/projects/$id/notifications"
+                                    params={{ id: projectID }}
+                                    // Returns to the tab you came from: a broadcast
+                                    // goes back to the Broadcast list, not Direct.
+                                    search={{ kind: backKind }}
+                                    className="text-[16px]! font-medium!"
+                                >
+                                    Notifications
+                                </Link>
+                            </BreadcrumbLink>
+                        </BreadcrumbItem>
+                        <BreadcrumbSeparator />
+                        <BreadcrumbItem className="min-w-0 flex-1">
+                            <BreadcrumbPage className="flex min-w-0 items-center gap-2">
+                                <span className="truncate">{title}</span>
+                                {status}
+                            </BreadcrumbPage>
+                        </BreadcrumbItem>
+                    </BreadcrumbList>
+                </Breadcrumb>
+            </PageHeading>
 
-            <header className="mb-6 flex flex-wrap items-baseline gap-x-4 gap-y-2">
-                <h1 className="text-text-primary text-xl font-medium">
-                    {title}
-                </h1>
-                <Mono>
-                    <span className="text-text-muted">{target}</span>
-                </Mono>
-                {status}
-            </header>
+            {/* The target identifies WHAT was sent, so it sits with the heading
+                rather than down in the details rail. */}
+            <p className="text-text-muted mt-4">
+                <Mono>{target}</Mono>
+            </p>
 
             {verdict && (
-                <div className="border-border-subtle mb-8 border-y py-5">
+                <div className="border-border-subtle mt-4 mb-8 border-y py-5">
                     <VerdictBand verdict={verdict} />
                 </div>
             )}

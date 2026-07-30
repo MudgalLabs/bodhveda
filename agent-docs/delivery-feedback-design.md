@@ -492,8 +492,17 @@ Two things the build caught that `tsc --noEmit` did not:
 radius. Wrapping payload in a card produced a box inside a box sized to its content instead of
 the column; the `<pre>` is now the container, overridden to block/full-width/scrollable.
 
+**Heading area follows the console's own pattern** (2026-07-30). The first version wrapped the
+whole page in `mx-auto max-w-6xl px-1`, which meant it had no `PageHeading` bar at all — no
+sidebar toggle, and content sitting at a different inset from every other page. It is now
+structurally identical to `recipient_detail.tsx`: plain root → `PageHeading` → content, with a
+netra `Breadcrumb` inside the heading (`Notifications › Broadcast #29` + status tag), matching
+how Arthveda does it in `web/src/features/accounts/view/view_account.tsx`. The breadcrumb link
+carries `search={{ kind }}` so it returns to the tab you came from.
+
 Verified in the browser: all three verdict tones, full-row click on both tables landing on the
-right URL, and the shielded recipient link still reaching the recipient page.
+right URL, the shielded recipient link still reaching the recipient page, and the heading bar
+aligning with the notifications list.
 
 **Tests.** `TestNotificationDeliveryTree` covers the direct tree: in-app-only (one branch, no
 audience node), email-only (`not_requested` its own bucket, neither success nor failure), muted
