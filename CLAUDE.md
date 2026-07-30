@@ -91,6 +91,7 @@ The Go backend follows a strict handler → service → repository layering wire
 - `feature/user_identity/` and `feature/user_profile/` — newer "feature-folder" pattern (core + service + repository in one package). All other domains still use the layered split above. **When extending an existing domain, follow its existing pattern; don't refactor a layered domain into a feature folder mid-task.**
 - `middleware/` — auth (`AuthMiddleware` for console session auth, `APIKeyBasedAuthMiddleware` for developer API), scope checks (`VerifyAPIKeyHasFullScope`), ownership checks (`VerifyUserOwnsThisProject`), implicit recipient creation (`CreateRecipientIfNotExists`), logging, timezones.
 - `job/` — Asynq plumbing. `task/task.go` defines the task type constants; `processor/` holds the handlers; the api enqueues, the worker consumes.
+- `monitor/` — infra self-monitoring (Asynq queue health + stuck sends) with a Discord sink. ⚠️ Runs as a ticker goroutine in `cmd/api`, **never the worker** — a monitor riding the queue it watches dies in the incident it exists to report. Configured by `BODHVEDA_ALERT_DISCORD_WEBHOOK_URL` (optional; unset ⇒ log-only). See `agent-docs/delivery-feedback-design.md`.
 - `env/`, `app/` — process-wide config and the `APP` singleton (DB pool, Asynq client, services, repositories).
 
 There are two routing surfaces in `cmd/api/routes.go`:

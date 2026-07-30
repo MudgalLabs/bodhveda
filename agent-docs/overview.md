@@ -76,6 +76,10 @@ holds DB pool, Asynq client, services, repos).
   Follow the existing pattern of whatever domain you're extending; don't refactor mid-task.**
 - `job/` — Asynq plumbing: `task/task.go` (task-type constants), `processor/processor.go`
   (all handlers). API enqueues, worker consumes.
+- `monitor/` — infra self-monitoring: five checks over the Asynq queue + one DB query, a
+  condition state machine, and a Discord sink. ⚠️ Runs as a ticker goroutine in **`cmd/api`,
+  never the worker** — a monitor riding the queue it watches dies in the incident it exists to
+  report. See `agent-docs/delivery-feedback-design.md` §2.
 - `env/`, `app/` — config + `APP` singleton.
 
 External shared lib **`github.com/mudgallabs/tantra`** provides logger, dbx pgx helpers,
@@ -325,10 +329,26 @@ API enqueues, worker consumes. Task types (`job/task/task.go`):
   secret never rides through Redis and key rotation is respected. Sends via the Resend
   adapter, then `UpdateResult`s the delivery row → `sent`/`failed`. Asynq retries
   (`MaxRetry(5)`); each attempt updates `attempt`.
-- `broadcast:prepare_batches` — lists eligible recipients, consumes usage for the whole set,
-  splits into `broadcast_batch` chunks (100–1000, ~len/10), enqueues one delivery per batch.
+- `broadcast:prepare_batches` — freezes the **audience breakdown** onto the `broadcast` row
+  (total / eligible / excluded_disabled / excluded_not_cataloged — these are only true at
+  fan-out time), lists eligible recipients, consumes usage for the whole set, splits into
+  `broadcast_batch` chunks (100–1000, ~len/10), enqueues one delivery per batch.
+  ⚠️ **Zero eligible recipients returns EARLY** — records the audience, marks the broadcast
+  `completed`, and touches neither billing nor the queue. Before that guard (fixed 2026-07-30)
+  it consumed 0 usage units against `usage_log`'s `CHECK (amount > 0)`, so the task errored,
+  Asynq retried, and the work was ARCHIVED — silent loss with a failing queue, reachable just
+  by broadcasting to a target nobody has enabled. And with no batches nothing was left to mark
+  the broadcast `completed`, so it also sat in `enqueued` forever.
 - `broadcast:delivery` — `BatchCreateTx` inserts a `notification` per recipient in a tx;
   the last batch marks the broadcast `completed`.
+  ⚠️ Rows are inserted **`delivered`, not `enqueued`** (fixed 2026-07-30 + backfill migration
+  `20260730120000`). `entity.NewNotification` defaults to `enqueued`, which is right for a
+  DIRECT send — `notification:delivery` still has preferences and billing to resolve — but a
+  broadcast has no second step, so the row is in the inbox the moment it is written. Leaving it
+  non-terminal was invisible while nothing read the status (`recipientFeedVisible` treats
+  `enqueued` as visible, so inboxes looked fine), then broke two things at once: the delivery
+  tree reported every broadcast as 100% pending, and `internal/monitor`'s `stuck_sends` check
+  counted all of them as stalled sends and would have alerted forever.
 - `recipient:delete_data`, `project:delete_data` — async cascading cleanup.
 
 **The email fan-out (`fanOutEmail` in `service/notification.go`) runs in the WORKER now**, as
@@ -485,9 +505,24 @@ would be for plan tiers, not cost-recovery — deferred until a managed-sending 
 - `UserIdentity` carries the password hash — must never be serialized to clients.
 - Recipient `external_id` is the external handle (**lowercase**); the serial `id` stays internal.
 - **The `notification` table is on the send hot path** — every direct send and every broadcast
-  batch inserts into it. It carries exactly one index besides its PK
-  (`ix_notification_project_id (project_id, id DESC)`, added in 9.4). Adding another taxes every
-  send; measure first. Same instinct as refusing to hang aggregates off `repo.Get`.
+  batch inserts into it, so every index taxes every send. Measure first. Same instinct as
+  refusing to hang aggregates off `repo.Get`. Current indexes besides the PK:
+  `ix_notification_project_id (project_id, id DESC)` (9.4),
+  `ix_notification_project_created (project_id, created_at)` (9.5), and
+  `ix_notification_broadcast (broadcast_id) INCLUDE (status) WHERE broadcast_id IS NOT NULL`
+  (Phase 11) — that last one is **partial**, so direct sends (NULL `broadcast_id`, the bulk of
+  inserts) never touch it, which is what made it acceptable here.
+  ⚠️ `NotificationRepo.CountStuck`, which feeds `internal/monitor`, is deliberately **left
+  unindexed**: a partial index on `status='enqueued'` would add an index write on INSERT and a
+  delete on resolve to every send, to serve a query that runs once a minute. Its bounded
+  lookback keeps the scan proportional to recent volume instead.
+- **`broadcast` carries a frozen audience breakdown** (`total_recipients`,
+  `eligible_recipients`, `excluded_disabled`, `excluded_not_cataloged`), written once by
+  `prepare_batches`. All nullable — rows predating Phase 11, and broadcasts whose fan-out has
+  not run, have none, and the console must render that as "not recorded" rather than zero.
+  ⚠️ The two exclusion columns are different problems sharing a word: `excluded_disabled` is the
+  RECIPIENT opting out (healthy), `excluded_not_cataloged` is the PROJECT never offering the
+  target (a config mistake, and the usual reason a broadcast reaches nobody).
 - ⚠️ **netra's stylesheet wins on source order, so overriding a netra default class needs `!`.**
   `index.html` links the console's Tailwind in `<head>`; `main.tsx` imports `"netra/styles.css"`
   *after*, so netra's utilities come later and beat the console's at equal specificity (media
@@ -593,6 +628,21 @@ testable. When a phase completes, update its status here and record what changed
 - Phase 10 — **Email-only direct send** — **DONE** (see below). `payload` is now optional on a
   direct send; absent ⇒ no in-app row. Needed a **migration** (`notification.payload DROP NOT
   NULL`) but not one for `status`, which never had a CHECK.
+- Phase 11 — **Delivery feedback** — **DONE**, design + as-built in
+  `agent-docs/delivery-feedback-design.md`. Two units:
+  - **Infra alerting** (`internal/monitor`) — the instrument missing during the 2026-07-27/28
+    incident, where the worker archived ~98% of its tasks for a day and nothing noticed.
+    ⚠️ Two DIFFERENT failure modes need different checks: a crashed worker
+    (`worker_absent`, `queue_backed_up`) and a worker that is **up and failing everything**
+    (`task_failure_ratio`, `tasks_archived`) — the latter is what actually happened, so a
+    liveness check alone would have stayed silent.
+  - **Delivery tree** — per-medium fan-out for a broadcast and a direct send, one shape for
+    both, plus notification/broadcast **detail pages** at shareable URLs.
+  Needed **three migrations**: `broadcast` audience counts, `ix_notification_broadcast`, and a
+  backfill (below). Also fixed two pre-existing broadcast bugs found by dogfooding.
+  ⚠️ **Outbound webhooks were designed and then deliberately dropped** (no external customers,
+  and per-delivery events are structurally blind to a worker outage). Design is in that file's
+  git history if it is ever wanted.
 
 ### Phase 10 — Email-only direct send (as built)
 
@@ -657,7 +707,9 @@ is the OPERATOR's view — it already shows `muted`/`quota_exceeded` precisely b
   product needing email cannot use target fan-out at all — the caller must resolve recipients
   itself and issue N direct sends. Grahak does exactly this today, which means Bodhveda's best
   idea is doing nothing for it. Planned scope when picked up: idempotency hardening FIRST (see
-  below), an audience/dry-run count endpoint, per-project `max_broadcast_recipients` on
+  below), an audience/dry-run count endpoint — **most of which Phase 11 already built as
+  `PreferenceRepo.CountBroadcastAudience`; it is the same query, just called at fan-out instead
+  of before it** — per-project `max_broadcast_recipients` on
   `project_email_settings` (default 100) blocking *email only* with reason `recipient_cap_exceeded`,
   per-recipient unsubscribe tokens minted in the batch, a per-project Redis rate limiter with a
   separate low-priority `email:bulk` queue, and address-level suppression. Explicitly refused:
@@ -670,6 +722,11 @@ is the OPERATOR's view — it already shows `muted`/`quota_exceeded` precisely b
   before that ships: a partial unique index on `notification (broadcast_id, recipient_external_id)`
   plus `INSERT … ON CONFLICT DO NOTHING RETURNING id` (which `CopyFrom` cannot do, and which is
   needed anyway to get the ids the delivery rows hang off).
+  ⚠️ **Coordinate with `ix_notification_broadcast`**, added in Phase 11 —
+  `(broadcast_id) INCLUDE (status) WHERE broadcast_id IS NOT NULL`, serving the delivery tree's
+  rollup as an Index Only Scan. The planned unique index has `broadcast_id` as its prefix, so it
+  would serve that rollup too (minus the covering `status`). Re-measure when it lands and drop
+  whichever is redundant rather than carrying two indexes on the hot-path `notification` table.
 - **Quota does not gate email on a mixed send** (above).
 
 ---
