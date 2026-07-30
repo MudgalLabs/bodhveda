@@ -9,6 +9,7 @@ import {
     Separator,
     formatDate,
 } from "netra";
+import { Link } from "@tanstack/react-router";
 import { useState } from "react";
 
 import { DeliveryTreeView } from "@/features/notification/components/delivery_tree";
@@ -90,29 +91,39 @@ export function BroadcastTreeDialog({
 }
 
 // BroadcastTreeCell is the row-level trigger, mirroring DeliveryDetailCell on the
-// direct-notification table so both kinds are opened the same way.
+// direct-notification table so both kinds are opened the same way: Peek for
+// triage in place, Open for a linkable page.
 export function BroadcastTreeCell({
     broadcast,
 }: {
     broadcast: BroadcastListItem;
 }) {
     const [open, setOpen] = useState(false);
+    const projectID = useGetProjectIDFromParams();
 
     return (
-        <>
+        <span className="flex-x items-center gap-3">
             <button
                 type="button"
                 onClick={() => setOpen(true)}
                 className="text-text-muted hover:text-text-primary cursor-pointer text-xs underline underline-offset-2"
             >
-                Details
+                Peek
             </button>
+
+            <Link
+                to="/projects/$id/broadcasts/$broadcastId"
+                params={{ id: projectID, broadcastId: String(broadcast.id) }}
+                className="text-text-muted hover:text-text-primary text-xs underline underline-offset-2"
+            >
+                Open
+            </Link>
 
             <BroadcastTreeDialog
                 broadcast={broadcast}
                 open={open}
                 setOpen={setOpen}
             />
-        </>
+        </span>
     );
 }

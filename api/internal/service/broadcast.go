@@ -24,6 +24,29 @@ func NewBroadcastService(repo repository.BroadcastRepository, notificationRepo r
 	}
 }
 
+// GetBroadcast returns one broadcast by id, scoped to the project.
+//
+// The detail page needs what the tree does not carry — status, payload,
+// timestamps — and keeping them in separate endpoints matches the notifications
+// side, where the row and its tree are also fetched separately.
+func (s *BroadcastService) GetBroadcast(ctx context.Context, projectID, broadcastID int) (*dto.Broadcast, service.Error, error) {
+	broadcast, err := s.repo.GetByID(ctx, broadcastID)
+	if err != nil {
+		if errors.Is(err, tantraRepo.ErrNotFound) {
+			return nil, service.ErrNotFound, err
+		}
+		return nil, service.ErrInternalServerError, err
+	}
+
+	// Same reasoning as GetDeliveryTree: a broadcast from another project must
+	// 404, not leak its existence.
+	if broadcast.ProjectID != projectID {
+		return nil, service.ErrNotFound, fmt.Errorf("broadcast %d is not in project %d", broadcastID, projectID)
+	}
+
+	return dto.FromBroadcast(broadcast), service.ErrNone, nil
+}
+
 // GetDeliveryTree returns the per-medium delivery breakdown for one broadcast.
 //
 // ⚠️ Ownership is enforced HERE, not in the rollup query. The rollup is keyed by

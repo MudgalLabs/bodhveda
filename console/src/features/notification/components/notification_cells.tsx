@@ -1,4 +1,7 @@
+import { Link } from "@tanstack/react-router";
 import { useState } from "react";
+
+import { useGetProjectIDFromParams } from "@/features/project/project_hooks";
 import { formatDuration, IconInfo, Loading, Tooltip } from "netra";
 
 import {
@@ -125,22 +128,41 @@ export function DeliveryDetailCell({
     notification: Notification;
 }) {
     const [open, setOpen] = useState(false);
+    const projectID = useGetProjectIDFromParams();
 
+    // TWO affordances on purpose, and they are for different jobs:
+    //
+    //   Peek  — opens the dialog. For triage while scanning a filtered list;
+    //           navigating away would lose the filters and scroll position.
+    //   Open  — goes to the detail page. For investigating one send, and for
+    //           getting a URL you can paste into an incident note. A dialog
+    //           cannot be linked, which is the whole reason the page exists.
     return (
-        <>
+        <span className="flex-x items-center gap-3">
             <button
                 type="button"
                 onClick={() => setOpen(true)}
                 className="text-text-muted hover:text-text-primary cursor-pointer text-xs underline underline-offset-2"
             >
-                Details
+                Peek
             </button>
+
+            <Link
+                to="/projects/$id/notifications/$notificationId"
+                params={{
+                    id: projectID,
+                    notificationId: String(notification.id),
+                }}
+                className="text-text-muted hover:text-text-primary text-xs underline underline-offset-2"
+            >
+                Open
+            </Link>
 
             <DeliveryDetailDialog
                 notification={notification}
                 open={open}
                 setOpen={setOpen}
             />
-        </>
+        </span>
     );
 }

@@ -1,6 +1,7 @@
 # Delivery feedback — design note
 
-**Status:** Unit 1 **BUILT** (2026-07-29, §2.6). Unit 2 **BUILT** — backend §3.6, console UI §3.8.
+**Status:** Unit 1 **BUILT** (2026-07-29, §2.6). Unit 2 **BUILT** — backend §3.6, console UI §3.8,
+detail pages §3.9.
 **Scope:** Unit 1 — infra alerting (Discord). Unit 2 — delivery tree in the console.
 **Shelved:** outbound webhooks, public delivery-status API. See §5.
 
@@ -409,6 +410,47 @@ Presentation decisions that carry meaning:
 auth): the healthy broadcast, the reaches-nobody broadcast, and a temporarily-injected
 mixed-status broadcast to exercise the nesting branch (reverted after). No console-side test
 infrastructure exists in this repo, so that was the available verification.
+
+### 3.9 As built — notification detail pages (2026-07-30)
+
+The modals could not be linked, and a notification id is exactly the thing you paste into an
+incident note. Since this whole surface exists for debugging, a stable URL is the point.
+
+**⚠️ Two routes, not one.** `/projects/$id/notifications/$notificationId` and
+`/projects/$id/broadcasts/$broadcastId`. `notification.id` and `broadcast.id` are independent
+SERIAL sequences whose ranges **overlap** (measured: notifications 1–750563, broadcasts 23–31),
+so a single `/notifications/:id` path cannot tell them apart. Both routes render the same
+`notification_detail.tsx` component, so the two views cannot drift into unrelated screens.
+`notifications.tsx` became `notifications/index.tsx` to make room, matching the `recipients/`
+precedent.
+
+**New console endpoints:** `GET …/notifications/{id}`, `GET …/notifications/{id}/tree`,
+`GET …/broadcasts/{id}`. The notification tree wires up `dto.EmailMediumFromDelivery`, which had
+been written and tested but never called. A direct send's tree has **no Audience node** — it
+names its recipient, so there is no audience to resolve, and a zeroed one would be a lie.
+
+**The modals stay, reduced to `Peek` + `Open`.** Peek opens the dialog for triage while scanning
+a filtered list (navigating away would lose filters and scroll position); Open goes to the page.
+Two affordances because they are genuinely different jobs.
+
+Two copy bugs caught by looking at the rendered page, not from tests:
+
+- ⚠️ **"Email 1 notification"** — a notification is the thing being sent, an email is one way it
+  went out. On a direct send every branch is 1, so the mismatched noun is the only text on the
+  line and all you notice. Units are now per-medium (`MEDIUM_UNIT`).
+- ⚠️ **"No provider events recorded yet"** on a muted email. There will never be any — the
+  provider was never contacted — and "yet" leaves the reader waiting for something that is not
+  coming. Same trap as a resolved alert echoing broken-state copy: technically-empty is not the
+  same as pending. `NEVER_SENT_STATUSES` gates the wording.
+
+Verified in the browser: both pages cold-loaded by direct URL (proving the links work, which is
+the entire point), the reaches-nobody broadcast, and a direct send whose in-app **delivered**
+while its email was **suppressed/muted** — the diverging-outcome case the shared shape exists
+for. No browser console errors.
+
+**Tests.** `TestNotificationDeliveryTree` covers the direct tree: in-app-only (one branch, no
+audience node), email-only (`not_requested` its own bucket, neither success nor failure), muted
+(suppressed not failed), the in-app-delivered/email-bounced divergence, and cross-project 404.
 
 **Tests.** `TestBroadcastAudienceMatchesEligibleList` is the load-bearing one: the aggregate
 and the list duplicate the same eligibility expression in two shapes, so it cross-checks them

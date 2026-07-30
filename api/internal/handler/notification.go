@@ -231,6 +231,63 @@ func List(s *service.NotificationService) http.HandlerFunc {
 // provider webhook event history) for one notification, powering the console's
 // delivery detail dialog (Phase 9.1). Kept off the notifications list because the
 // event history is unbounded.
+// GetNotificationConsole is the console's read-by-id. Same service call as the
+// Developer API's GetNotification, but project-scoped from the URL rather than
+// from the API key, since the console authenticates by session.
+func GetNotificationConsole(s *service.NotificationService) http.HandlerFunc {
+	return func(w http.ResponseWriter, r *http.Request) {
+		ctx := r.Context()
+
+		projectID, err := httpx.ParamInt(r, "project_id")
+		if err != nil {
+			httpx.BadRequestResponse(w, r, errors.New("Invalid project ID"))
+			return
+		}
+
+		notificationID, err := httpx.ParamInt(r, "notification_id")
+		if err != nil {
+			httpx.BadRequestResponse(w, r, errors.New("Invalid notification ID"))
+			return
+		}
+
+		notification, errKind, err := s.GetNotification(ctx, projectID, notificationID)
+		if err != nil {
+			httpx.ServiceErrResponse(w, r, errKind, err)
+			return
+		}
+
+		httpx.SuccessResponse(w, r, http.StatusOK, "", notification)
+	}
+}
+
+// GetNotificationDeliveryTree serves the per-medium delivery breakdown for one
+// DIRECT notification, in the same shape as the broadcast tree.
+func GetNotificationDeliveryTree(s *service.NotificationService) http.HandlerFunc {
+	return func(w http.ResponseWriter, r *http.Request) {
+		ctx := r.Context()
+
+		projectID, err := httpx.ParamInt(r, "project_id")
+		if err != nil {
+			httpx.BadRequestResponse(w, r, errors.New("Invalid project ID"))
+			return
+		}
+
+		notificationID, err := httpx.ParamInt(r, "notification_id")
+		if err != nil {
+			httpx.BadRequestResponse(w, r, errors.New("Invalid notification ID"))
+			return
+		}
+
+		tree, errKind, err := s.GetDeliveryTree(ctx, projectID, notificationID)
+		if err != nil {
+			httpx.ServiceErrResponse(w, r, errKind, err)
+			return
+		}
+
+		httpx.SuccessResponse(w, r, http.StatusOK, "", tree)
+	}
+}
+
 func ListNotificationDeliveries(s *service.NotificationService) http.HandlerFunc {
 	return func(w http.ResponseWriter, r *http.Request) {
 		ctx := r.Context()

@@ -622,6 +622,49 @@ func (s *NotificationService) GetNotification(ctx context.Context, projectID, no
 	return dto.FromNotification(notification), service.ErrNone, nil
 }
 
+// GetDeliveryTree returns the per-medium delivery breakdown for ONE direct
+// notification — the same dto.DeliveryTree shape BroadcastService.GetDeliveryTree
+// returns for a broadcast.
+//
+// A direct send IS this tree with a fan-out of one, which is the whole reason the
+// shape is shared: it makes a direct send and a broadcast comparable in the
+// console instead of two unrelated screens. There is no Audience node — a direct
+// send names its recipient, so there is no audience to resolve.
+//
+// The in_app branch comes from the notification row (in-app has no
+// notification_delivery row — Phase 4 deliberately left its state on the
+// notification), and the email branch from that row's delivery record. That
+// asymmetry is real; the DTO builders name it rather than hiding it.
+func (s *NotificationService) GetDeliveryTree(ctx context.Context, projectID, notificationID int) (*dto.DeliveryTree, service.Error, error) {
+	notification, errKind, err := s.GetNotification(ctx, projectID, notificationID)
+	if err != nil {
+		return nil, errKind, err
+	}
+
+	tree := &dto.DeliveryTree{
+		Kind:   enum.NotificationKindDirect,
+		Target: notification.Target,
+		// Audience stays nil: a direct send has a named recipient, so there is
+		// nothing to resolve. The console renders the recipient instead.
+		Mediums: []dto.DeliveryTreeMedium{
+			dto.InAppMediumFromRollup(map[enum.NotificationStatus]int{
+				notification.Status: 1,
+			}),
+		},
+	}
+
+	// The email branch exists only when the send actually attempted email. An
+	// absent branch and a branch with zero in it are different facts, so a
+	// payload-only send renders no email row at all rather than an empty one.
+	if e := notification.Email; e != nil {
+		if medium, ok := dto.EmailMediumFromDelivery(&e.Status); ok {
+			tree.Mediums = append(tree.Mediums, medium)
+		}
+	}
+
+	return tree, service.ErrNone, nil
+}
+
 // ListNotificationDeliveries returns the full delivery records for one
 // notification, including each row's provider webhook event history (Phase 9.1).
 //

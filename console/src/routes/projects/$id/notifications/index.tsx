@@ -3,7 +3,7 @@ import { createFileRoute } from "@tanstack/react-router";
 import { NotificationList } from "@/features/notification/list/notifications_list";
 import { validateNotificationSearch } from "@/features/notification/notification_filters";
 
-export const Route = createFileRoute("/projects/$id/notifications")({
+export const Route = createFileRoute("/projects/$id/notifications/")({
     // The whole filter selection — which kind is being viewed included — lives in
     // the URL, so a refresh doesn't drop you back on an unfiltered `direct` list
     // and a filtered view can be shared as a link.

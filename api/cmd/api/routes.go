@@ -214,6 +214,7 @@ func initRouter() http.Handler {
 					// the Developer API has no broadcast read surface, and this
 					// shape is opinionated enough that locking it into a public
 					// contract with no external caller would be premature.
+					r.Get("/{broadcast_id}", handler.GetBroadcast(app.APP.Service.Broadcast))
 					r.Get("/{broadcast_id}/tree", handler.GetBroadcastDeliveryTree(app.APP.Service.Broadcast))
 				})
 
@@ -225,6 +226,11 @@ func initRouter() http.Handler {
 				r.Route("/notifications", func(r chi.Router) {
 					r.Get("/", handler.List(app.APP.Service.Notification))
 					r.Post("/send", handler.SendNotificationConsole(app.APP.Service.Notification))
+					// Read-by-id + the per-medium tree, for the notification detail
+					// page. The tree mirrors the broadcast one's shape — a direct
+					// send is the same tree with a fan-out of one.
+					r.Get("/{notification_id}", handler.GetNotificationConsole(app.APP.Service.Notification))
+					r.Get("/{notification_id}/tree", handler.GetNotificationDeliveryTree(app.APP.Service.Notification))
 					r.Get("/{notification_id}/deliveries", handler.ListNotificationDeliveries(app.APP.Service.Notification))
 				})
 

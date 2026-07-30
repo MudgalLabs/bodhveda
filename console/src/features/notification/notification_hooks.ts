@@ -10,12 +10,14 @@ import { API_ROUTES, APIRes, client } from "@/lib/api";
 import { getRecipientsKey } from "@/features/recipient/recipient_hooks";
 import { notificationFiltersToParams } from "@/features/notification/notification_filters";
 import {
+    Broadcast,
     DeliveryTree,
     ListBroadcastsPayload,
     ListBroadcastsResult,
     ListNotificationDeliveriesResult,
     ListNotificationsPayload,
     ListNotificationsResult,
+    Notification,
     NotificationFilters,
     NotificationKindFilter,
     SendNotificationPayload,
@@ -185,5 +187,46 @@ export function useBroadcastDeliveryTree(
             client.get(API_ROUTES.project.broadcasts.tree(projectID, broadcastID)),
         select: (res) => res.data as APIRes<DeliveryTree>,
         enabled: enabled && !!projectID && !!broadcastID,
+    });
+}
+
+// useNotification fetches ONE direct notification by id, for the detail page.
+export function useNotification(projectID: string, notificationID: string) {
+    return useQuery({
+        queryKey: ["useNotification", projectID, notificationID],
+        queryFn: () =>
+            client.get(
+                API_ROUTES.project.notifications.get(projectID, notificationID)
+            ),
+        select: (res) => res.data as APIRes<Notification>,
+        enabled: !!projectID && !!notificationID,
+    });
+}
+
+// useNotificationDeliveryTree fetches the per-medium tree for ONE direct send.
+export function useNotificationDeliveryTree(
+    projectID: string,
+    notificationID: string
+) {
+    return useQuery({
+        queryKey: ["useNotificationDeliveryTree", projectID, notificationID],
+        queryFn: () =>
+            client.get(
+                API_ROUTES.project.notifications.tree(projectID, notificationID)
+            ),
+        select: (res) => res.data as APIRes<DeliveryTree>,
+        enabled: !!projectID && !!notificationID,
+    });
+}
+
+// useBroadcast fetches ONE broadcast by id, for the detail page. The tree carries
+// neither status nor payload nor timestamps, so the page needs both.
+export function useBroadcast(projectID: string, broadcastID: string) {
+    return useQuery({
+        queryKey: ["useBroadcast", projectID, broadcastID],
+        queryFn: () =>
+            client.get(API_ROUTES.project.broadcasts.get(projectID, broadcastID)),
+        select: (res) => res.data as APIRes<Broadcast>,
+        enabled: !!projectID && !!broadcastID,
     });
 }

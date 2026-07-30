@@ -16,12 +16,14 @@ import { Route as ProjectsIdRouteImport } from './routes/projects/$id'
 import { Route as AuthSignInRouteImport } from './routes/auth/sign-in'
 import { Route as ProjectsIdSettingsRouteImport } from './routes/projects/$id/settings'
 import { Route as ProjectsIdPreferencesRouteImport } from './routes/projects/$id/preferences'
-import { Route as ProjectsIdNotificationsRouteImport } from './routes/projects/$id/notifications'
 import { Route as ProjectsIdDashboardRouteImport } from './routes/projects/$id/dashboard'
 import { Route as ProjectsIdBillingRouteImport } from './routes/projects/$id/billing'
 import { Route as ProjectsIdApiKeysRouteImport } from './routes/projects/$id/api-keys'
 import { Route as ProjectsIdRecipientsIndexRouteImport } from './routes/projects/$id/recipients/index'
+import { Route as ProjectsIdNotificationsIndexRouteImport } from './routes/projects/$id/notifications/index'
 import { Route as ProjectsIdRecipientsRecipientIdRouteImport } from './routes/projects/$id/recipients/$recipientId'
+import { Route as ProjectsIdNotificationsNotificationIdRouteImport } from './routes/projects/$id/notifications/$notificationId'
+import { Route as ProjectsIdBroadcastsBroadcastIdRouteImport } from './routes/projects/$id/broadcasts/$broadcastId'
 
 const ProjectsRoute = ProjectsRouteImport.update({
   id: '/projects',
@@ -58,11 +60,6 @@ const ProjectsIdPreferencesRoute = ProjectsIdPreferencesRouteImport.update({
   path: '/preferences',
   getParentRoute: () => ProjectsIdRoute,
 } as any)
-const ProjectsIdNotificationsRoute = ProjectsIdNotificationsRouteImport.update({
-  id: '/notifications',
-  path: '/notifications',
-  getParentRoute: () => ProjectsIdRoute,
-} as any)
 const ProjectsIdDashboardRoute = ProjectsIdDashboardRouteImport.update({
   id: '/dashboard',
   path: '/dashboard',
@@ -84,10 +81,28 @@ const ProjectsIdRecipientsIndexRoute =
     path: '/recipients/',
     getParentRoute: () => ProjectsIdRoute,
   } as any)
+const ProjectsIdNotificationsIndexRoute =
+  ProjectsIdNotificationsIndexRouteImport.update({
+    id: '/notifications/',
+    path: '/notifications/',
+    getParentRoute: () => ProjectsIdRoute,
+  } as any)
 const ProjectsIdRecipientsRecipientIdRoute =
   ProjectsIdRecipientsRecipientIdRouteImport.update({
     id: '/recipients/$recipientId',
     path: '/recipients/$recipientId',
+    getParentRoute: () => ProjectsIdRoute,
+  } as any)
+const ProjectsIdNotificationsNotificationIdRoute =
+  ProjectsIdNotificationsNotificationIdRouteImport.update({
+    id: '/notifications/$notificationId',
+    path: '/notifications/$notificationId',
+    getParentRoute: () => ProjectsIdRoute,
+  } as any)
+const ProjectsIdBroadcastsBroadcastIdRoute =
+  ProjectsIdBroadcastsBroadcastIdRouteImport.update({
+    id: '/broadcasts/$broadcastId',
+    path: '/broadcasts/$broadcastId',
     getParentRoute: () => ProjectsIdRoute,
   } as any)
 
@@ -100,10 +115,12 @@ export interface FileRoutesByFullPath {
   '/projects/$id/api-keys': typeof ProjectsIdApiKeysRoute
   '/projects/$id/billing': typeof ProjectsIdBillingRoute
   '/projects/$id/dashboard': typeof ProjectsIdDashboardRoute
-  '/projects/$id/notifications': typeof ProjectsIdNotificationsRoute
   '/projects/$id/preferences': typeof ProjectsIdPreferencesRoute
   '/projects/$id/settings': typeof ProjectsIdSettingsRoute
+  '/projects/$id/broadcasts/$broadcastId': typeof ProjectsIdBroadcastsBroadcastIdRoute
+  '/projects/$id/notifications/$notificationId': typeof ProjectsIdNotificationsNotificationIdRoute
   '/projects/$id/recipients/$recipientId': typeof ProjectsIdRecipientsRecipientIdRoute
+  '/projects/$id/notifications/': typeof ProjectsIdNotificationsIndexRoute
   '/projects/$id/recipients/': typeof ProjectsIdRecipientsIndexRoute
 }
 export interface FileRoutesByTo {
@@ -114,10 +131,12 @@ export interface FileRoutesByTo {
   '/projects/$id/api-keys': typeof ProjectsIdApiKeysRoute
   '/projects/$id/billing': typeof ProjectsIdBillingRoute
   '/projects/$id/dashboard': typeof ProjectsIdDashboardRoute
-  '/projects/$id/notifications': typeof ProjectsIdNotificationsRoute
   '/projects/$id/preferences': typeof ProjectsIdPreferencesRoute
   '/projects/$id/settings': typeof ProjectsIdSettingsRoute
+  '/projects/$id/broadcasts/$broadcastId': typeof ProjectsIdBroadcastsBroadcastIdRoute
+  '/projects/$id/notifications/$notificationId': typeof ProjectsIdNotificationsNotificationIdRoute
   '/projects/$id/recipients/$recipientId': typeof ProjectsIdRecipientsRecipientIdRoute
+  '/projects/$id/notifications': typeof ProjectsIdNotificationsIndexRoute
   '/projects/$id/recipients': typeof ProjectsIdRecipientsIndexRoute
 }
 export interface FileRoutesById {
@@ -130,10 +149,12 @@ export interface FileRoutesById {
   '/projects/$id/api-keys': typeof ProjectsIdApiKeysRoute
   '/projects/$id/billing': typeof ProjectsIdBillingRoute
   '/projects/$id/dashboard': typeof ProjectsIdDashboardRoute
-  '/projects/$id/notifications': typeof ProjectsIdNotificationsRoute
   '/projects/$id/preferences': typeof ProjectsIdPreferencesRoute
   '/projects/$id/settings': typeof ProjectsIdSettingsRoute
+  '/projects/$id/broadcasts/$broadcastId': typeof ProjectsIdBroadcastsBroadcastIdRoute
+  '/projects/$id/notifications/$notificationId': typeof ProjectsIdNotificationsNotificationIdRoute
   '/projects/$id/recipients/$recipientId': typeof ProjectsIdRecipientsRecipientIdRoute
+  '/projects/$id/notifications/': typeof ProjectsIdNotificationsIndexRoute
   '/projects/$id/recipients/': typeof ProjectsIdRecipientsIndexRoute
 }
 export interface FileRouteTypes {
@@ -147,10 +168,12 @@ export interface FileRouteTypes {
     | '/projects/$id/api-keys'
     | '/projects/$id/billing'
     | '/projects/$id/dashboard'
-    | '/projects/$id/notifications'
     | '/projects/$id/preferences'
     | '/projects/$id/settings'
+    | '/projects/$id/broadcasts/$broadcastId'
+    | '/projects/$id/notifications/$notificationId'
     | '/projects/$id/recipients/$recipientId'
+    | '/projects/$id/notifications/'
     | '/projects/$id/recipients/'
   fileRoutesByTo: FileRoutesByTo
   to:
@@ -161,10 +184,12 @@ export interface FileRouteTypes {
     | '/projects/$id/api-keys'
     | '/projects/$id/billing'
     | '/projects/$id/dashboard'
-    | '/projects/$id/notifications'
     | '/projects/$id/preferences'
     | '/projects/$id/settings'
+    | '/projects/$id/broadcasts/$broadcastId'
+    | '/projects/$id/notifications/$notificationId'
     | '/projects/$id/recipients/$recipientId'
+    | '/projects/$id/notifications'
     | '/projects/$id/recipients'
   id:
     | '__root__'
@@ -176,10 +201,12 @@ export interface FileRouteTypes {
     | '/projects/$id/api-keys'
     | '/projects/$id/billing'
     | '/projects/$id/dashboard'
-    | '/projects/$id/notifications'
     | '/projects/$id/preferences'
     | '/projects/$id/settings'
+    | '/projects/$id/broadcasts/$broadcastId'
+    | '/projects/$id/notifications/$notificationId'
     | '/projects/$id/recipients/$recipientId'
+    | '/projects/$id/notifications/'
     | '/projects/$id/recipients/'
   fileRoutesById: FileRoutesById
 }
@@ -240,13 +267,6 @@ declare module '@tanstack/react-router' {
       preLoaderRoute: typeof ProjectsIdPreferencesRouteImport
       parentRoute: typeof ProjectsIdRoute
     }
-    '/projects/$id/notifications': {
-      id: '/projects/$id/notifications'
-      path: '/notifications'
-      fullPath: '/projects/$id/notifications'
-      preLoaderRoute: typeof ProjectsIdNotificationsRouteImport
-      parentRoute: typeof ProjectsIdRoute
-    }
     '/projects/$id/dashboard': {
       id: '/projects/$id/dashboard'
       path: '/dashboard'
@@ -275,11 +295,32 @@ declare module '@tanstack/react-router' {
       preLoaderRoute: typeof ProjectsIdRecipientsIndexRouteImport
       parentRoute: typeof ProjectsIdRoute
     }
+    '/projects/$id/notifications/': {
+      id: '/projects/$id/notifications/'
+      path: '/notifications'
+      fullPath: '/projects/$id/notifications/'
+      preLoaderRoute: typeof ProjectsIdNotificationsIndexRouteImport
+      parentRoute: typeof ProjectsIdRoute
+    }
     '/projects/$id/recipients/$recipientId': {
       id: '/projects/$id/recipients/$recipientId'
       path: '/recipients/$recipientId'
       fullPath: '/projects/$id/recipients/$recipientId'
       preLoaderRoute: typeof ProjectsIdRecipientsRecipientIdRouteImport
+      parentRoute: typeof ProjectsIdRoute
+    }
+    '/projects/$id/notifications/$notificationId': {
+      id: '/projects/$id/notifications/$notificationId'
+      path: '/notifications/$notificationId'
+      fullPath: '/projects/$id/notifications/$notificationId'
+      preLoaderRoute: typeof ProjectsIdNotificationsNotificationIdRouteImport
+      parentRoute: typeof ProjectsIdRoute
+    }
+    '/projects/$id/broadcasts/$broadcastId': {
+      id: '/projects/$id/broadcasts/$broadcastId'
+      path: '/broadcasts/$broadcastId'
+      fullPath: '/projects/$id/broadcasts/$broadcastId'
+      preLoaderRoute: typeof ProjectsIdBroadcastsBroadcastIdRouteImport
       parentRoute: typeof ProjectsIdRoute
     }
   }
@@ -289,10 +330,12 @@ interface ProjectsIdRouteChildren {
   ProjectsIdApiKeysRoute: typeof ProjectsIdApiKeysRoute
   ProjectsIdBillingRoute: typeof ProjectsIdBillingRoute
   ProjectsIdDashboardRoute: typeof ProjectsIdDashboardRoute
-  ProjectsIdNotificationsRoute: typeof ProjectsIdNotificationsRoute
   ProjectsIdPreferencesRoute: typeof ProjectsIdPreferencesRoute
   ProjectsIdSettingsRoute: typeof ProjectsIdSettingsRoute
+  ProjectsIdBroadcastsBroadcastIdRoute: typeof ProjectsIdBroadcastsBroadcastIdRoute
+  ProjectsIdNotificationsNotificationIdRoute: typeof ProjectsIdNotificationsNotificationIdRoute
   ProjectsIdRecipientsRecipientIdRoute: typeof ProjectsIdRecipientsRecipientIdRoute
+  ProjectsIdNotificationsIndexRoute: typeof ProjectsIdNotificationsIndexRoute
   ProjectsIdRecipientsIndexRoute: typeof ProjectsIdRecipientsIndexRoute
 }
 
@@ -300,10 +343,13 @@ const ProjectsIdRouteChildren: ProjectsIdRouteChildren = {
   ProjectsIdApiKeysRoute: ProjectsIdApiKeysRoute,
   ProjectsIdBillingRoute: ProjectsIdBillingRoute,
   ProjectsIdDashboardRoute: ProjectsIdDashboardRoute,
-  ProjectsIdNotificationsRoute: ProjectsIdNotificationsRoute,
   ProjectsIdPreferencesRoute: ProjectsIdPreferencesRoute,
   ProjectsIdSettingsRoute: ProjectsIdSettingsRoute,
+  ProjectsIdBroadcastsBroadcastIdRoute: ProjectsIdBroadcastsBroadcastIdRoute,
+  ProjectsIdNotificationsNotificationIdRoute:
+    ProjectsIdNotificationsNotificationIdRoute,
   ProjectsIdRecipientsRecipientIdRoute: ProjectsIdRecipientsRecipientIdRoute,
+  ProjectsIdNotificationsIndexRoute: ProjectsIdNotificationsIndexRoute,
   ProjectsIdRecipientsIndexRoute: ProjectsIdRecipientsIndexRoute,
 }
 

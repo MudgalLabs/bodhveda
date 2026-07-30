@@ -25,6 +25,8 @@ export const API_ROUTES = {
         broadcasts: {
             list: (projectId: string | number) =>
                 `/console/projects/${projectId}/broadcasts`,
+            get: (projectId: string | number, broadcastId: string | number) =>
+                `/console/projects/${projectId}/broadcasts/${broadcastId}`,
             // Per-medium delivery breakdown for one broadcast: the frozen
             // audience counts plus the per-status rollup. Console-only.
             tree: (projectId: string | number, broadcastId: number) =>
@@ -42,6 +44,13 @@ export const API_ROUTES = {
                 `/console/projects/${projectId}/notifications/send`,
             list: (projectId: string | number) =>
                 `/console/projects/${projectId}/notifications`,
+            get: (projectId: string | number, notificationId: string | number) =>
+                `/console/projects/${projectId}/notifications/${notificationId}`,
+            // Per-medium delivery breakdown for one DIRECT send — the same shape
+            // the broadcast tree returns, since a direct send is that tree with a
+            // fan-out of one.
+            tree: (projectId: string | number, notificationId: string | number) =>
+                `/console/projects/${projectId}/notifications/${notificationId}/tree`,
             // Full delivery records for ONE notification, incl. the raw provider
             // webhook history. Separate from the list because that history is
             // unbounded — see agent-docs/overview.md, Phase 9.1 deviations.

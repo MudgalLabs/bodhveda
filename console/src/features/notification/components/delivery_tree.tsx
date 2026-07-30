@@ -77,6 +77,23 @@ function mediumLabel(medium: string) {
     return MEDIUM_LABEL[medium] ?? medium;
 }
 
+// The unit a medium is counted in. "Email 1 notification" is wrong — a
+// notification is the thing being sent, an email is one way it went out — and on
+// a direct send, where every branch is 1, that mismatch is the only text on the
+// line so it is all you notice.
+const MEDIUM_UNIT: Record<string, [string, string]> = {
+    in_app: ["notification", "notifications"],
+    email: ["email", "emails"],
+    sms: ["message", "messages"],
+    web_push: ["push", "pushes"],
+    mobile_push: ["push", "pushes"],
+};
+
+function mediumUnit(medium: string, count: number) {
+    const [one, many] = MEDIUM_UNIT[medium] ?? ["delivery", "deliveries"];
+    return count === 1 ? one : many;
+}
+
 // Branch is one node of the tree. The left rule plus the short elbow is what
 // carries the hierarchy — nesting alone reads as arbitrary indentation.
 function Branch({
@@ -181,7 +198,7 @@ function MediumBranch({
                     </span>
                 }
                 count={medium.total}
-                note={medium.total === 1 ? "notification" : "notifications"}
+                note={mediumUnit(medium.medium, medium.total)}
             />
 
             {medium.total === 0 ? (
