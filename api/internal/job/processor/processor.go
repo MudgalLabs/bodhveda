@@ -304,11 +304,41 @@ func (processor *PrepareBroadcastBatchesProcessor) prepareTx(
 		}
 	}
 
+	// ⚠️ The fan-out audience is the UNION of the in-app and email audiences, not
+	// the in-app one. A recipient who muted in-app but opted INTO email must still
+	// receive the mail — and a notification_delivery row hangs off a notification
+	// row, so they need a row to attach it to. They get one with in-app status
+	// `muted`, which is exactly what a direct send writes in the same situation.
+	//
+	// Resolved BEFORE billing and before the empty check, so all three agree on who
+	// this broadcast actually reaches: an email-only audience is not "nobody", and
+	// a notification row written is a notification metered.
+	fanOut := recipientExtIDs
+
+	if broadcast.Email != nil && processor.notificationService != nil {
+		emailEligible, err := processor.preferenceRepo.ListEligibleRecipientExtIDsForBroadcast(
+			ctx, broadcast.ProjectID, target, enum.MediumEmail,
+		)
+		if err != nil {
+			return fmt.Errorf("list email-eligible recipients: %w", err)
+		}
+
+		// Blocked (cap exceeded, no provider configured) returns nil, so the union
+		// collapses back to the in-app audience — recipients this broadcast will
+		// not reach get no row at all.
+		emailEligible, err = processor.notificationService.ResolveBroadcastEmailAudience(ctx, tx, broadcast, emailEligible)
+		if err != nil {
+			return fmt.Errorf("resolve broadcast email audience: %w", err)
+		}
+
+		fanOut = unionExtIDs(recipientExtIDs, emailEligible)
+	}
+
 	event := dto.UsageEvent{
 		UserID:    userID,
 		ProjectID: broadcast.ProjectID,
 		Metric:    entity.MetricNotifications,
-		Amount:    int64(len(recipientExtIDs)),
+		Amount:    int64(len(fanOut)),
 	}
 
 	// ⚠️ A broadcast can legitimately match NOBODY — nobody has the target
@@ -327,7 +357,10 @@ func (processor *PrepareBroadcastBatchesProcessor) prepareTx(
 	//     would sit in `enqueued` forever, with nothing left to move it.
 	//
 	// Found by dogfooding on 2026-07-29.
-	if len(recipientExtIDs) == 0 {
+	//
+	// ⚠️ Tests the UNION: a broadcast whose in-app audience is empty but whose
+	// email audience is not has very much matched somebody.
+	if len(fanOut) == 0 {
 		now := time.Now().UTC()
 		broadcast.Status = enum.BroadcastStatusCompleted
 		broadcast.CompletedAt = &now
@@ -359,31 +392,22 @@ func (processor *PrepareBroadcastBatchesProcessor) prepareTx(
 			return fmt.Errorf("update quota-exceeded broadcast: %w", err)
 		}
 
-		logger.Get().Infof("PrepareBroadcastBatchesProcessor: broadcast %d exceeded quota with %d recipients", broadcast.ID, len(recipientExtIDs))
+		logger.Get().Infof("PrepareBroadcastBatchesProcessor: broadcast %d exceeded quota with %d recipients", broadcast.ID, len(fanOut))
 		return nil
-	}
-
-	// Decide the email half now, in this transaction, so the decision commits with
-	// the batches and a retry can trust the stored value rather than recomputing
-	// against settings or an audience that have since moved.
-	if broadcast.Email != nil && processor.notificationService != nil {
-		if _, err := processor.notificationService.ResolveBroadcastEmailAudience(ctx, tx, broadcast, target, recipientExtIDs); err != nil {
-			return fmt.Errorf("resolve broadcast email audience: %w", err)
-		}
 	}
 
 	var batchSize int
 
-	if len(recipientExtIDs) <= 100 {
-		batchSize = len(recipientExtIDs)
+	if len(fanOut) <= 100 {
+		batchSize = len(fanOut)
 	} else {
-		batchSize = min(max(len(recipientExtIDs)/10, 100), 1000)
+		batchSize = min(max(len(fanOut)/10, 100), 1000)
 	}
 
-	for i := 0; i < len(recipientExtIDs); i += batchSize {
-		end := min(i+batchSize, len(recipientExtIDs))
+	for i := 0; i < len(fanOut); i += batchSize {
+		end := min(i+batchSize, len(fanOut))
 
-		broadcastBatch, err := processor.broadcastBatchRepo.CreateTx(ctx, tx, entity.NewBroadcastBatch(broadcast.ID, recipientExtIDs[i:end]))
+		broadcastBatch, err := processor.broadcastBatchRepo.CreateTx(ctx, tx, entity.NewBroadcastBatch(broadcast.ID, fanOut[i:end]))
 		if err != nil {
 			return fmt.Errorf("create broadcast batch: %w", err)
 		}
@@ -392,9 +416,28 @@ func (processor *PrepareBroadcastBatchesProcessor) prepareTx(
 	}
 
 	logger.Get().Infof("PrepareBroadcastBatchesProcessor: prepared broadcast %d into %d batches for %d recipients",
-		broadcast.ID, len(*enqueue), len(recipientExtIDs))
+		broadcast.ID, len(*enqueue), len(fanOut))
 
 	return nil
+}
+
+// unionExtIDs merges two recipient lists, preserving the order of the first and
+// dropping duplicates. Order matters only for determinism of batch slicing.
+func unionExtIDs(a, b []string) []string {
+	seen := make(map[string]struct{}, len(a)+len(b))
+	out := make([]string, 0, len(a)+len(b))
+
+	for _, list := range [][]string{a, b} {
+		for _, id := range list {
+			if _, dup := seen[id]; dup {
+				continue
+			}
+			seen[id] = struct{}{}
+			out = append(out, id)
+		}
+	}
+
+	return out
 }
 
 // enqueueBatches publishes one delivery task per batch, AFTER the preparation
@@ -452,6 +495,7 @@ type BroadcastDeliveryProcessor struct {
 	notificationRepo    repository.NotificationRepository
 	broadcastRepo       repository.BroadcastRepository
 	broadcastBatchRepo  repository.BroadcastBatchRepository
+	preferenceRepo      repository.PreferenceRepository
 	notificationService *service.NotificationService
 	asynqClient         *asynq.Client
 }
@@ -459,6 +503,7 @@ type BroadcastDeliveryProcessor struct {
 func NewBroadcastDeliveryProcessor(
 	db *pgxpool.Pool, notificationRepo repository.NotificationRepository,
 	broadcastRepo repository.BroadcastRepository, broadcastBatchRepo repository.BroadcastBatchRepository,
+	preferenceRepo repository.PreferenceRepository,
 	notificationService *service.NotificationService, asynqClient *asynq.Client,
 ) *BroadcastDeliveryProcessor {
 	return &BroadcastDeliveryProcessor{
@@ -466,6 +511,7 @@ func NewBroadcastDeliveryProcessor(
 		notificationRepo:    notificationRepo,
 		broadcastRepo:       broadcastRepo,
 		broadcastBatchRepo:  broadcastBatchRepo,
+		preferenceRepo:      preferenceRepo,
 		notificationService: notificationService,
 		asynqClient:         asynqClient,
 	}
@@ -550,12 +596,47 @@ func (processor *BroadcastDeliveryProcessor) ProcessTask(ctx context.Context, t 
 		// broadcast rows were affected.
 		now := time.Now().UTC()
 
+		// ⚠️ Not every recipient in this batch is here for in-app. Since the batch
+		// audience became the UNION of the in-app and email audiences, it can
+		// include people who muted in-app but opted into email. Their row exists so
+		// the email delivery row has something to hang off — marking it `delivered`
+		// would claim an inbox write they explicitly declined.
+		//
+		// Re-derived per batch rather than carried in the payload, symmetrically
+		// with how email eligibility is resolved at delivery: one set-based query,
+		// and the batch's stored recipient ids stay the single durable record.
+		inAppEligible := make(map[string]struct{}, len(payload.RecipientExtIDs))
+		if processor.preferenceRepo != nil {
+			target := dto.Target{Channel: payload.Channel, Topic: payload.Topic, Event: payload.Event}
+
+			eligible, err := processor.preferenceRepo.FilterEligibleRecipientsForBroadcast(
+				ctx, payload.ProjectID, target, enum.MediumInApp, payload.RecipientExtIDs,
+			)
+			if err != nil {
+				return fmt.Errorf("filter in-app eligible recipients: %w", err)
+			}
+			for _, extID := range eligible {
+				inAppEligible[extID] = struct{}{}
+			}
+		} else {
+			// No preference repo wired: every recipient is treated as in-app
+			// eligible, which is the pre-union behaviour.
+			for _, extID := range payload.RecipientExtIDs {
+				inAppEligible[extID] = struct{}{}
+			}
+		}
+
 		for _, recipientExtID := range payload.RecipientExtIDs {
 			n := entity.NewNotification(
 				payload.ProjectID, recipientExtID, payload.Payload,
 				&payload.BroadcastID, payload.Channel, payload.Topic, payload.Event,
 			)
-			n.Status = enum.NotificationStatusDelivered
+
+			if _, ok := inAppEligible[recipientExtID]; ok {
+				n.Status = enum.NotificationStatusDelivered
+			} else {
+				n.Status = enum.NotificationStatusMuted
+			}
 			n.CompletedAt = &now
 
 			notifications = append(notifications, n)

@@ -718,18 +718,28 @@ is the OPERATOR's view — it already shows `muted`/`quota_exceeded` precisely b
   - ⚠️ **A broadcast still requires a `payload`.** Email-only BROADCASTS are deliberately
     unsupported, unlike email-only direct sends: a broadcast is the high blast-radius path, and
     "it also landed in their inbox" is what makes a mistaken send visible and recoverable.
-  - ⚠️ **KNOWN LIMITATION: email recipients are the INTERSECTION with the in-app audience.** A
-    `notification_delivery` row hangs off a notification row, so a recipient with no in-app row
-    has nothing to attach an email outcome to. Practical effect: someone who disabled in-app but
-    enabled email for the target will NOT get the broadcast email. Conservative on purpose for a
-    feature whose main risk is mailing people who did not want it — revisit if it bites.
+  - ⚠️ **The fan-out audience is the UNION of the in-app and email audiences.** Muting in-app must
+    NOT mute email — an explicit opt-in is an opt-in. A recipient who is email-eligible but not
+    in-app-eligible still gets a `notification` row so the `notification_delivery` row has
+    something to hang off; its in-app status is `muted`, exactly what a direct send writes in the
+    same situation. Billing and the empty-audience check both read the union, so an email-only
+    audience is not mistaken for "nobody". Pinned by
+    `TestBroadcastEmailReachesInAppMutedRecipient`.
+  - ⚠️ **In-app eligibility is re-derived per batch at delivery**, not carried from prepare. A
+    batch can now hold email-only recipients, so delivery must know which of them actually asked
+    for an inbox write. Re-deriving matches the DIRECT path, which also gates at delivery time —
+    the frozen audience columns stay a reporting snapshot, not the gate.
   - Recipients who are not email-eligible get NO delivery row, matching how the in-app half
     treats broadcast exclusions (a frozen count, not N materialised rows).
   - Still explicitly refused: templating / per-recipient variables (Bodhveda stores no recipient
     attributes to personalise from — that is a CDP).
-  - **Not yet built:** the per-project Redis rate limiter + separate low-priority `email:bulk`
-    queue, and address-level suppression. Both were in the original scope; the cap makes them
-    less urgent because volume is bounded per broadcast.
+  - ❌ **The per-project Redis rate limiter and the `email:bulk` queue are DROPPED, not deferred.**
+    The original design reached for Redis rate limiting, but the thing actually being controlled
+    is blast radius, and that is a plain code/config limit — `max_broadcast_recipients_for_email`
+    is the whole mechanism. Throughput was never the problem: this install has pushed hundreds of
+    thousands of in-app notifications through the existing single queue without needing one.
+  - **Still open:** address-level suppression (bounces/complaints must stop future sends to that
+    address). Unrelated to rate limiting — it is a deliverability/reputation concern.
 - ✅ **A failed batch no longer completes its broadcast (2026-07-31).** `PendingCount` counted
   only `enqueued` batches, so a `failed` one was invisible: `remaining` hit 0 and the broadcast
   was marked `completed` having delivered nothing for that batch. Cosmetic while in-app only;

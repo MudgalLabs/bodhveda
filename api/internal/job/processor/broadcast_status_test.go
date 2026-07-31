@@ -75,6 +75,26 @@ func TestBroadcastDeliveryWritesDeliveredNotifications(t *testing.T) {
 	notificationRepo := pg.NewNotificationRepo(pool)
 	batchRepo := pg.NewBroadcastBatchRepo(pool)
 
+	// ⚠️ Delivery re-derives in-app eligibility per batch (a batch can contain
+	// email-only recipients since the fan-out audience became a union), so the
+	// catalog entry that makes these two in-app eligible is now a real
+	// precondition of this test rather than an unstated assumption. Without it
+	// every row is correctly `muted` and this test would be asserting the wrong
+	// thing.
+	if _, err := pool.Exec(ctx, `
+		INSERT INTO preference (project_id, recipient_external_id, channel, topic, event, name, medium, enabled, created_at, updated_at)
+		VALUES ($1, NULL, 'product', 'updates', 'released', 'Updates', 'in_app', true, now(), now())
+	`, projectID); err != nil {
+		t.Fatalf("insert in_app catalog preference: %v", err)
+	}
+	for _, extID := range []string{"r1", "r2"} {
+		if _, err := pool.Exec(ctx, `
+			INSERT INTO recipient (project_id, external_id, created_at, updated_at) VALUES ($1, $2, now(), now())
+		`, projectID, extID); err != nil {
+			t.Fatalf("insert recipient %s: %v", extID, err)
+		}
+	}
+
 	broadcast, err := broadcastRepo.Create(ctx, entity.NewBroadcast(projectID, []byte(`{"t":"hi"}`), "product", "updates", "released"))
 	if err != nil {
 		t.Fatalf("create broadcast: %v", err)
@@ -99,7 +119,7 @@ func TestBroadcastDeliveryWritesDeliveredNotifications(t *testing.T) {
 		t.Fatalf("marshal payload: %v", err)
 	}
 
-	p := NewBroadcastDeliveryProcessor(pool, notificationRepo, broadcastRepo, batchRepo, nil, nil)
+	p := NewBroadcastDeliveryProcessor(pool, notificationRepo, broadcastRepo, batchRepo, pg.NewPreferenceRepo(pool), nil, nil)
 	if err := p.ProcessTask(ctx, asynq.NewTask(task.TaskTypeBroadcastDelivery, payload)); err != nil {
 		t.Fatalf("process task: %v", err)
 	}
@@ -263,7 +283,7 @@ func TestBroadcastDeliveryIsIdempotentOnRetry(t *testing.T) {
 		t.Fatalf("marshal payload: %v", err)
 	}
 
-	p := NewBroadcastDeliveryProcessor(pool, notificationRepo, broadcastRepo, batchRepo, nil, nil)
+	p := NewBroadcastDeliveryProcessor(pool, notificationRepo, broadcastRepo, batchRepo, pg.NewPreferenceRepo(pool), nil, nil)
 	t2 := asynq.NewTask(task.TaskTypeBroadcastDelivery, payload)
 
 	if err := p.ProcessTask(ctx, t2); err != nil {
@@ -357,7 +377,7 @@ func TestBroadcastDeliveryReturnsErrorSoAsynqRetries(t *testing.T) {
 		t.Fatalf("marshal payload: %v", err)
 	}
 
-	p := NewBroadcastDeliveryProcessor(pool, notificationRepo, broadcastRepo, batchRepo, nil, nil)
+	p := NewBroadcastDeliveryProcessor(pool, notificationRepo, broadcastRepo, batchRepo, pg.NewPreferenceRepo(pool), nil, nil)
 	if err := p.ProcessTask(ctx, asynq.NewTask(task.TaskTypeBroadcastDelivery, payload)); err == nil {
 		t.Fatal("ProcessTask returned nil for a batch that could not be delivered; Asynq would ack it and never retry")
 	}

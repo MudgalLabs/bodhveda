@@ -850,25 +850,18 @@ const defaultBroadcastEmailCap = 100
 // Blocking is loud, recoverable, and leaves the in-app half untouched — which is
 // the whole point of requiring a payload on every broadcast.
 func (s *NotificationService) ResolveBroadcastEmailAudience(
-	ctx context.Context, tx pgx.Tx, broadcast *entity.Broadcast, target dto.Target, inAppRecipients []string,
-) (eligible []string, err error) {
+	ctx context.Context, tx pgx.Tx, broadcast *entity.Broadcast, eligible []string,
+) ([]string, error) {
 	if broadcast.Email == nil {
 		return nil, nil
 	}
 
-	// ⚠️ Email recipients are the INTERSECTION with the in-app audience, not the
-	// union. A notification_delivery row hangs off a notification row, so a
-	// recipient with no in-app row has nothing to attach an email outcome to.
-	// The practical effect: someone who disabled in-app but enabled email for
-	// this target will NOT receive the broadcast email. That is the conservative
-	// direction for a feature whose main risk is mailing people who did not want
-	// it, and it is recorded in agent-docs/overview.md as a known limitation.
-	eligible, err = s.preferenceRepo.FilterEligibleRecipientsForBroadcast(
-		ctx, broadcast.ProjectID, target, enum.MediumEmail, inAppRecipients,
-	)
-	if err != nil {
-		return nil, fmt.Errorf("filter email-eligible recipients: %w", err)
-	}
+	// ⚠️ `eligible` is the EMAIL audience resolved in its own right — every
+	// recipient who enabled this target for email — NOT a subset of the in-app
+	// audience. Someone who muted in-app but opted into email must still receive
+	// the mail; they get a notification row with in-app status `muted` for the
+	// delivery row to hang off, exactly as a direct send does.
+	var err error
 
 	cap := defaultBroadcastEmailCap
 	settings, err := s.projectEmailRepo.Get(ctx, broadcast.ProjectID)

@@ -117,8 +117,7 @@ func TestBroadcastEmailFansOutToEligibleRecipients(t *testing.T) {
 		t.Fatalf("insert notifications: %v", err)
 	}
 
-	target := dto.Target{Channel: "product", Topic: "updates", Event: "released"}
-	eligible, err := svc.ResolveBroadcastEmailAudience(ctx, tx, broadcast, target, []string{"r1", "r2", "r3"})
+	eligible, err := svc.ResolveBroadcastEmailAudience(ctx, tx, broadcast, []string{"r1", "r2", "r3"})
 	if err != nil {
 		t.Fatalf("resolve email audience: %v", err)
 	}
@@ -216,8 +215,7 @@ func TestBroadcastEmailCapBlocksRatherThanTruncates(t *testing.T) {
 	}
 	defer tx.Rollback(ctx)
 
-	target := dto.Target{Channel: "product", Topic: "updates", Event: "released"}
-	eligible, err := svc.ResolveBroadcastEmailAudience(ctx, tx, broadcast, target, recipients)
+	eligible, err := svc.ResolveBroadcastEmailAudience(ctx, tx, broadcast, recipients)
 	if err != nil {
 		t.Fatalf("resolve email audience: %v", err)
 	}
@@ -300,5 +298,120 @@ func TestFailedBatchKeepsBroadcastIncomplete(t *testing.T) {
 	}
 	if remaining != 1 {
 		t.Errorf("remaining = %d, want 1 (the failed batch)", remaining)
+	}
+}
+
+// TestBroadcastEmailReachesInAppMutedRecipient pins the rule that opting out of
+// in-app must NOT opt you out of email.
+//
+// The first cut made the email audience the intersection with the in-app one,
+// because a notification_delivery row hangs off a notification row and an
+// in-app-muted recipient had none. That silently dropped an explicit opt-in. The
+// fix is the one the direct path already uses: write the notification row anyway
+// with in-app status `muted`, and hang the email delivery off it.
+func TestBroadcastEmailReachesInAppMutedRecipient(t *testing.T) {
+	pool := testPool(t)
+	ctx := context.Background()
+	projectID := testProject(t, pool, "bcast-email-muted-inapp-test")
+
+	seedEmailProject(t, pool, projectID, 100, []string{"r1", "muted_inapp"}, []string{"r1", "muted_inapp"})
+
+	// muted_inapp explicitly disables in_app for this target but leaves email on.
+	if _, err := pool.Exec(ctx, `
+		INSERT INTO preference (project_id, recipient_external_id, channel, topic, event, medium, enabled, created_at, updated_at)
+		VALUES ($1, 'muted_inapp', 'product', 'updates', 'released', 'in_app', false, now(), now())
+	`, projectID); err != nil {
+		t.Fatalf("insert recipient in_app opt-out: %v", err)
+	}
+
+	preferenceRepo := pg.NewPreferenceRepo(pool)
+	target := dto.Target{Channel: "product", Topic: "updates", Event: "released"}
+
+	inApp, err := preferenceRepo.ListEligibleRecipientExtIDsForBroadcast(ctx, projectID, target, enum.MediumInApp)
+	if err != nil {
+		t.Fatalf("list in-app eligible: %v", err)
+	}
+	if len(inApp) != 1 || inApp[0] != "r1" {
+		t.Fatalf("in-app eligible = %v, want only [r1]", inApp)
+	}
+
+	emailEligible, err := preferenceRepo.ListEligibleRecipientExtIDsForBroadcast(ctx, projectID, target, enum.MediumEmail)
+	if err != nil {
+		t.Fatalf("list email eligible: %v", err)
+	}
+	if len(emailEligible) != 2 {
+		t.Fatalf("email eligible = %v, want both recipients — muting in-app must not mute email", emailEligible)
+	}
+
+	// The union is what the broadcast fans out to.
+	fanOut := unionExtIDs(inApp, emailEligible)
+	if len(fanOut) != 2 {
+		t.Fatalf("fan-out = %v, want both recipients", fanOut)
+	}
+
+	broadcastRepo := pg.NewBroadcastRepo(pool)
+	svc := emailTestService(pool)
+
+	broadcast, err := broadcastRepo.Create(ctx,
+		entity.NewBroadcast(projectID, []byte(`{"t":"hi"}`), "product", "updates", "released").
+			WithEmail("Release 2.0", "<p>hi</p>", "hi"),
+	)
+	if err != nil {
+		t.Fatalf("create broadcast: %v", err)
+	}
+
+	tx, err := pool.Begin(ctx)
+	if err != nil {
+		t.Fatalf("begin: %v", err)
+	}
+	defer tx.Rollback(ctx)
+
+	// Build the rows the delivery processor would: in-app eligible => delivered,
+	// email-only => muted.
+	inAppSet := map[string]bool{}
+	for _, id := range inApp {
+		inAppSet[id] = true
+	}
+
+	notifications := []*entity.Notification{}
+	for _, extID := range fanOut {
+		n := entity.NewNotification(projectID, extID, []byte(`{"t":"hi"}`), &broadcast.ID, "product", "updates", "released")
+		if inAppSet[extID] {
+			n.Status = enum.NotificationStatusDelivered
+		} else {
+			n.Status = enum.NotificationStatusMuted
+		}
+		notifications = append(notifications, n)
+	}
+	if err := pg.NewNotificationRepo(pool).BatchCreateTx(ctx, tx, notifications); err != nil {
+		t.Fatalf("insert notifications: %v", err)
+	}
+
+	tasks, err := svc.FanOutBroadcastEmail(ctx, tx, broadcast, notifications)
+	if err != nil {
+		t.Fatalf("fan out: %v", err)
+	}
+
+	addrs := map[string]bool{}
+	for _, task := range tasks {
+		addrs[task.To] = true
+	}
+	if !addrs["muted_inapp@example.com"] {
+		t.Fatalf("the in-app-muted recipient got no email; they opted INTO email. tasks reached %v", addrs)
+	}
+	if !addrs["r1@example.com"] {
+		t.Errorf("r1 should still be mailed, tasks reached %v", addrs)
+	}
+
+	// Their in-app row must record the opt-out, not claim an inbox write.
+	var status string
+	if err := tx.QueryRow(ctx, `
+		SELECT status FROM notification WHERE broadcast_id = $1 AND recipient_external_id = 'muted_inapp'
+	`, broadcast.ID).Scan(&status); err != nil {
+		t.Fatalf("read notification status: %v", err)
+	}
+	if status != string(enum.NotificationStatusMuted) {
+		t.Errorf("in-app status = %q, want %q — the row exists for the email to hang off, not to claim delivery",
+			status, enum.NotificationStatusMuted)
 	}
 }
