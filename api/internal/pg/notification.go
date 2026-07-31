@@ -118,32 +118,108 @@ func (r *NotificationRepo) Get(ctx context.Context, projectID, id int) (*entity.
 	return &n, nil
 }
 
+// BatchCreateTx inserts notifications and back-fills their IDs.
+//
+// ⚠️ This used COPY, which is faster but returns nothing. Broadcast email needs
+// the ids: a notification_delivery row hangs off notification_id, so without them
+// there is no way to record an email outcome per recipient. That — not
+// idempotency — is why the insert had to stop being a COPY (see
+// agent-docs/overview.md §Open/next).
+//
+// ⚠️ IDs are matched back by recipient_external_id, NOT by the order of RETURNING.
+// Postgres does not guarantee RETURNING order matches input order, and relying on
+// it would misattribute every delivery row the first time the planner chose
+// differently — silently mailing the right content to the wrong person's row. The
+// mapping is safe because a broadcast batch holds each recipient at most once
+// (its ids come from ListEligibleRecipientExtIDsForBroadcast, which is distinct
+// by recipient).
 func (r *NotificationRepo) BatchCreateTx(ctx context.Context, tx pgx.Tx, notifications []*entity.Notification) error {
-	rows := make([][]any, len(notifications))
-	for i, n := range notifications {
-		rows[i] = []any{
-			n.ProjectID,
-			n.RecipientExtID,
-			n.Payload,
-			n.BroadcastID,
-			n.Channel,
-			n.Topic,
-			n.Event,
-			n.ReadAt,
-			n.OpenedAt,
-			n.CreatedAt,
-			n.UpdatedAt,
-			n.CompletedAt,
-			n.Status,
-		}
+	if len(notifications) == 0 {
+		return nil
 	}
 
-	_, err := tx.CopyFrom(ctx, pgx.Identifier{"notification"}, []string{
-		"project_id", "recipient_external_id", "payload", "broadcast_id",
-		"channel", "topic", "event", "read_at", "opened_at", "created_at", "updated_at", "completed_at", "status",
-	}, pgx.CopyFromRows(rows))
+	n := len(notifications)
+	projectIDs := make([]int, n)
+	extIDs := make([]string, n)
+	payloads := make([][]byte, n)
+	broadcastIDs := make([]*int, n)
+	channels := make([]string, n)
+	topics := make([]string, n)
+	events := make([]string, n)
+	readAt := make([]*time.Time, n)
+	openedAt := make([]*time.Time, n)
+	createdAt := make([]time.Time, n)
+	updatedAt := make([]time.Time, n)
+	completedAt := make([]*time.Time, n)
+	statuses := make([]string, n)
 
-	return err
+	byExtID := make(map[string]*entity.Notification, n)
+
+	for i, notification := range notifications {
+		projectIDs[i] = notification.ProjectID
+		extIDs[i] = notification.RecipientExtID
+		payloads[i] = notification.Payload
+		broadcastIDs[i] = notification.BroadcastID
+		channels[i] = notification.Channel
+		topics[i] = notification.Topic
+		events[i] = notification.Event
+		readAt[i] = notification.ReadAt
+		openedAt[i] = notification.OpenedAt
+		createdAt[i] = notification.CreatedAt
+		updatedAt[i] = notification.UpdatedAt
+		completedAt[i] = notification.CompletedAt
+		statuses[i] = string(notification.Status)
+
+		byExtID[notification.RecipientExtID] = notification
+	}
+
+	sql := `
+		INSERT INTO notification (
+			project_id, recipient_external_id, payload, broadcast_id,
+			channel, topic, event, read_at, opened_at, created_at, updated_at, completed_at, status
+		)
+		SELECT * FROM unnest(
+			$1::int[], $2::text[], $3::jsonb[], $4::int[],
+			$5::text[], $6::text[], $7::text[], $8::timestamptz[], $9::timestamptz[],
+			$10::timestamptz[], $11::timestamptz[], $12::timestamptz[], $13::text[]
+		)
+		RETURNING id, recipient_external_id
+	`
+
+	rows, err := tx.Query(ctx, sql,
+		projectIDs, extIDs, payloads, broadcastIDs,
+		channels, topics, events, readAt, openedAt, createdAt, updatedAt, completedAt, statuses,
+	)
+	if err != nil {
+		return fmt.Errorf("insert notifications: %w", err)
+	}
+	defer rows.Close()
+
+	var inserted int
+
+	for rows.Next() {
+		var id int
+		var extID string
+
+		if err := rows.Scan(&id, &extID); err != nil {
+			return fmt.Errorf("scan inserted notification: %w", err)
+		}
+
+		if notification, ok := byExtID[extID]; ok {
+			notification.ID = id
+		}
+
+		inserted++
+	}
+	if err := rows.Err(); err != nil {
+		return fmt.Errorf("read inserted notifications: %w", err)
+	}
+
+	if inserted != n {
+		return fmt.Errorf("inserted %d notifications, expected %d", inserted, n)
+	}
+
+	return nil
 }
 
 func (r *NotificationRepo) Overview(ctx context.Context, projectID int) (*dto.NotificationsOverviewResult, error) {

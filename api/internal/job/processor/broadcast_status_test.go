@@ -516,3 +516,65 @@ func TestBroadcastBatchPersistsItsRecipients(t *testing.T) {
 		t.Errorf("resumable batch carries %v, want %v", resumable[0].RecipientExtIDs, want)
 	}
 }
+
+// TestBroadcastDeliveryBackfillsNotificationIDs pins the switch from COPY to
+// INSERT ... RETURNING.
+//
+// COPY is faster but returns nothing, and a notification_delivery row hangs off
+// notification_id — so without ids there is no way to record a per-recipient
+// email outcome. That, not idempotency, is why the insert stopped being a COPY.
+//
+// ⚠️ Also pins that ids are matched back by recipient_external_id rather than by
+// RETURNING order. Postgres does not guarantee RETURNING comes back in input
+// order, and trusting it would misattribute delivery rows — mailing the right
+// content against the wrong person's row — the first time the planner chose
+// differently.
+func TestBroadcastDeliveryBackfillsNotificationIDs(t *testing.T) {
+	pool := testPool(t)
+	ctx := context.Background()
+	projectID := testProject(t, pool, "bcast-ids-test")
+
+	notificationRepo := pg.NewNotificationRepo(pool)
+	broadcastRepo := pg.NewBroadcastRepo(pool)
+
+	broadcast, err := broadcastRepo.Create(ctx, entity.NewBroadcast(projectID, []byte(`{"t":"hi"}`), "product", "updates", "released"))
+	if err != nil {
+		t.Fatalf("create broadcast: %v", err)
+	}
+
+	extIDs := []string{"z_last", "a_first", "m_middle"}
+	notifications := make([]*entity.Notification, 0, len(extIDs))
+	for _, extID := range extIDs {
+		n := entity.NewNotification(projectID, extID, []byte(`{"t":"hi"}`), &broadcast.ID, "product", "updates", "released")
+		notifications = append(notifications, n)
+	}
+
+	tx, err := pool.Begin(ctx)
+	if err != nil {
+		t.Fatalf("begin: %v", err)
+	}
+	defer tx.Rollback(ctx)
+
+	if err := notificationRepo.BatchCreateTx(ctx, tx, notifications); err != nil {
+		t.Fatalf("batch create: %v", err)
+	}
+
+	for _, n := range notifications {
+		if n.ID == 0 {
+			t.Fatalf("notification for %q has no id; delivery rows cannot hang off it", n.RecipientExtID)
+		}
+	}
+
+	// Each id must belong to the recipient it was written against. Deliberately
+	// checked against the database rather than the in-memory slice, so an
+	// order-based mapping bug cannot pass by being wrong consistently.
+	for _, n := range notifications {
+		var got string
+		if err := tx.QueryRow(ctx, `SELECT recipient_external_id FROM notification WHERE id = $1`, n.ID).Scan(&got); err != nil {
+			t.Fatalf("look up notification %d: %v", n.ID, err)
+		}
+		if got != n.RecipientExtID {
+			t.Errorf("id %d was mapped to %q but belongs to %q — ids are being matched by RETURNING order", n.ID, n.RecipientExtID, got)
+		}
+	}
+}
