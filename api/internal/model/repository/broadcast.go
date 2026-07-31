@@ -39,5 +39,10 @@ type BroadcastWriter interface {
 	// optional, for a caller holding the broadcast row via FOR UPDATE — see the
 	// implementation.
 	SetAudienceTx(ctx context.Context, tx pgx.Tx, broadcastID int, audience *entity.BroadcastAudience) error
+
+	// SetEmailOutcomeTx records prepare_batches' decision about the email half:
+	// the frozen eligible count and the block reason, if any. Deliberately does
+	// not touch the email CONTENT columns — see the implementation.
+	SetEmailOutcomeTx(ctx context.Context, tx pgx.Tx, broadcastID int, eligible int, blockedReason string) error
 	DeleteForProject(ctx context.Context, projectID int) (int, error)
 }

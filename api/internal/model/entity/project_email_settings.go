@@ -30,8 +30,19 @@ type ProjectEmailSettings struct {
 	// a project may send email before wiring webhooks, so both may be empty.
 	WebhookSecret []byte
 	WebhookNonce  []byte
-	CreatedAt     time.Time
-	UpdatedAt     time.Time
+
+	// MaxBroadcastRecipientsForEmail caps how many recipients ONE broadcast may
+	// email. A safety rail, not a billing limit: it exists so a mis-targeted
+	// broadcast cannot become an accidental marketing blast. In-app fan-out is
+	// unaffected and still reaches everyone eligible.
+	//
+	// ⚠️ Exceeding it BLOCKS the email half rather than truncating it — mailing an
+	// arbitrary subset chosen by query order looks like success and is harder to
+	// notice than nothing being sent.
+	MaxBroadcastRecipientsForEmail int
+
+	CreatedAt time.Time
+	UpdatedAt time.Time
 }
 
 // NewProjectEmailSettings builds settings with a freshly encrypted secret.

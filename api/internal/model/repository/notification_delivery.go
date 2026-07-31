@@ -5,6 +5,8 @@ import (
 	"encoding/json"
 	"time"
 
+	"github.com/jackc/pgx/v5"
+
 	"github.com/mudgallabs/bodhveda/internal/model/dto"
 	"github.com/mudgallabs/bodhveda/internal/model/entity"
 	"github.com/mudgallabs/bodhveda/internal/model/enum"
@@ -51,6 +53,10 @@ type DeliveryTarget struct {
 type NotificationDeliveryWriter interface {
 	// Create inserts a delivery row (status already resolved by the caller).
 	Create(ctx context.Context, delivery *entity.NotificationDelivery) (*entity.NotificationDelivery, error)
+
+	// BatchCreateTx inserts many delivery rows in the caller's transaction and
+	// back-fills their IDs, matched by recipient external id.
+	BatchCreateTx(ctx context.Context, tx pgx.Tx, deliveries []*entity.NotificationDelivery) error
 	// UpdateResult records the terminal outcome of a provider send attempt
 	// (status + provider message id + failure reason + attempt + sent_at).
 	UpdateResult(ctx context.Context, id int64, result NotificationDeliveryResult) error

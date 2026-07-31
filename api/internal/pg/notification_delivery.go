@@ -368,3 +368,92 @@ func (r *NotificationDeliveryRepo) EmailTargetStats(ctx context.Context, project
 
 	return stats, nil
 }
+
+// BatchCreateTx inserts delivery rows and back-fills their IDs.
+//
+// ⚠️ IDs are matched back by recipient_external_id, not by RETURNING order —
+// same reasoning as NotificationRepo.BatchCreateTx. A broadcast batch holds each
+// recipient at most once, so the key is unique within the call; getting this
+// wrong would enqueue an email task against another recipient's delivery row,
+// mailing the right address and recording it on the wrong one.
+func (r *NotificationDeliveryRepo) BatchCreateTx(ctx context.Context, tx pgx.Tx, deliveries []*entity.NotificationDelivery) error {
+	if len(deliveries) == 0 {
+		return nil
+	}
+
+	n := len(deliveries)
+	notificationIDs := make([]int, n)
+	projectIDs := make([]int, n)
+	extIDs := make([]string, n)
+	mediums := make([]string, n)
+	contactIDs := make([]*int64, n)
+	addresses := make([]*string, n)
+	statuses := make([]string, n)
+	providers := make([]*string, n)
+	failureReasons := make([]*string, n)
+	createdAt := make([]time.Time, n)
+	updatedAt := make([]time.Time, n)
+
+	byExtID := make(map[string]*entity.NotificationDelivery, n)
+
+	for i, d := range deliveries {
+		notificationIDs[i] = d.NotificationID
+		projectIDs[i] = d.ProjectID
+		extIDs[i] = d.RecipientExtID
+		mediums[i] = string(d.Medium)
+		contactIDs[i] = d.ContactID
+		addresses[i] = d.AddressSnapshot
+		statuses[i] = string(d.Status)
+		providers[i] = d.Provider
+		failureReasons[i] = d.FailureReason
+		createdAt[i] = d.CreatedAt
+		updatedAt[i] = d.UpdatedAt
+
+		byExtID[d.RecipientExtID] = d
+	}
+
+	sql := `
+		INSERT INTO notification_delivery (
+			notification_id, project_id, recipient_external_id, medium, contact_id,
+			address_snapshot, status, provider, failure_reason, attempt, created_at, updated_at
+		)
+		SELECT nid, pid, ext, med, cid, addr, st, prov, fr, 0, cat, uat
+		FROM unnest(
+			$1::int[], $2::int[], $3::text[], $4::text[], $5::bigint[],
+			$6::text[], $7::text[], $8::text[], $9::text[], $10::timestamptz[], $11::timestamptz[]
+		) AS t(nid, pid, ext, med, cid, addr, st, prov, fr, cat, uat)
+		RETURNING id, recipient_external_id
+	`
+
+	rows, err := tx.Query(ctx, sql,
+		notificationIDs, projectIDs, extIDs, mediums, contactIDs,
+		addresses, statuses, providers, failureReasons, createdAt, updatedAt,
+	)
+	if err != nil {
+		return fmt.Errorf("insert notification deliveries: %w", err)
+	}
+	defer rows.Close()
+
+	var inserted int
+
+	for rows.Next() {
+		var id int64
+		var extID string
+		if err := rows.Scan(&id, &extID); err != nil {
+			return fmt.Errorf("scan inserted delivery: %w", err)
+		}
+		if d, ok := byExtID[extID]; ok {
+			d.ID = id
+		}
+		inserted++
+	}
+	if err := rows.Err(); err != nil {
+		return fmt.Errorf("read inserted deliveries: %w", err)
+	}
+
+	if inserted != n {
+		return fmt.Errorf("inserted %d deliveries, expected %d", inserted, n)
+	}
+
+	return nil
+}

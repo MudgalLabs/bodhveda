@@ -21,6 +21,11 @@ type RecipientContactReader interface {
 	// tantra repository.ErrNotFound when there is none. Used by the email
 	// fan-out to resolve the address to send to.
 	GetPrimary(ctx context.Context, projectID int, recipientExtID string, medium enum.Medium) (*entity.RecipientContact, error)
+
+	// GetPrimaryForRecipients is GetPrimary for a set, keyed by recipient external
+	// id. ⚠️ Recipients without a primary contact are ABSENT from the map, not
+	// mapped to nil — see the implementation.
+	GetPrimaryForRecipients(ctx context.Context, projectID int, recipientExtIDs []string, medium enum.Medium) (map[string]*entity.RecipientContact, error)
 }
 
 type RecipientContactWriter interface {

@@ -133,13 +133,25 @@ func (r *BroadcastBatchRepo) StatusForUpdateTx(ctx context.Context, tx pgx.Tx, b
 	return status, nil
 }
 
+// PendingCount counts a broadcast's batches that have not succeeded.
+//
+// ⚠️ NOT-SUCCEEDED, not `enqueued`. It used to count only `enqueued`, which meant
+// a `failed` batch was invisible here: `remaining` reached 0 and the broadcast was
+// marked `completed` while one of its batches had delivered nothing. With in-app
+// only that was a cosmetic lie; with email it reads as "this broadcast completed"
+// when a thousand people were never mailed.
+//
+// A failed batch IS still outstanding — delivery returns its error now, so Asynq
+// retries it and the batch-row guard makes the retry safe. If retries are
+// exhausted the broadcast stays non-completed, which is the honest state: it did
+// not complete.
 func (r *BroadcastBatchRepo) PendingCount(ctx context.Context, broadcastID int) (int, error) {
 	sql := `
 		SELECT COUNT(id) FROM broadcast_batch
-		WHERE broadcast_id = $1 AND status = $2
+		WHERE broadcast_id = $1 AND status <> $2
 	`
 	var count int
-	err := r.db.QueryRow(ctx, sql, broadcastID, enum.BroadcastBatchStatusEnqueued).Scan(&count)
+	err := r.db.QueryRow(ctx, sql, broadcastID, enum.BroadcastBatchStatusSuccess).Scan(&count)
 	return count, err
 }
 

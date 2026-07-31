@@ -23,7 +23,40 @@ type Broadcast struct {
 	// existed, and for ones whose fan-out has not run yet — the console must
 	// render that as "not recorded", never as zero.
 	Audience *BroadcastAudience
+
+	// Email is the email content this broadcast should also go out as. Nil when
+	// the send requested in-app only, which is still the common case.
+	//
+	// ⚠️ Stored on the broadcast row, not only in the Asynq payload, for the same
+	// reason broadcast_batch stores its recipient ids: a retry must be able to
+	// reconstruct what is being sent from the database alone.
+	Email *BroadcastEmail
 }
+
+// BroadcastEmail is the email half of a broadcast: the content, the frozen count
+// of who was eligible for it, and why it did not go out if it did not.
+type BroadcastEmail struct {
+	Subject string
+	HTML    string
+	Text    string
+
+	// EligibleRecipients is frozen at prepare time, like the in-app audience.
+	// Nil means fan-out has not resolved it yet; 0 means it resolved and nobody
+	// was eligible — different facts, so it must not be flattened to an int.
+	EligibleRecipients *int
+
+	// BlockedReason is set when email was requested but deliberately did not go
+	// out — currently only `recipient_cap_exceeded`. Empty when email ran.
+	BlockedReason string
+}
+
+// EmailBlockedRecipientCapExceeded is recorded when a broadcast's email-eligible
+// audience exceeds the project's max_broadcast_recipients_for_email.
+//
+// ⚠️ The cap BLOCKS rather than truncates. Sending to the first N of an
+// over-cap audience would mail an arbitrary subset chosen by query order, which
+// looks like success and is harder to notice than nothing being sent.
+const EmailBlockedRecipientCapExceeded = "recipient_cap_exceeded"
 
 // BroadcastAudience is the frozen recipient breakdown for one broadcast.
 //
@@ -58,4 +91,10 @@ func NewBroadcast(projectID int, payload json.RawMessage, channel string, topic 
 		CreatedAt:   now,
 		UpdatedAt:   now,
 	}
+}
+
+// WithEmail attaches email content to a broadcast being created.
+func (b *Broadcast) WithEmail(subject, html, text string) *Broadcast {
+	b.Email = &BroadcastEmail{Subject: subject, HTML: html, Text: text}
+	return b
 }

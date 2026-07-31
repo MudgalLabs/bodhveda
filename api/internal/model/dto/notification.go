@@ -345,23 +345,25 @@ func (p *SendNotificationPayload) Validate() error {
 		errs.Add(apires.NewApiError("Nothing to send", "A send must carry at least one content block: 'payload' for in-app, 'email' for email. Both were omitted, so this send names no medium.", "payload", nil))
 	}
 
-	// Broadcasts are in-app only, so a broadcast MUST carry a payload — the rule
-	// above would otherwise let a payload-less broadcast through on the strength
-	// of an `email` block that broadcasts reject anyway. Reported separately from
-	// the email rejection below so a caller who sent only `email` on a broadcast
-	// gets both halves of the story: email is not supported here, AND the payload
-	// you skipped is required here.
+	// ⚠️ A broadcast MUST still carry a payload, even now that it can carry email.
+	// Email-only BROADCASTS are deliberately not supported, unlike email-only
+	// direct sends: a broadcast is the high blast-radius path, and "it also landed
+	// in their inbox" is what makes a mistaken send visible and recoverable
+	// afterwards. Dropping this rule would allow a fire-and-forget mass email with
+	// no in-product trace.
 	if p.RecipientExtID == nil && !p.HasPayload() {
-		errs.Add(apires.NewApiError("Payload is required", "A broadcast requires a 'payload' — broadcasts are in-app only, so a payload-less broadcast has no medium to deliver on. Omitting 'payload' is supported on direct sends only.", "payload", nil))
+		errs.Add(apires.NewApiError("Payload is required", "A broadcast requires a 'payload'. Email may be added to a broadcast, but not sent on its own — every broadcast also lands in the recipient's inbox. Omitting 'payload' is supported on direct sends only.", "payload", nil))
 	}
 
-	// Email block: email is DIRECT-only (HARD RULE — never on broadcast). Reject
-	// an email block on a broadcast rather than silently dropping it.
+	// Email block. Broadcasts may now carry email too — the old hard rule
+	// ("email is DIRECT-only, never on a broadcast") is lifted.
+	//
+	// ⚠️ A broadcast's email fan-out is capped per project by
+	// max_broadcast_recipients_for_email, and exceeding it BLOCKS the email half
+	// rather than truncating it. That is enforced at fan-out, not here: the
+	// audience is not known at request time, and failing the whole send would
+	// also throw away the in-app half, which is not what the caller asked for.
 	if p.Email != nil {
-		if p.RecipientExtID == nil {
-			errs.Add(apires.NewApiError("Email not supported on broadcasts", "The 'email' block is only supported on direct sends (a recipient_id must be set). Broadcasts are in-app only.", "email", nil))
-		}
-
 		if strings.TrimSpace(p.Email.Subject) == "" {
 			errs.Add(apires.NewApiError("Email subject is required", "email.subject cannot be empty when an email block is provided", "email.subject", p.Email.Subject))
 		}

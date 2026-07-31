@@ -99,7 +99,7 @@ func TestBroadcastDeliveryWritesDeliveredNotifications(t *testing.T) {
 		t.Fatalf("marshal payload: %v", err)
 	}
 
-	p := NewBroadcastDeliveryProcessor(pool, notificationRepo, broadcastRepo, batchRepo)
+	p := NewBroadcastDeliveryProcessor(pool, notificationRepo, broadcastRepo, batchRepo, nil, nil)
 	if err := p.ProcessTask(ctx, asynq.NewTask(task.TaskTypeBroadcastDelivery, payload)); err != nil {
 		t.Fatalf("process task: %v", err)
 	}
@@ -178,7 +178,7 @@ func TestPrepareBatchesCompletesEmptyBroadcast(t *testing.T) {
 		t.Fatalf("marshal payload: %v", err)
 	}
 
-	p := NewPrepareBroadcastBatchesProcessor(pool, nil, preferenceRepo, broadcastRepo, batchRepo, nil)
+	p := NewPrepareBroadcastBatchesProcessor(pool, nil, preferenceRepo, broadcastRepo, batchRepo, nil, nil)
 	if err := p.ProcessTask(ctx, asynq.NewTask(task.TaskTypePrepareBroadcastBatches, payload)); err != nil {
 		t.Fatalf("an empty audience is a normal outcome, not an error: %v", err)
 	}
@@ -263,7 +263,7 @@ func TestBroadcastDeliveryIsIdempotentOnRetry(t *testing.T) {
 		t.Fatalf("marshal payload: %v", err)
 	}
 
-	p := NewBroadcastDeliveryProcessor(pool, notificationRepo, broadcastRepo, batchRepo)
+	p := NewBroadcastDeliveryProcessor(pool, notificationRepo, broadcastRepo, batchRepo, nil, nil)
 	t2 := asynq.NewTask(task.TaskTypeBroadcastDelivery, payload)
 
 	if err := p.ProcessTask(ctx, t2); err != nil {
@@ -357,7 +357,7 @@ func TestBroadcastDeliveryReturnsErrorSoAsynqRetries(t *testing.T) {
 		t.Fatalf("marshal payload: %v", err)
 	}
 
-	p := NewBroadcastDeliveryProcessor(pool, notificationRepo, broadcastRepo, batchRepo)
+	p := NewBroadcastDeliveryProcessor(pool, notificationRepo, broadcastRepo, batchRepo, nil, nil)
 	if err := p.ProcessTask(ctx, asynq.NewTask(task.TaskTypeBroadcastDelivery, payload)); err == nil {
 		t.Fatal("ProcessTask returned nil for a batch that could not be delivered; Asynq would ack it and never retry")
 	}
@@ -439,7 +439,7 @@ func TestPrepareBatchesDoesNotRePrepareOnRetry(t *testing.T) {
 		t.Fatalf("marshal payload: %v", err)
 	}
 
-	p := NewPrepareBroadcastBatchesProcessor(pool, nil, preferenceRepo, broadcastRepo, batchRepo, nil)
+	p := NewPrepareBroadcastBatchesProcessor(pool, nil, preferenceRepo, broadcastRepo, batchRepo, nil, nil)
 	if err := p.ProcessTask(ctx, asynq.NewTask(task.TaskTypePrepareBroadcastBatches, payload)); err != nil {
 		t.Fatalf("a redelivery of an already-prepared broadcast must be a no-op: %v", err)
 	}

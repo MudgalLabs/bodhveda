@@ -48,11 +48,12 @@ func main() {
 
 	asynqMux.Handle(task.TaskTypePrepareBroadcastBatches, processor.NewPrepareBroadcastBatchesProcessor(
 		app.DB, app.ASYNQCLIENT, app.APP.Repository.Preference, app.APP.Repository.Broadcast,
-		app.APP.Repository.BroadcastBatch, app.APP.Service.Billing,
+		app.APP.Repository.BroadcastBatch, app.APP.Service.Billing, app.APP.Service.Notification,
 	))
 
 	asynqMux.Handle(task.TaskTypeBroadcastDelivery, processor.NewBroadcastDeliveryProcessor(
 		app.DB, app.APP.Repository.Notification, app.APP.Repository.Broadcast, app.APP.Repository.BroadcastBatch,
+		app.APP.Service.Notification, app.ASYNQCLIENT,
 	))
 
 	asynqMux.Handle(task.TaskTypeDeleteRecipientData, processor.NewDeleteRecipientDataProcessor(

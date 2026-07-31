@@ -172,20 +172,26 @@ type PrepareBroadcastBatchesProcessor struct {
 	broadcastRepo      repository.BroadcastRepository
 	broadcastBatchRepo repository.BroadcastBatchRepository
 	billingService     *service.BillingService
+	// notificationService owns the email half. Broadcast email resolution lives in
+	// the service, not here, for the same reason the direct path does: the
+	// processor is a thin adapter over it. Nil is legal and means this deployment
+	// resolves no email — every email path checks it.
+	notificationService *service.NotificationService
 }
 
 func NewPrepareBroadcastBatchesProcessor(
 	db *pgxpool.Pool, asynqClient *asynq.Client, preferenceRepo repository.PreferenceRepository,
 	broadcastRepo repository.BroadcastRepository, broadcastBatchRepo repository.BroadcastBatchRepository,
-	billingService *service.BillingService,
+	billingService *service.BillingService, notificationService *service.NotificationService,
 ) *PrepareBroadcastBatchesProcessor {
 	return &PrepareBroadcastBatchesProcessor{
-		db:                 db,
-		asynqClient:        asynqClient,
-		preferenceRepo:     preferenceRepo,
-		broadcastRepo:      broadcastRepo,
-		broadcastBatchRepo: broadcastBatchRepo,
-		billingService:     billingService,
+		db:                  db,
+		asynqClient:         asynqClient,
+		preferenceRepo:      preferenceRepo,
+		broadcastRepo:       broadcastRepo,
+		broadcastBatchRepo:  broadcastBatchRepo,
+		billingService:      billingService,
+		notificationService: notificationService,
 	}
 }
 
@@ -357,6 +363,15 @@ func (processor *PrepareBroadcastBatchesProcessor) prepareTx(
 		return nil
 	}
 
+	// Decide the email half now, in this transaction, so the decision commits with
+	// the batches and a retry can trust the stored value rather than recomputing
+	// against settings or an audience that have since moved.
+	if broadcast.Email != nil && processor.notificationService != nil {
+		if _, err := processor.notificationService.ResolveBroadcastEmailAudience(ctx, tx, broadcast, target, recipientExtIDs); err != nil {
+			return fmt.Errorf("resolve broadcast email audience: %w", err)
+		}
+	}
+
 	var batchSize int
 
 	if len(recipientExtIDs) <= 100 {
@@ -433,21 +448,26 @@ func (processor *PrepareBroadcastBatchesProcessor) enqueueBatches(
 }
 
 type BroadcastDeliveryProcessor struct {
-	db                 *pgxpool.Pool
-	notificationRepo   repository.NotificationRepository
-	broadcastRepo      repository.BroadcastRepository
-	broadcastBatchRepo repository.BroadcastBatchRepository
+	db                  *pgxpool.Pool
+	notificationRepo    repository.NotificationRepository
+	broadcastRepo       repository.BroadcastRepository
+	broadcastBatchRepo  repository.BroadcastBatchRepository
+	notificationService *service.NotificationService
+	asynqClient         *asynq.Client
 }
 
 func NewBroadcastDeliveryProcessor(
 	db *pgxpool.Pool, notificationRepo repository.NotificationRepository,
 	broadcastRepo repository.BroadcastRepository, broadcastBatchRepo repository.BroadcastBatchRepository,
+	notificationService *service.NotificationService, asynqClient *asynq.Client,
 ) *BroadcastDeliveryProcessor {
 	return &BroadcastDeliveryProcessor{
-		db:                 db,
-		notificationRepo:   notificationRepo,
-		broadcastRepo:      broadcastRepo,
-		broadcastBatchRepo: broadcastBatchRepo,
+		db:                  db,
+		notificationRepo:    notificationRepo,
+		broadcastRepo:       broadcastRepo,
+		broadcastBatchRepo:  broadcastBatchRepo,
+		notificationService: notificationService,
+		asynqClient:         asynqClient,
 	}
 }
 
@@ -485,8 +505,20 @@ func (processor *BroadcastDeliveryProcessor) ProcessTask(ctx context.Context, t 
 	// into a failed one. It would also put a second index on `notification`,
 	// which is the send hot path. See agent-docs/delivery-feedback-design.md §3.3.
 	var alreadyDelivered bool
+	var emailTasks []dto.EmailDeliveryTaskPayload
 
-	err := dbx.WithTx(ctx, processor.db, func(tx pgx.Tx) error {
+	// Loaded before the transaction, not inside it: this is the durable record of
+	// what to send (content, and whether the email half was blocked at prepare
+	// time), and reading it on a pool connection while holding no lock on it
+	// cannot contend with anything.
+	broadcast, err := processor.broadcastRepo.GetByID(ctx, payload.BroadcastID)
+	if err != nil {
+		err = fmt.Errorf("get broadcast %d: %w", payload.BroadcastID, err)
+		logger.Get().Error(err)
+		return err
+	}
+
+	err = dbx.WithTx(ctx, processor.db, func(tx pgx.Tx) error {
 		status, err := processor.broadcastBatchRepo.StatusForUpdateTx(ctx, tx, payload.BatchID)
 		if err != nil {
 			return fmt.Errorf("lock broadcast batch: %w", err)
@@ -533,6 +565,17 @@ func (processor *BroadcastDeliveryProcessor) ProcessTask(ctx context.Context, t 
 			return fmt.Errorf("batch create notifications: %w", err)
 		}
 
+		// The email half. Delivery rows are written here, in the same transaction
+		// as the notifications they hang off; the send tasks are returned and
+		// enqueued only after commit, so no worker can pick up a delivery row that
+		// does not exist yet.
+		if processor.notificationService != nil {
+			emailTasks, err = processor.notificationService.FanOutBroadcastEmail(ctx, tx, broadcast, notifications)
+			if err != nil {
+				return fmt.Errorf("fan out broadcast email: %w", err)
+			}
+		}
+
 		// In the SAME transaction as the insert: either the notifications and the
 		// batch's `success` both land, or neither does. That is what lets the
 		// status above be trusted as the record of whether the work happened.
@@ -556,6 +599,14 @@ func (processor *BroadcastDeliveryProcessor) ProcessTask(ctx context.Context, t 
 		// by the batch-status update's own (nil) error and the function returned
 		// nil, so a batch that inserted NOTHING was acked as a success and never
 		// retried — the failure was recorded in the DB and then dropped.
+		return err
+	}
+
+	// ⚠️ After commit. A failure here leaves delivery rows `pending` with no task —
+	// visible in the tree as stuck rather than silently lost — and returning the
+	// error lets Asynq retry, where the batch guard makes the insert a no-op and
+	// this loop is reached again.
+	if err := processor.enqueueEmailTasks(ctx, emailTasks); err != nil {
 		return err
 	}
 
@@ -771,5 +822,38 @@ func (processor *DeleteProjectDataProcessor) ProcessTask(ctx context.Context, t 
 	l.Infof("Deleted project %d", payload.ProjectID)
 
 	l.Infof("DeleteProjectDataProcessor: Successfully deleted all data for project %d", payload.ProjectID)
+	return nil
+}
+
+// enqueueEmailTasks publishes one email:delivery task per pending delivery row.
+//
+// ⚠️ Each task carries a stable per-delivery Asynq id so a retry of the batch
+// cannot enqueue a second send for the same delivery row. The email adapter also
+// sends a per-delivery idempotency key to the provider, so a duplicate would have
+// to get past both to become a duplicate email.
+func (processor *BroadcastDeliveryProcessor) enqueueEmailTasks(ctx context.Context, tasks []dto.EmailDeliveryTaskPayload) error {
+	for _, t := range tasks {
+		body, err := json.Marshal(t)
+		if err != nil {
+			err = fmt.Errorf("marshal email delivery task payload: %w", err)
+			logger.Get().Error(err)
+			return err
+		}
+
+		_, err = processor.asynqClient.EnqueueContext(ctx,
+			asynq.NewTask(task.TaskTypeEmailDelivery, body),
+			asynq.MaxRetry(3),
+			asynq.TaskID(fmt.Sprintf("broadcast-email-delivery-%d", t.DeliveryID)),
+		)
+		if err != nil {
+			if errors.Is(err, asynq.ErrTaskIDConflict) {
+				continue
+			}
+			err = fmt.Errorf("enqueue email delivery task: %w", err)
+			logger.Get().Error(err)
+			return err
+		}
+	}
+
 	return nil
 }

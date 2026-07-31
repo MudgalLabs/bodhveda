@@ -25,6 +25,11 @@ type PreferenceReader interface {
 	GetProjectPreferenceByID(ctx context.Context, projectID int, preferenceID int) (*entity.Preference, error)
 	ShouldDirectNotificationBeDelivered(ctx context.Context, projectID int, recipientExtID string, target dto.Target, medium enum.Medium) (bool, error)
 	ListEligibleRecipientExtIDsForBroadcast(ctx context.Context, projectID int, target dto.Target, medium enum.Medium) ([]string, error)
+
+	// FilterEligibleRecipientsForBroadcast narrows a KNOWN candidate set to those
+	// eligible on `medium`. Broadcast email resolves eligibility per batch, and
+	// the project-wide list can dwarf the batch — see the implementation.
+	FilterEligibleRecipientsForBroadcast(ctx context.Context, projectID int, target dto.Target, medium enum.Medium, recipientExtIDs []string) ([]string, error)
 	// CountBroadcastAudience returns the recipient breakdown for a target: total,
 	// eligible, and the two DIFFERENT reasons a recipient is excluded (their own
 	// opt-out vs the project never cataloging the target).

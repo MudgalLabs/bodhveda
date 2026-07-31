@@ -703,18 +703,39 @@ is the OPERATOR's view — it already shows `muted`/`quota_exceeded` precisely b
 
 ### Open / next
 
-- **Broadcast email fan-out.** Broadcasts are still in-app only (`email` block ⇒ 400), so any
-  product needing email cannot use target fan-out at all — the caller must resolve recipients
-  itself and issue N direct sends. Grahak does exactly this today, which means Bodhveda's best
-  idea is doing nothing for it. Planned scope when picked up: idempotency hardening FIRST (see
-  below), an audience/dry-run count endpoint — **most of which Phase 11 already built as
-  `PreferenceRepo.CountBroadcastAudience`; it is the same query, just called at fan-out instead
-  of before it** — per-project `max_broadcast_recipients` on
-  `project_email_settings` (default 100) blocking *email only* with reason `recipient_cap_exceeded`,
-  per-recipient unsubscribe tokens minted in the batch, a per-project Redis rate limiter with a
-  separate low-priority `email:bulk` queue, and address-level suppression. Explicitly refused:
-  templating/per-recipient variables (Bodhveda stores no recipient attributes to personalize FROM
-  — that is a CDP, not a feature; personalization stays a direct-send concern).
+- ✅ **Broadcast email fan-out — SHIPPED (2026-07-31).** A broadcast may now carry an `email`
+  block; the old hard rule (`email` on a broadcast = 400) is lifted. Content lives on the
+  `broadcast` row (`email_subject/html/text`), not only in the Asynq payload, so a retry can
+  reconstruct what is being sent. `prepare_batches` resolves the email audience once and records
+  it (`email_eligible_recipients`, `email_blocked_reason`); `broadcast:delivery` writes the
+  `notification_delivery` rows per batch in the same transaction as the notifications they hang
+  off, and enqueues `email:delivery` only after commit.
+  - ⚠️ **`max_broadcast_recipients_for_email`** (on `project_email_settings`, default 100) is a
+    SAFETY RAIL against an accidental marketing blast, not a billing limit. It caps the EMAIL
+    medium only — in-app still reaches everyone eligible. Exceeding it **BLOCKS** email entirely
+    with reason `recipient_cap_exceeded`; it does NOT truncate to the first N, because mailing an
+    arbitrary subset chosen by query order looks like success.
+  - ⚠️ **A broadcast still requires a `payload`.** Email-only BROADCASTS are deliberately
+    unsupported, unlike email-only direct sends: a broadcast is the high blast-radius path, and
+    "it also landed in their inbox" is what makes a mistaken send visible and recoverable.
+  - ⚠️ **KNOWN LIMITATION: email recipients are the INTERSECTION with the in-app audience.** A
+    `notification_delivery` row hangs off a notification row, so a recipient with no in-app row
+    has nothing to attach an email outcome to. Practical effect: someone who disabled in-app but
+    enabled email for the target will NOT get the broadcast email. Conservative on purpose for a
+    feature whose main risk is mailing people who did not want it — revisit if it bites.
+  - Recipients who are not email-eligible get NO delivery row, matching how the in-app half
+    treats broadcast exclusions (a frozen count, not N materialised rows).
+  - Still explicitly refused: templating / per-recipient variables (Bodhveda stores no recipient
+    attributes to personalise from — that is a CDP).
+  - **Not yet built:** the per-project Redis rate limiter + separate low-priority `email:bulk`
+    queue, and address-level suppression. Both were in the original scope; the cap makes them
+    less urgent because volume is bounded per broadcast.
+- ✅ **A failed batch no longer completes its broadcast (2026-07-31).** `PendingCount` counted
+  only `enqueued` batches, so a `failed` one was invisible: `remaining` hit 0 and the broadcast
+  was marked `completed` having delivered nothing for that batch. Cosmetic while in-app only;
+  with email it reads as "completed" when people were never mailed. It now counts
+  not-succeeded. ⚠️ A broadcast whose batch exhausts its retries now stays non-completed —
+  honest, but nothing alerts on it yet (`stuck_sends` watches notifications, not batches).
 - ✅ **`BroadcastDeliveryProcessor` idempotency — FIXED (2026-07-31).** It used to commit the
   notification `CopyFrom` in one tx and update the batch status in a SECOND one, so a crash or an
   expired lease between the commit and Asynq's ack re-delivered the task and re-inserted every

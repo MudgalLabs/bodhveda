@@ -9,6 +9,7 @@ import (
 	"time"
 
 	"github.com/hibiken/asynq"
+	"github.com/jackc/pgx/v5"
 	"github.com/mudgallabs/bodhveda/internal/email"
 	"github.com/mudgallabs/bodhveda/internal/env"
 	"github.com/mudgallabs/bodhveda/internal/job/task"
@@ -482,6 +483,10 @@ func (s *NotificationService) sendBroadcastNotification(ctx context.Context, use
 		payload.Target.Event,
 	)
 
+	if payload.Email != nil {
+		broadcast = broadcast.WithEmail(payload.Email.Subject, payload.Email.HTML, payload.Email.ResolvedText())
+	}
+
 	broadcast, err := s.broadcastRepo.Create(ctx, broadcast)
 	if err != nil {
 		return nil, fmt.Errorf("create broadcast: %w", err)
@@ -826,4 +831,190 @@ func (s *NotificationService) ListNotifications(ctx context.Context, payload *dt
 		Notifications: dto.FromNotifications(notifications),
 		Pagination:    payload.Pagination.GetMeta(total),
 	}, service.ErrNone, nil
+}
+
+// BroadcastEmailCap is the per-project safety rail on how many recipients one
+// broadcast may email. It is read from project_email_settings; this is the
+// fallback when the project has no row (in which case email cannot send anyway).
+const defaultBroadcastEmailCap = 100
+
+// ResolveBroadcastEmailAudience decides, at prepare time, whether a broadcast's
+// email half may fan out — and records that decision on the broadcast.
+//
+// It runs in the caller's transaction so the decision commits with the batches,
+// which is what makes it safe for a retry to trust the stored value rather than
+// recomputing against a project whose settings or recipients have since changed.
+//
+// ⚠️ The cap BLOCKS rather than truncates. Mailing the first N of an over-cap
+// audience would pick an arbitrary subset by query order and look like success.
+// Blocking is loud, recoverable, and leaves the in-app half untouched — which is
+// the whole point of requiring a payload on every broadcast.
+func (s *NotificationService) ResolveBroadcastEmailAudience(
+	ctx context.Context, tx pgx.Tx, broadcast *entity.Broadcast, target dto.Target, inAppRecipients []string,
+) (eligible []string, err error) {
+	if broadcast.Email == nil {
+		return nil, nil
+	}
+
+	// ⚠️ Email recipients are the INTERSECTION with the in-app audience, not the
+	// union. A notification_delivery row hangs off a notification row, so a
+	// recipient with no in-app row has nothing to attach an email outcome to.
+	// The practical effect: someone who disabled in-app but enabled email for
+	// this target will NOT receive the broadcast email. That is the conservative
+	// direction for a feature whose main risk is mailing people who did not want
+	// it, and it is recorded in agent-docs/overview.md as a known limitation.
+	eligible, err = s.preferenceRepo.FilterEligibleRecipientsForBroadcast(
+		ctx, broadcast.ProjectID, target, enum.MediumEmail, inAppRecipients,
+	)
+	if err != nil {
+		return nil, fmt.Errorf("filter email-eligible recipients: %w", err)
+	}
+
+	cap := defaultBroadcastEmailCap
+	settings, err := s.projectEmailRepo.Get(ctx, broadcast.ProjectID)
+	if err != nil {
+		if !errors.Is(err, tantraRepo.ErrNotFound) {
+			return nil, fmt.Errorf("get project email settings: %w", err)
+		}
+		// No email settings at all: nothing can send. Record it as blocked rather
+		// than letting the fan-out discover it per recipient.
+		if serr := s.broadcastRepo.SetEmailOutcomeTx(ctx, tx, broadcast.ID, len(eligible), "provider_not_configured"); serr != nil {
+			return nil, serr
+		}
+		return nil, nil
+	}
+	if settings.MaxBroadcastRecipientsForEmail > 0 {
+		cap = settings.MaxBroadcastRecipientsForEmail
+	}
+
+	if len(eligible) > cap {
+		logger.Get().Warnw("broadcast email blocked by recipient cap",
+			"broadcast_id", broadcast.ID, "eligible", len(eligible), "cap", cap)
+
+		if serr := s.broadcastRepo.SetEmailOutcomeTx(
+			ctx, tx, broadcast.ID, len(eligible), entity.EmailBlockedRecipientCapExceeded,
+		); serr != nil {
+			return nil, serr
+		}
+		return nil, nil
+	}
+
+	if err := s.broadcastRepo.SetEmailOutcomeTx(ctx, tx, broadcast.ID, len(eligible), ""); err != nil {
+		return nil, err
+	}
+
+	return eligible, nil
+}
+
+// FanOutBroadcastEmail writes the email delivery rows for one batch and returns
+// the send tasks to enqueue.
+//
+// ⚠️ It does NOT enqueue. The rows are written in the caller's transaction, and
+// publishing a task that references an uncommitted delivery row would let the
+// email worker pick it up before it exists. The caller enqueues after commit.
+//
+// ⚠️ Recipients who are not email-eligible get NO delivery row, matching how the
+// in-app half treats broadcast exclusions (a frozen count, not N materialised
+// rows — see agent-docs/delivery-feedback-design.md §3.2). Rows are written only
+// for recipients this broadcast intended to mail: `pending` when there is an
+// address, `no_contact` when there is not, because that one is actionable.
+func (s *NotificationService) FanOutBroadcastEmail(
+	ctx context.Context, tx pgx.Tx, broadcast *entity.Broadcast, notifications []*entity.Notification,
+) ([]dto.EmailDeliveryTaskPayload, error) {
+	// ⚠️ BlockedReason is the authoritative go/no-go, decided once at prepare time
+	// and read here rather than re-derived. Re-checking the cap per batch would let
+	// a settings change mid-fan-out mail some batches and not others.
+	if broadcast.Email == nil || broadcast.Email.BlockedReason != "" || len(notifications) == 0 {
+		return nil, nil
+	}
+
+	target := dto.Target{Channel: broadcast.Channel, Topic: broadcast.Topic, Event: broadcast.Event}
+
+	notificationsByExtID := make(map[string]*entity.Notification, len(notifications))
+	candidates := make([]string, 0, len(notifications))
+	for _, n := range notifications {
+		notificationsByExtID[n.RecipientExtID] = n
+		candidates = append(candidates, n.RecipientExtID)
+	}
+
+	eligibleExtIDs, err := s.preferenceRepo.FilterEligibleRecipientsForBroadcast(
+		ctx, broadcast.ProjectID, target, enum.MediumEmail, candidates,
+	)
+	if err != nil {
+		return nil, fmt.Errorf("filter email-eligible recipients: %w", err)
+	}
+	if len(eligibleExtIDs) == 0 {
+		return nil, nil
+	}
+
+	settings, err := s.projectEmailRepo.Get(ctx, broadcast.ProjectID)
+	if err != nil {
+		return nil, fmt.Errorf("get project email settings: %w", err)
+	}
+
+	contacts, err := s.contactRepo.GetPrimaryForRecipients(ctx, broadcast.ProjectID, eligibleExtIDs, enum.MediumEmail)
+	if err != nil {
+		return nil, fmt.Errorf("get primary contacts: %w", err)
+	}
+
+	provider := string(settings.Provider)
+
+	deliveries := make([]*entity.NotificationDelivery, 0, len(eligibleExtIDs))
+	sendable := make([]string, 0, len(eligibleExtIDs))
+
+	for _, extID := range eligibleExtIDs {
+		notification, ok := notificationsByExtID[extID]
+		if !ok {
+			// Eligible for email but no in-app row in this batch — cannot happen
+			// while email is the intersection of the in-app audience, but a row
+			// with nothing to hang off must never be invented.
+			continue
+		}
+
+		d := entity.NewNotificationDelivery(
+			notification.ID, broadcast.ProjectID, extID, enum.MediumEmail, enum.DeliveryPending,
+		)
+
+		contact, hasContact := contacts[extID]
+		if !hasContact {
+			reason := ""
+			d.Status = enum.DeliverySkippedNoContact
+			d.FailureReason = &reason
+			deliveries = append(deliveries, d)
+			continue
+		}
+
+		d.ContactID = &contact.ID
+		d.AddressSnapshot = &contact.Address
+		d.Provider = &provider
+
+		deliveries = append(deliveries, d)
+		sendable = append(sendable, extID)
+	}
+
+	if err := s.deliveryRepo.BatchCreateTx(ctx, tx, deliveries); err != nil {
+		return nil, fmt.Errorf("batch create email deliveries: %w", err)
+	}
+
+	byExtID := make(map[string]*entity.NotificationDelivery, len(deliveries))
+	for _, d := range deliveries {
+		byExtID[d.RecipientExtID] = d
+	}
+
+	tasks := make([]dto.EmailDeliveryTaskPayload, 0, len(sendable))
+	for _, extID := range sendable {
+		d := byExtID[extID]
+
+		tasks = append(tasks, dto.EmailDeliveryTaskPayload{
+			DeliveryID:     d.ID,
+			ProjectID:      broadcast.ProjectID,
+			To:             *d.AddressSnapshot,
+			Subject:        broadcast.Email.Subject,
+			HTML:           broadcast.Email.HTML,
+			Text:           broadcast.Email.Text,
+			UnsubscribeURL: s.buildUnsubscribeURL(broadcast.ProjectID, extID, target),
+		})
+	}
+
+	return tasks, nil
 }

@@ -22,7 +22,8 @@ func NewProjectEmailSettingsRepo(db *pgxpool.Pool) repository.ProjectEmailSettin
 }
 
 const projectEmailSettingsFields = `
-	project_id, provider, secret, nonce, from_name, from_address, webhook_secret, webhook_nonce, created_at, updated_at
+	project_id, provider, secret, nonce, from_name, from_address, webhook_secret, webhook_nonce,
+	max_broadcast_recipients_for_email, created_at, updated_at
 `
 
 func scanProjectEmailSettings(row interface {
@@ -31,7 +32,7 @@ func scanProjectEmailSettings(row interface {
 	var s entity.ProjectEmailSettings
 	var provider string
 	err := row.Scan(&s.ProjectID, &provider, &s.Secret, &s.Nonce, &s.FromName, &s.FromAddress,
-		&s.WebhookSecret, &s.WebhookNonce, &s.CreatedAt, &s.UpdatedAt)
+		&s.WebhookSecret, &s.WebhookNonce, &s.MaxBroadcastRecipientsForEmail, &s.CreatedAt, &s.UpdatedAt)
 	if err != nil {
 		return nil, err
 	}

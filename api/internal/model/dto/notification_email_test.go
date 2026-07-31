@@ -49,13 +49,17 @@ func TestSendNotificationPayload_Validate_EmailBlock(t *testing.T) {
 		}
 	})
 
-	t.Run("email on broadcast is rejected", func(t *testing.T) {
+	// Broadcast email is supported now — the old hard rule ("email is DIRECT-only,
+	// never on a broadcast") was lifted. The blast-radius control moved to
+	// project_email_settings.max_broadcast_recipients_for_email, enforced at
+	// fan-out where the audience is actually known, not here.
+	t.Run("email on broadcast is accepted alongside a payload", func(t *testing.T) {
 		p := base()
 		p.RecipientExtID = nil // broadcast
+		p.Payload = json.RawMessage(`{"title":"hi"}`)
 		p.Email = &EmailContent{Subject: "Hi", Text: "x"}
-		err := p.Validate()
-		if err == nil || !hasErrorFor(err, "email") {
-			t.Fatalf("expected broadcast rejection on 'email', got %v", err)
+		if err := p.Validate(); err != nil {
+			t.Fatalf("expected a broadcast carrying both payload and email to validate, got %v", err)
 		}
 	})
 
@@ -135,21 +139,26 @@ func TestSendNotificationPayload_Validate_ContentBlocks(t *testing.T) {
 		}
 	})
 
-	t.Run("payload-less broadcast is rejected", func(t *testing.T) {
-		// Broadcasts are in-app only, so the at-least-one-block rule is not enough
-		// — an `email` block cannot stand in for the missing payload.
+	t.Run("email-only broadcast is still rejected", func(t *testing.T) {
+		// ⚠️ Email on a broadcast is allowed, but email ALONE is not. A broadcast is
+		// the high blast-radius path, and "it also landed in their inbox" is what
+		// makes a mistaken send visible and recoverable — so an `email` block still
+		// cannot stand in for the missing payload.
 		p := direct()
 		p.RecipientExtID = nil
 		p.Email = &EmailContent{Subject: "Hi", Text: "x"}
 		err := p.Validate()
 		if err == nil {
-			t.Fatal("expected a payload-less broadcast to be rejected")
+			t.Fatal("expected an email-only broadcast to be rejected")
 		}
 		if !hasErrorFor(err, "payload") {
 			t.Errorf("expected a 'payload' error explaining broadcasts require one, got %v", err)
 		}
-		if !hasErrorFor(err, "email") {
-			t.Errorf("expected the 'email' error too — a caller needs both halves, got %v", err)
+		// The 'email' error must NOT be present any more: the email block itself is
+		// legal here, and reporting it would tell the caller to remove the one part
+		// of the send that was fine.
+		if hasErrorFor(err, "email") {
+			t.Errorf("email is legal on a broadcast now; only the missing payload should be reported, got %v", err)
 		}
 	})
 

@@ -27,35 +27,75 @@ func NewBroadcastRepo(db *pgxpool.Pool) repository.BroadcastRepository {
 }
 
 func (r *BroadcastRepo) Create(ctx context.Context, broadcast *entity.Broadcast) (*entity.Broadcast, error) {
+	var subject, html, text *string
+	if broadcast.Email != nil {
+		subject, html, text = &broadcast.Email.Subject, &broadcast.Email.HTML, &broadcast.Email.Text
+	}
+
 	sql := `
 		INSERT INTO broadcast (
-			project_id, payload, channel, topic, event, completed_at, created_at, updated_at, status
+			project_id, payload, channel, topic, event, completed_at, created_at, updated_at, status,
+			email_subject, email_html, email_text
 		)
-		VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9)
-		RETURNING id, project_id, payload, channel, topic, event, completed_at, created_at, updated_at, status
+		VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, $12)
+		RETURNING id, project_id, payload, channel, topic, event, completed_at, created_at, updated_at, status,
+			email_subject, email_html, email_text
 	`
 	row := r.db.QueryRow(ctx, sql, broadcast.ProjectID, broadcast.Payload, broadcast.Channel, broadcast.Topic,
 		broadcast.Event, broadcast.CompletedAt, broadcast.CreatedAt, broadcast.UpdatedAt, broadcast.Status,
+		subject, html, text,
 	)
 
 	var newBroadcast entity.Broadcast
+	var gotSubject, gotHTML, gotText *string
 
 	err := row.Scan(&newBroadcast.ID, &newBroadcast.ProjectID, &newBroadcast.Payload, &newBroadcast.Channel,
 		&newBroadcast.Topic, &newBroadcast.Event, &newBroadcast.CompletedAt, &newBroadcast.CreatedAt,
-		&newBroadcast.UpdatedAt, &newBroadcast.Status,
+		&newBroadcast.UpdatedAt, &newBroadcast.Status, &gotSubject, &gotHTML, &gotText,
 	)
 	if err != nil {
 		return nil, fmt.Errorf("scan broadcast: %w", err)
 	}
 
+	newBroadcast.Email = broadcastEmailFrom(gotSubject, gotHTML, gotText, nil, nil)
+
 	return &newBroadcast, nil
+}
+
+// broadcastEmailFrom rebuilds the email half from its nullable columns.
+//
+// ⚠️ Keyed on the SUBJECT being non-null, not on any of the counts. Subject is
+// the one field required whenever email was requested, so it is the only honest
+// marker of "this broadcast has an email half" — the counts are absent until
+// prepare_batches resolves them.
+func broadcastEmailFrom(subject, html, text *string, eligible *int, blockedReason *string) *entity.BroadcastEmail {
+	if subject == nil {
+		return nil
+	}
+
+	e := &entity.BroadcastEmail{
+		Subject:            *subject,
+		EligibleRecipients: eligible,
+	}
+	if html != nil {
+		e.HTML = *html
+	}
+	if text != nil {
+		e.Text = *text
+	}
+	if blockedReason != nil {
+		e.BlockedReason = *blockedReason
+	}
+
+	return e
 }
 
 func (r *BroadcastRepo) GetByID(ctx context.Context, id int) (*entity.Broadcast, error) {
 	sql := `
 		SELECT id, project_id, payload, channel, topic, event, completed_at, created_at,
 		updated_at, status, total_recipients, eligible_recipients, excluded_disabled,
-		excluded_not_cataloged
+		excluded_not_cataloged, email_subject, email_html, email_text,
+		email_eligible_recipients, email_blocked_reason
 		FROM broadcast
 		WHERE id = $1
 	`
@@ -68,13 +108,18 @@ func (r *BroadcastRepo) GetByID(ctx context.Context, id int) (*entity.Broadcast,
 	// reached nobody and one whose audience was never measured are different
 	// facts, and the console renders them differently.
 	var total, eligible, excludedDisabled, excludedNotCataloged *int
+	var emailSubject, emailHTML, emailText, emailBlockedReason *string
+	var emailEligible *int
 
 	err := row.Scan(&broadcast.ID, &broadcast.ProjectID, &broadcast.Payload, &broadcast.Channel, &broadcast.Topic,
 		&broadcast.Event, &broadcast.CompletedAt, &broadcast.CreatedAt, &broadcast.UpdatedAt, &broadcast.Status,
-		&total, &eligible, &excludedDisabled, &excludedNotCataloged)
+		&total, &eligible, &excludedDisabled, &excludedNotCataloged,
+		&emailSubject, &emailHTML, &emailText, &emailEligible, &emailBlockedReason)
 	if err != nil {
 		return nil, fmt.Errorf("scan broadcast by id: %w", err)
 	}
+
+	broadcast.Email = broadcastEmailFrom(emailSubject, emailHTML, emailText, emailEligible, emailBlockedReason)
 
 	if total != nil {
 		broadcast.Audience = &entity.BroadcastAudience{
@@ -104,6 +149,34 @@ func derefOrZero(v *int) int {
 // every such call.
 func (r *BroadcastRepo) SetAudience(ctx context.Context, broadcastID int, a *entity.BroadcastAudience) error {
 	return setBroadcastAudience(ctx, r.db, broadcastID, a)
+}
+
+// SetEmailOutcomeTx records what prepare_batches decided about this broadcast's
+// email half: how many recipients were eligible, and why it was blocked if it
+// was.
+//
+// ⚠️ Separate from Update for the same reason SetAudience is — Update is called
+// with a whole entity deserialised from the Asynq payload, which carries no
+// resolved email counts, so folding these columns into its SET clause would blank
+// them on every such call. It also must not touch the CONTENT columns: the
+// content is what the caller asked to send and is not prepare_batches' to revise.
+func (r *BroadcastRepo) SetEmailOutcomeTx(ctx context.Context, tx pgx.Tx, broadcastID int, eligible int, blockedReason string) error {
+	var reason *string
+	if blockedReason != "" {
+		reason = &blockedReason
+	}
+
+	sql := `
+		UPDATE broadcast
+		SET email_eligible_recipients = $2, email_blocked_reason = $3
+		WHERE id = $1
+	`
+
+	if _, err := tx.Exec(ctx, sql, broadcastID, eligible, reason); err != nil {
+		return fmt.Errorf("set broadcast email outcome: %w", err)
+	}
+
+	return nil
 }
 
 // SetAudienceTx is SetAudience enrolled in the caller's transaction.

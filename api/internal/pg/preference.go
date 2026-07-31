@@ -795,3 +795,59 @@ func (r *PreferenceRepo) DoesProjectPreferenceExist(ctx context.Context, project
 
 	return exists, nil
 }
+
+// FilterEligibleRecipientsForBroadcast narrows a KNOWN set of recipients to those
+// eligible for a broadcast on `medium`.
+//
+// ⚠️ Deliberately takes the candidate ids rather than returning every eligible
+// recipient in the project. Broadcast email resolves eligibility one batch at a
+// time, and the project-wide list can be orders of magnitude larger than the
+// batch — pulling it back to intersect in Go would scale with the project rather
+// than with the work.
+//
+// The eligibility expression is the same one ListEligibleRecipientExtIDsForBroadcast
+// uses: an explicit recipient-level row wins, otherwise the project catalog entry
+// decides, and absent both the recipient is not eligible.
+func (r *PreferenceRepo) FilterEligibleRecipientsForBroadcast(
+	ctx context.Context, projectID int, target dto.Target, medium enum.Medium, recipientExtIDs []string,
+) ([]string, error) {
+	if len(recipientExtIDs) == 0 {
+		return nil, nil
+	}
+
+	sql := `
+		SELECT r.external_id
+		FROM recipient r
+		LEFT JOIN preference rp
+			ON rp.project_id = r.project_id
+			AND rp.recipient_external_id = r.external_id
+			AND rp.channel = $2 AND rp.topic = $3 AND rp.event = $4 AND rp.medium = $5
+		LEFT JOIN preference pp
+			ON pp.project_id = r.project_id
+			AND pp.recipient_external_id IS NULL
+			AND pp.channel = $2 AND pp.topic = $3 AND pp.event = $4 AND pp.medium = $5
+		WHERE r.project_id = $1
+			AND r.external_id = ANY($6)
+			AND (
+				rp.enabled = true
+				OR (rp.id IS NULL AND pp.enabled = true)
+			);
+	`
+
+	rows, err := r.db.Query(ctx, sql, projectID, target.Channel, target.Topic, target.Event, string(medium), recipientExtIDs)
+	if err != nil {
+		return nil, fmt.Errorf("query: %w", err)
+	}
+	defer rows.Close()
+
+	var extIDs []string
+	for rows.Next() {
+		var extID string
+		if err := rows.Scan(&extID); err != nil {
+			return nil, fmt.Errorf("scan: %w", err)
+		}
+		extIDs = append(extIDs, extID)
+	}
+
+	return extIDs, rows.Err()
+}
