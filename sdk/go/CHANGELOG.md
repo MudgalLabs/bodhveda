@@ -1,6 +1,33 @@
 # Changelog
 
-## v0.6.1
+## v0.7.0
+
+**Strict targets.** The Bodhveda API now REJECTS a send whose `(target, medium)`
+has no entry in the project's preference catalog — `400`, nothing written, for
+direct and broadcast alike. Catalog every target you send before you send it, or
+the call fails. A `topic: "any"` catalog entry satisfies the gate for every
+concrete topic beneath it, so one entry still covers an unbounded set of
+per-resource targets.
+
+Adds `Mandatory` to `CreateProjectPreferenceRequest` /
+`UpsertProjectPreferenceItem` / `UpdateProjectPreferenceRequest`, and to the
+resolved-preference read.
+
+A mandatory entry is cataloged — so sends pass the gate — but recipients cannot
+opt out of it: their toggle is refused with a `400` and any rule they already had
+is ignored. It is what makes transactional notifications (password resets,
+security alerts, a one-shot welcome) possible now that the catalog is also the
+preference surface. `DefaultEnabled` still applies, so setting it `false` stops
+the notification: mandatory removes the RECIPIENT's choice, not yours.
+
+Render mandatory cells as locked rather than as a switch. A toggle that saves and
+changes nothing is worse than one that refuses.
+
+> **This release also carries everything described under `v0.6.1` below, which
+> was written up but never tagged.** If you were waiting for `v0.6.1`, take
+> `v0.7.0` instead — there is no `v0.6.1` on the proxy and there will not be one.
+
+## v0.6.1 — never tagged; released as part of v0.7.0
 
 Feature parity with `@bodhveda/js` / `@bodhveda/react` `0.6.0`. Email-only sends:
 deliver an email without creating an in-app notification.

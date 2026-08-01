@@ -217,7 +217,16 @@ type UpdateProjectPreferenceRequest struct {
 	Description    string `json:"description,omitempty"`
 	DefaultEnabled bool   `json:"default_enabled"`
 	// Mandatory — see CreateProjectPreferenceRequest.
-	Mandatory bool `json:"mandatory,omitempty"`
+	//
+	// A POINTER here, unlike on create, because an update must be able to say
+	// three different things: nil leaves the flag as it is, &false clears it, and
+	// &true sets it. A plain bool with omitempty could only ever express the
+	// first two as the same thing — you could mark an entry mandatory and never
+	// un-mark it.
+	//
+	// Leaving it nil is also what stops an ordinary edit (renaming an entry, say)
+	// from silently un-marking a password reset as optional.
+	Mandatory *bool `json:"mandatory,omitempty"`
 }
 
 // UpsertProjectPreferenceItem is one item of a declarative bulk upsert — the same
