@@ -267,6 +267,27 @@ func (p *SendNotificationPayload) HasEmail() bool {
 	return p.Email != nil
 }
 
+// RequestedMediums lists the transports this send is actually asking for, which
+// is precisely the set the strict-target gate must find in the catalog.
+//
+// It is derived from the content blocks rather than declared separately, because
+// the presence of a block IS the intent signal (see HasPayload / HasEmail). An
+// email-only direct send must not be rejected for lacking an in_app catalog
+// entry it never wanted, and vice versa.
+func (p *SendNotificationPayload) RequestedMediums() []enum.Medium {
+	mediums := make([]enum.Medium, 0, 2)
+
+	if p.HasPayload() {
+		mediums = append(mediums, enum.MediumInApp)
+	}
+
+	if p.HasEmail() {
+		mediums = append(mediums, enum.MediumEmail)
+	}
+
+	return mediums
+}
+
 // HasPayload reports whether the send carries an in-app content block — the
 // same intent signal as HasEmail, for the in-app medium.
 //

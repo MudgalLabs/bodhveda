@@ -39,14 +39,14 @@ func (r *PreferenceRepo) Create(ctx context.Context, pref *entity.Preference) (*
 		DO UPDATE SET
 			enabled = EXCLUDED.enabled,
 			updated_at = EXCLUDED.updated_at
-		RETURNING id, project_id, recipient_external_id, channel, topic, event, medium, name, description, enabled, created_at, updated_at
+		RETURNING id, project_id, recipient_external_id, channel, topic, event, medium, name, description, enabled, mandatory, created_at, updated_at
 	`
 
 	row := r.db.QueryRow(ctx, sql, pref.ProjectID, pref.RecipientExtID, pref.Channel, pref.Topic, pref.Event, pref.Medium, pref.Name, pref.Description, pref.Enabled, pref.CreatedAt, pref.UpdatedAt)
 
 	var newPref entity.Preference
 
-	err := row.Scan(&newPref.ID, &newPref.ProjectID, &newPref.RecipientExtID, &newPref.Channel, &newPref.Topic, &newPref.Event, &newPref.Medium, &newPref.Name, &newPref.Description, &newPref.Enabled, &newPref.CreatedAt, &newPref.UpdatedAt)
+	err := row.Scan(&newPref.ID, &newPref.ProjectID, &newPref.RecipientExtID, &newPref.Channel, &newPref.Topic, &newPref.Event, &newPref.Medium, &newPref.Name, &newPref.Description, &newPref.Enabled, &newPref.Mandatory, &newPref.CreatedAt, &newPref.UpdatedAt)
 	if err != nil {
 		if dbx.IsUniqueViolation(err) {
 			return nil, tantraRepo.ErrConflict
@@ -63,7 +63,7 @@ func (r *PreferenceRepo) Create(ctx context.Context, pref *entity.Preference) (*
 // a recipient-level row with the same id resolves to ErrNotFound here.
 func (r *PreferenceRepo) GetProjectPreferenceByID(ctx context.Context, projectID int, preferenceID int) (*entity.Preference, error) {
 	sql := `
-		SELECT id, project_id, recipient_external_id, channel, topic, event, medium, name, description, enabled, created_at, updated_at
+		SELECT id, project_id, recipient_external_id, channel, topic, event, medium, name, description, enabled, mandatory, created_at, updated_at
 		FROM preference
 		WHERE project_id = $1 AND id = $2 AND recipient_external_id IS NULL
 	`
@@ -71,7 +71,7 @@ func (r *PreferenceRepo) GetProjectPreferenceByID(ctx context.Context, projectID
 	row := r.db.QueryRow(ctx, sql, projectID, preferenceID)
 
 	var pref entity.Preference
-	err := row.Scan(&pref.ID, &pref.ProjectID, &pref.RecipientExtID, &pref.Channel, &pref.Topic, &pref.Event, &pref.Medium, &pref.Name, &pref.Description, &pref.Enabled, &pref.CreatedAt, &pref.UpdatedAt)
+	err := row.Scan(&pref.ID, &pref.ProjectID, &pref.RecipientExtID, &pref.Channel, &pref.Topic, &pref.Event, &pref.Medium, &pref.Name, &pref.Description, &pref.Enabled, &pref.Mandatory, &pref.CreatedAt, &pref.UpdatedAt)
 	if err != nil {
 		if err == pgx.ErrNoRows {
 			return nil, tantraRepo.ErrNotFound
@@ -92,13 +92,13 @@ func (r *PreferenceRepo) UpdateProjectPreference(ctx context.Context, projectID 
 		UPDATE preference
 		SET name = $3, description = $4, enabled = $5, updated_at = now()
 		WHERE project_id = $1 AND id = $2 AND recipient_external_id IS NULL
-		RETURNING id, project_id, recipient_external_id, channel, topic, event, medium, name, description, enabled, created_at, updated_at
+		RETURNING id, project_id, recipient_external_id, channel, topic, event, medium, name, description, enabled, mandatory, created_at, updated_at
 	`
 
 	row := r.db.QueryRow(ctx, sql, projectID, preferenceID, name, description, enabled)
 
 	var pref entity.Preference
-	err := row.Scan(&pref.ID, &pref.ProjectID, &pref.RecipientExtID, &pref.Channel, &pref.Topic, &pref.Event, &pref.Medium, &pref.Name, &pref.Description, &pref.Enabled, &pref.CreatedAt, &pref.UpdatedAt)
+	err := row.Scan(&pref.ID, &pref.ProjectID, &pref.RecipientExtID, &pref.Channel, &pref.Topic, &pref.Event, &pref.Medium, &pref.Name, &pref.Description, &pref.Enabled, &pref.Mandatory, &pref.CreatedAt, &pref.UpdatedAt)
 	if err != nil {
 		if err == pgx.ErrNoRows {
 			return nil, tantraRepo.ErrNotFound
@@ -149,14 +149,15 @@ func (r *PreferenceRepo) UpsertProjectPreferences(ctx context.Context, projectID
 
 	err := dbx.WithTx(ctx, r.pool, func(tx pgx.Tx) error {
 		upsertSQL := `
-			INSERT INTO preference (project_id, recipient_external_id, channel, topic, event, medium, name, description, enabled, created_at, updated_at)
-			VALUES ($1, NULL, $2, $3, $4, $5, $6, $7, $8, now(), now())
+			INSERT INTO preference (project_id, recipient_external_id, channel, topic, event, medium, name, description, enabled, mandatory, created_at, updated_at)
+			VALUES ($1, NULL, $2, $3, $4, $5, $6, $7, $8, $9, now(), now())
 			ON CONFLICT (project_id, channel, topic, event, medium)
 			WHERE recipient_external_id IS NULL
 			DO UPDATE SET
 				name = EXCLUDED.name,
 				description = EXCLUDED.description,
 				enabled = EXCLUDED.enabled,
+				mandatory = EXCLUDED.mandatory,
 				updated_at = now()
 		`
 
@@ -166,7 +167,7 @@ func (r *PreferenceRepo) UpsertProjectPreferences(ctx context.Context, projectID
 		mediums := make([]string, len(prefs))
 		for i, p := range prefs {
 			channels[i], topics[i], events[i], mediums[i] = p.Channel, p.Topic, p.Event, p.Medium
-			if _, err := tx.Exec(ctx, upsertSQL, projectID, p.Channel, p.Topic, p.Event, p.Medium, p.Name, p.Description, p.Enabled); err != nil {
+			if _, err := tx.Exec(ctx, upsertSQL, projectID, p.Channel, p.Topic, p.Event, p.Medium, p.Name, p.Description, p.Enabled, p.Mandatory); err != nil {
 				return fmt.Errorf("upsert preference: %w", err)
 			}
 		}
@@ -189,7 +190,7 @@ func (r *PreferenceRepo) UpsertProjectPreferences(ctx context.Context, projectID
 		}
 
 		readSQL := `
-			SELECT id, project_id, recipient_external_id, channel, topic, event, medium, name, description, enabled, created_at, updated_at
+			SELECT id, project_id, recipient_external_id, channel, topic, event, medium, name, description, enabled, mandatory, created_at, updated_at
 			FROM preference
 			WHERE project_id = $1 AND recipient_external_id IS NULL
 			ORDER BY channel, topic, event, medium
@@ -203,7 +204,7 @@ func (r *PreferenceRepo) UpsertProjectPreferences(ctx context.Context, projectID
 		catalog := []*entity.Preference{}
 		for rows.Next() {
 			var p entity.Preference
-			if err := rows.Scan(&p.ID, &p.ProjectID, &p.RecipientExtID, &p.Channel, &p.Topic, &p.Event, &p.Medium, &p.Name, &p.Description, &p.Enabled, &p.CreatedAt, &p.UpdatedAt); err != nil {
+			if err := rows.Scan(&p.ID, &p.ProjectID, &p.RecipientExtID, &p.Channel, &p.Topic, &p.Event, &p.Medium, &p.Name, &p.Description, &p.Enabled, &p.Mandatory, &p.CreatedAt, &p.UpdatedAt); err != nil {
 				return fmt.Errorf("scan: %w", err)
 			}
 			catalog = append(catalog, &p)
@@ -235,7 +236,7 @@ func (r *PreferenceRepo) ListPreferences(ctx context.Context, projectID int, kin
 func (r *PreferenceRepo) findPreferences(ctx context.Context, payload repository.SearchPreferencePayload) ([]*entity.Preference, int, error) {
 	baseSQL := `
 		SELECT
-			p.id, p.project_id, p.recipient_external_id, p.channel, p.topic, p.event, p.medium, p.name, p.description, p.enabled, p.created_at, p.updated_at
+			p.id, p.project_id, p.recipient_external_id, p.channel, p.topic, p.event, p.medium, p.name, p.description, p.enabled, p.mandatory, p.created_at, p.updated_at
 		FROM preference p
 	`
 
@@ -283,7 +284,7 @@ func (r *PreferenceRepo) findPreferences(ctx context.Context, payload repository
 	prefs := []*entity.Preference{}
 	for rows.Next() {
 		var newPref entity.Preference
-		err := rows.Scan(&newPref.ID, &newPref.ProjectID, &newPref.RecipientExtID, &newPref.Channel, &newPref.Topic, &newPref.Event, &newPref.Medium, &newPref.Name, &newPref.Description, &newPref.Enabled, &newPref.CreatedAt, &newPref.UpdatedAt)
+		err := rows.Scan(&newPref.ID, &newPref.ProjectID, &newPref.RecipientExtID, &newPref.Channel, &newPref.Topic, &newPref.Event, &newPref.Medium, &newPref.Name, &newPref.Description, &newPref.Enabled, &newPref.Mandatory, &newPref.CreatedAt, &newPref.UpdatedAt)
 
 		if err != nil {
 			return nil, 0, err
@@ -386,11 +387,48 @@ func (r *PreferenceRepo) ShouldDirectNotificationBeDelivered(ctx context.Context
 		      AND medium = $6
 		      AND $4 != 'none'
 		    LIMIT 1
+		),
+
+		-- 5. Mandatory catalog entries. Same two project rungs as 3 and 4, but
+		--    restricted to mandatory rows, because they are consulted FIRST.
+		mandatory_exact_pref AS (
+		    SELECT enabled
+		    FROM preference
+		    WHERE project_id = $1
+		      AND recipient_external_id IS NULL
+		      AND channel = $3
+		      AND topic = $4
+		      AND event = $5
+		      AND medium = $6
+		      AND mandatory
+		    LIMIT 1
+		),
+
+		mandatory_fallback_pref AS (
+		    SELECT enabled
+		    FROM preference
+		    WHERE project_id = $1
+		      AND recipient_external_id IS NULL
+		      AND channel = $3
+		      AND topic = 'any'
+		      AND event = $5
+		      AND medium = $6
+		      AND mandatory
+		      AND $4 != 'none'
+		    LIMIT 1
 		)
 
-		-- Final selection logic: pick the first available preference match
+		-- Final selection logic: pick the first available preference match.
+		--
+		-- ⚠️ Mandatory rungs precede the recipient's own rows. That is what makes a
+		-- mandatory entry mandatory: the recipient's opt-out is ignored. Keep this
+		-- order identical to ResolveRecipientPreferences' COALESCE — the two are one
+		-- rule expressed twice, and TestResolveRecipientPreferencesAgreesWithGating
+		-- is what stops them drifting.
 		SELECT
 		    COALESCE(
+		        (SELECT enabled FROM mandatory_exact_pref),
+		        (SELECT enabled FROM mandatory_fallback_pref),
 		        (SELECT enabled FROM recipient_exact_pref),
 		        (SELECT enabled FROM recipient_fallback_pref),
 		        (SELECT enabled FROM project_exact_pref),
@@ -530,9 +568,21 @@ func (r *PreferenceRepo) resolvePreferences(ctx context.Context, projectID int, 
 		    -- Cataloged = a project-level row for this EXACT (target, medium).
 		    -- Context for the UI; it deliberately does not gate the enabled value.
 		    (pe.id IS NOT NULL) AS cataloged,
+		    -- A mandatory catalog entry is not negotiable, so the UI renders the
+		    -- cell locked rather than as a toggle that would silently do nothing.
+		    COALESCE(pe.mandatory, pf.mandatory, false) AS mandatory,
 		    -- The cascade. Mirrors ShouldDirectNotificationBeDelivered's COALESCE
 		    -- exactly, including the medium-dependent default.
+		    --
+		    -- ⚠️ The two mandatory rungs come FIRST, above the recipient's own rows.
+		    -- That inversion is the entire meaning of mandatory: the project-level
+		    -- row wins and the recipient's opt-out is ignored. Its own enabled flag
+		    -- is still honoured, so disabling the catalog entry remains the
+		    -- project's kill switch — mandatory removes the RECIPIENT's choice, not
+		    -- the project's.
 		    COALESCE(
+		        CASE WHEN pe.mandatory THEN pe.enabled END,
+		        CASE WHEN pf.mandatory THEN pf.enabled END,
 		        re.enabled,
 		        rf.enabled,
 		        pe.enabled,
@@ -540,6 +590,8 @@ func (r *PreferenceRepo) resolvePreferences(ctx context.Context, projectID int, 
 		        c.medium = 'in_app'
 		    ) AS enabled,
 		    CASE
+		        WHEN pe.mandatory THEN 'project_exact'
+		        WHEN pf.mandatory THEN 'project_any'
 		        WHEN re.id IS NOT NULL THEN 'recipient_exact'
 		        WHEN rf.id IS NOT NULL THEN 'recipient_any'
 		        WHEN pe.id IS NOT NULL THEN 'project_exact'
@@ -593,7 +645,7 @@ func (r *PreferenceRepo) resolvePreferences(ctx context.Context, projectID int, 
 	resolved := []*entity.ResolvedPreference{}
 	for rows.Next() {
 		var p entity.ResolvedPreference
-		if err := rows.Scan(&p.Channel, &p.Topic, &p.Event, &p.Medium, &p.Name, &p.Description, &p.Cataloged, &p.Enabled, &p.Source); err != nil {
+		if err := rows.Scan(&p.Channel, &p.Topic, &p.Event, &p.Medium, &p.Name, &p.Description, &p.Cataloged, &p.Mandatory, &p.Enabled, &p.Source); err != nil {
 			return nil, fmt.Errorf("scan error: %w", err)
 		}
 		resolved = append(resolved, &p)
@@ -606,51 +658,85 @@ func (r *PreferenceRepo) resolvePreferences(ctx context.Context, projectID int, 
 	return resolved, nil
 }
 
-// ListEligibleRecipientExtIDsForBroadcast returns recipients opted in to a
-// (target, medium) for broadcast fan-out. Broadcasts are in-app only in v1 (email
-// is direct-only — see the HARD RULE in agent-docs/overview.md), so callers pass
-// enum.MediumInApp; the medium filter keeps the query correct now that
-// preferences are per-medium.
+// The broadcast eligibility rule, written ONCE.
+//
+// Three queries need to answer "is this recipient eligible for this (target,
+// medium)": the fan-out list, the per-batch filter, and the audience aggregate
+// the console tree renders. They used to carry three hand-copied predicates, and
+// the drift that invites is not hypothetical — all three matched the topic
+// EXACTLY while the direct-send cascade honoured a `topic = 'any'` catalog row,
+// so a wildcard-cataloged target resolved one way for a direct send and the
+// opposite way for a broadcast. Sharing the fragments is what makes
+// TestBroadcastAudienceMatchesEligibleList a tautology instead of a race.
+//
+// All three bind the same parameters: $1 project_id, $2 channel, $3 topic,
+// $4 event, $5 medium.
+const (
+	// broadcastEligibilityJoins resolves the four cascade rungs for each recipient:
+	// their own exact row, their own topic='any' rule, the project's exact catalog
+	// entry, and the project's topic='any' entry. The `$3 != 'none'` guard mirrors
+	// the direct cascade — 'none' means "no topic", so a wildcard must not widen it.
+	broadcastEligibilityJoins = `
+		LEFT JOIN preference rp
+			ON rp.project_id = r.project_id
+			AND rp.recipient_external_id = r.external_id
+			AND rp.channel = $2 AND rp.topic = $3 AND rp.event = $4 AND rp.medium = $5
+		LEFT JOIN preference rf
+			ON rf.project_id = r.project_id
+			AND rf.recipient_external_id = r.external_id
+			AND rf.channel = $2 AND rf.topic = 'any' AND rf.event = $4 AND rf.medium = $5
+			AND $3 != 'none'
+		LEFT JOIN preference pp
+			ON pp.project_id = r.project_id
+			AND pp.recipient_external_id IS NULL
+			AND pp.channel = $2 AND pp.topic = $3 AND pp.event = $4 AND pp.medium = $5
+		LEFT JOIN preference pf
+			ON pf.project_id = r.project_id
+			AND pf.recipient_external_id IS NULL
+			AND pf.channel = $2 AND pf.topic = 'any' AND pf.event = $4 AND pf.medium = $5
+			AND $3 != 'none'`
+
+	// broadcastEligibleExpr is the cascade itself. Identical in shape and order to
+	// ResolveRecipientPreferences' COALESCE, with one deliberate difference: the
+	// final default is FALSE, not medium='in_app'. A direct in-app send delivers
+	// when nothing matches; a broadcast requires a positive opt-in, which is what
+	// the excluded_not_cataloged bucket counts.
+	broadcastEligibleExpr = `
+		COALESCE(
+			CASE WHEN pp.mandatory THEN pp.enabled END,
+			CASE WHEN pf.mandatory THEN pf.enabled END,
+			rp.enabled,
+			rf.enabled,
+			pp.enabled,
+			pf.enabled,
+			false
+		)`
+)
+
 // CountBroadcastAudience is the aggregate twin of
-// ListEligibleRecipientExtIDsForBroadcast below. Keep them adjacent: the
-// eligibility expression is duplicated between them, and if one drifts the
-// console tree silently stops adding up. `TestBroadcastAudienceMatchesEligibleList`
-// pins them together.
+// ListEligibleRecipientExtIDsForBroadcast below. Both are built from the shared
+// fragments above so the console tree cannot stop adding up;
+// TestBroadcastAudienceMatchesEligibleList pins them together.
 //
-// The four buckets partition the project's recipients exactly, because
-// `preference.enabled` is NOT NULL so the recipient-level row is either present
-// (true or false) or absent:
+// The three buckets partition the project's recipients exactly:
 //
-//	rp.enabled = true                                  -> eligible
-//	rp.enabled = false                                 -> excluded_disabled
-//	rp absent AND pp.enabled = true                    -> eligible
-//	rp absent AND (pp absent OR pp.enabled = false)    -> excluded_not_cataloged
+//	cascade resolves true                         -> eligible
+//	cascade false, recipient had a row of their own -> excluded_disabled
+//	cascade false, recipient said nothing           -> excluded_not_cataloged
 func (r *PreferenceRepo) CountBroadcastAudience(ctx context.Context, projectID int, target dto.Target, medium enum.Medium) (*entity.BroadcastAudience, error) {
 	sql := `
 		SELECT
 			COUNT(*) AS total,
+			COUNT(*) FILTER (WHERE ` + broadcastEligibleExpr + `) AS eligible,
 			COUNT(*) FILTER (
-				WHERE rp.enabled = true OR (rp.id IS NULL AND pp.enabled = true)
-			) AS eligible,
-			COUNT(*) FILTER (WHERE rp.enabled = false) AS excluded_disabled,
+				WHERE NOT ` + broadcastEligibleExpr + `
+				AND (rp.id IS NOT NULL OR rf.id IS NOT NULL)
+			) AS excluded_disabled,
 			COUNT(*) FILTER (
-				WHERE rp.id IS NULL AND (pp.id IS NULL OR pp.enabled = false)
+				WHERE NOT ` + broadcastEligibleExpr + `
+				AND rp.id IS NULL AND rf.id IS NULL
 			) AS excluded_not_cataloged
-		FROM recipient r
-		LEFT JOIN preference rp
-			ON rp.project_id = r.project_id
-			AND rp.recipient_external_id = r.external_id
-			AND rp.channel = $2
-			AND rp.topic = $3
-			AND rp.event = $4
-			AND rp.medium = $5
-		LEFT JOIN preference pp
-			ON pp.project_id = r.project_id
-			AND pp.recipient_external_id IS NULL
-			AND pp.channel = $2
-			AND pp.topic = $3
-			AND pp.event = $4
-			AND pp.medium = $5
+		FROM recipient r` + broadcastEligibilityJoins + `
 		WHERE r.project_id = $1
 	`
 
@@ -664,36 +750,13 @@ func (r *PreferenceRepo) CountBroadcastAudience(ctx context.Context, projectID i
 	return &a, nil
 }
 
+// ListEligibleRecipientExtIDsForBroadcast returns the recipients opted in to a
+// (target, medium) for broadcast fan-out.
 func (r *PreferenceRepo) ListEligibleRecipientExtIDsForBroadcast(ctx context.Context, projectID int, target dto.Target, medium enum.Medium) ([]string, error) {
 	sql := `
-		-- INPUTS:
-		-- $1 = project_id
-		-- $2 = channel
-		-- $3 = topic
-		-- $4 = event
-		-- $5 = medium
-
 		SELECT r.external_id
-		FROM recipient r
-		LEFT JOIN preference rp
-			ON rp.project_id = r.project_id
-			AND rp.recipient_external_id = r.external_id
-			AND rp.channel = $2
-			AND rp.topic = $3
-			AND rp.event = $4
-			AND rp.medium = $5
-		LEFT JOIN preference pp
-			ON pp.project_id = r.project_id
-			AND pp.recipient_external_id IS NULL
-			AND pp.channel = $2
-			AND pp.topic = $3
-			AND pp.event = $4
-			AND pp.medium = $5
-		WHERE r.project_id = $1
-			AND (
-				rp.enabled = true
-				OR (rp.id IS NULL AND pp.enabled = true)
-			);
+		FROM recipient r` + broadcastEligibilityJoins + `
+		WHERE r.project_id = $1 AND ` + broadcastEligibleExpr + `;
 	`
 
 	rows, err := r.db.Query(ctx, sql, projectID, target.Channel, target.Topic, target.Event, string(medium))
@@ -765,32 +828,59 @@ func (r *PreferenceRepo) Delete(ctx context.Context, projectID int, preferenceID
 	return nil
 }
 
-// DoesProjectPreferenceExist reports whether a (target, medium) is in the project
-// catalog — i.e. a project-level preference row exists for it. It gates the
-// broadcast precondition (callers pass enum.MediumInApp) and is the catalog
-// primitive for non-in_app mediums.
-func (r *PreferenceRepo) DoesProjectPreferenceExist(ctx context.Context, projectID int, target dto.Target, medium enum.Medium) (bool, error) {
+// LookupCatalogEntry resolves a (target, medium) against the project catalog the
+// SAME way the delivery cascade does, and reports whether it is cataloged and
+// whether that entry is mandatory. It is the primitive the strict-target gate is
+// built on.
+//
+// ⚠️ EXACT MATCH IS NOT ENOUGH, and this is the whole reason the function exists.
+// A `topic = 'any'` catalog row matches a concrete topic — that is how
+// ShouldDirectNotificationBeDelivered has always resolved preferences, and
+// products depend on it. Grahak sends one target PER CONVERSATION
+// (`conversation/<conversationId>/reply`, an unbounded runtime-generated topic)
+// and catalogs exactly one wildcard row for all of them, so that a recipient rule
+// on a single thread can mute that thread and nothing else. Measured on prod
+// 2026-08-01, 8 of its reply sends match only via the wildcard. Gating on exact
+// match would 400 every one of them — the product's core function — and would
+// make strict targets unusable for any dynamic-topic caller.
+//
+// The `topic != 'none'` guard on the fallback mirrors the cascade exactly:
+// 'none' means "this rule has no topic", so it must not be widened by a wildcard.
+//
+// Precedence is exact-before-wildcard so that `mandatory` reads off the most
+// specific row, matching how enabled resolves.
+func (r *PreferenceRepo) LookupCatalogEntry(ctx context.Context, projectID int, target dto.Target, medium enum.Medium) (exists bool, mandatory bool, err error) {
 	sql := `
-		SELECT true
+		SELECT mandatory
 		FROM preference
 		WHERE project_id = $1
 		  AND recipient_external_id IS NULL
 		  AND channel = $2
-		  AND topic = $3
 		  AND event = $4
 		  AND medium = $5
+		  AND (topic = $3 OR (topic = 'any' AND $3 != 'none'))
+		ORDER BY (topic = $3) DESC
 		LIMIT 1;
 	`
 
-	var exists bool
-
-	err := r.db.QueryRow(ctx, sql, projectID, target.Channel, target.Topic, target.Event, string(medium)).Scan(&exists)
+	err = r.db.QueryRow(ctx, sql, projectID, target.Channel, target.Topic, target.Event, string(medium)).Scan(&mandatory)
 	if err != nil {
 		if err == pgx.ErrNoRows {
-			return false, nil
+			return false, false, nil
 		}
 
-		return false, fmt.Errorf("query: %w", err)
+		return false, false, fmt.Errorf("query: %w", err)
+	}
+
+	return true, mandatory, nil
+}
+
+// DoesProjectPreferenceExist reports whether a (target, medium) is in the project
+// catalog, resolved with the same wildcard rules as LookupCatalogEntry.
+func (r *PreferenceRepo) DoesProjectPreferenceExist(ctx context.Context, projectID int, target dto.Target, medium enum.Medium) (bool, error) {
+	exists, _, err := r.LookupCatalogEntry(ctx, projectID, target, medium)
+	if err != nil {
+		return false, err
 	}
 
 	return exists, nil
@@ -805,9 +895,9 @@ func (r *PreferenceRepo) DoesProjectPreferenceExist(ctx context.Context, project
 // batch — pulling it back to intersect in Go would scale with the project rather
 // than with the work.
 //
-// The eligibility expression is the same one ListEligibleRecipientExtIDsForBroadcast
-// uses: an explicit recipient-level row wins, otherwise the project catalog entry
-// decides, and absent both the recipient is not eligible.
+// It is literally the same eligibility rule as
+// ListEligibleRecipientExtIDsForBroadcast — same shared fragments, one extra
+// predicate narrowing to the given ids.
 func (r *PreferenceRepo) FilterEligibleRecipientsForBroadcast(
 	ctx context.Context, projectID int, target dto.Target, medium enum.Medium, recipientExtIDs []string,
 ) ([]string, error) {
@@ -817,21 +907,10 @@ func (r *PreferenceRepo) FilterEligibleRecipientsForBroadcast(
 
 	sql := `
 		SELECT r.external_id
-		FROM recipient r
-		LEFT JOIN preference rp
-			ON rp.project_id = r.project_id
-			AND rp.recipient_external_id = r.external_id
-			AND rp.channel = $2 AND rp.topic = $3 AND rp.event = $4 AND rp.medium = $5
-		LEFT JOIN preference pp
-			ON pp.project_id = r.project_id
-			AND pp.recipient_external_id IS NULL
-			AND pp.channel = $2 AND pp.topic = $3 AND pp.event = $4 AND pp.medium = $5
+		FROM recipient r` + broadcastEligibilityJoins + `
 		WHERE r.project_id = $1
 			AND r.external_id = ANY($6)
-			AND (
-				rp.enabled = true
-				OR (rp.id IS NULL AND pp.enabled = true)
-			);
+			AND ` + broadcastEligibleExpr + `;
 	`
 
 	rows, err := r.db.Query(ctx, sql, projectID, target.Channel, target.Topic, target.Event, string(medium), recipientExtIDs)

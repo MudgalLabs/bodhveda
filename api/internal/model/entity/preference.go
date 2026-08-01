@@ -23,6 +23,15 @@ type Preference struct {
 	// catalog entry declaring that (target, medium) may fire.
 	Medium  string
 	Enabled bool
+	// Mandatory marks a catalog entry the recipient cannot opt out of — password
+	// resets, security alerts, one-shot welcomes. The target is cataloged (so it
+	// passes the strict-target gate) but the recipient toggle is refused and the
+	// resolution cascade ignores any recipient row for it.
+	//
+	// ⚠️ Only meaningful on a project-level row; a recipient row is the thing being
+	// overridden, so a mandatory one is a contradiction. Enforced by a CHECK
+	// constraint (migration 20260801120000), not by convention.
+	Mandatory bool
 	// Name is the catalog entry's human name (e.g. "Marketing emails"). Nullable:
 	// null on a recipient-level row, required on a project-level (catalog) row.
 	Name *string
@@ -105,6 +114,11 @@ type ResolvedPreference struct {
 	// Cataloged reports whether a project-level row exists for this exact
 	// (target, medium). Context only; it does not gate Enabled.
 	Cataloged bool
+	// Mandatory reports that the catalog entry deciding this cell cannot be
+	// overridden by the recipient. Unlike Cataloged this DOES gate Enabled — a
+	// mandatory entry wins the cascade outright — so the UI must render the cell
+	// as locked rather than as a toggle that would silently do nothing.
+	Mandatory bool
 	// Source names the cascade rung that decided Enabled.
 	Source PreferenceSource
 }

@@ -16,6 +16,12 @@ type PreferenceRepository interface {
 
 type PreferenceReader interface {
 	DoesProjectPreferenceExist(ctx context.Context, projectID int, target dto.Target, medium enum.Medium) (bool, error)
+	// LookupCatalogEntry resolves a (target, medium) against the catalog with the
+	// SAME wildcard rules the delivery cascade uses (a topic='any' row matches a
+	// concrete topic, except when the topic is literally 'none'), and reports
+	// whether the matched entry is mandatory. It is the strict-target gate's
+	// primitive — see the implementation for why exact match would break Grahak.
+	LookupCatalogEntry(ctx context.Context, projectID int, target dto.Target, medium enum.Medium) (exists bool, mandatory bool, err error)
 	ListPreferences(ctx context.Context, projectID int, kind enum.PreferenceKind) ([]*entity.Preference, error)
 	// GetProjectPreferenceByID fetches a single catalog entry (a project-level
 	// row) by id, scoped to the project. It returns tantra's ErrNotFound when no

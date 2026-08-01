@@ -73,26 +73,18 @@ func (s *NotificationService) Send(ctx context.Context, userID int, payload dto.
 
 	result := &dto.SendNotificationResult{}
 
+	// The catalog is a GATEWAY: every medium this send asks for must be cataloged
+	// for the target, or nothing is written at all. See gateTarget.
+	if svcErr, err := s.gateTarget(ctx, payload.ProjectID, payload.Target, payload.RequestedMediums()); err != nil {
+		return nil, "", svcErr, err
+	}
+
 	if payload.IsDirect() {
 		result.Notification, result.Deliveries, err = s.sendDirectNotification(ctx, userID, payload)
 		if err != nil {
 			return nil, "", service.ErrInternalServerError, fmt.Errorf("send direct notification: %w", err)
 		}
 	} else {
-		// Check if a project preference exists that matches the target.
-		// If not, we should return an error as no recipients would be able to receive this broadcast.
-		// Broadcasts are in-app only in v1 (email is direct-only — see the HARD
-		// RULE in agent-docs/overview.md), so the catalog precondition is checked
-		// against the in_app medium.
-		prefExists, err := s.preferenceRepo.DoesProjectPreferenceExist(ctx, payload.ProjectID, *payload.Target, enum.MediumInApp)
-		if err != nil {
-			return nil, "", service.ErrInternalServerError, fmt.Errorf("check if project preference exists: %w", err)
-		}
-
-		if !prefExists {
-			return nil, "", service.ErrBadRequest, errors.New("No project preference exists that matches the target. Create a project preference first.")
-		}
-
 		result.Broadcast, err = s.sendBroadcastNotification(ctx, userID, payload)
 		if err != nil {
 			return nil, "", service.ErrInternalServerError, fmt.Errorf("send broadcast notification: %w", err)
@@ -112,6 +104,56 @@ func (s *NotificationService) Send(ctx context.Context, userID int, payload dto.
 	}
 
 	return result, message, service.ErrNone, nil
+}
+
+// gateTarget enforces strict targets: a send may only name a target the project
+// has cataloged, for every medium it is asking for.
+//
+// ⚠️ THIS REJECTS. It does not record the send as `muted`, and the difference is
+// the whole point:
+//
+//   - `muted` means THE RECIPIENT SAID NO. A legitimate, healthy outcome, mapped
+//     to `suppressed` in every rollup so an opt-out never inflates failure counts.
+//   - uncataloged means THE CALLER SENT SOMETHING THIS PROJECT DOES NOT DEFINE.
+//     Almost always a typo or a missing setup step.
+//
+// Conflating them recreates exactly the failure class the delivery-feedback work
+// exists to close — the caller gets a 200, believes it sent, and nothing ever
+// reaches a human. It also makes `suppressed` mean two unrelated things, so the
+// delivery tree reports a caller bug as the system working as designed. There is
+// real evidence for this: `conversation/reply/customer` sat in production with
+// its topic and event transposed, two notifications that nothing could deliver
+// and nobody could mute. A 400 would have caught it on the first call.
+//
+// ⚠️ EXISTENCE, not enabled. A cataloged-but-disabled entry is a real, deliberate
+// state ("defined, currently switched off project-wide"), so a send to it is
+// accepted and simply reaches nobody — the audience breakdown reports that
+// honestly. Only the ABSENCE of a catalog entry is a caller error.
+//
+// A send with no target at all is not gated: it is not claiming a target, so
+// there is nothing to check it against. Such notifications are also unmutable,
+// which is its own problem — see agent-docs/strict-targets-design.md.
+func (s *NotificationService) gateTarget(ctx context.Context, projectID int, target *dto.Target, mediums []enum.Medium) (service.Error, error) {
+	if target == nil {
+		return service.ErrNone, nil
+	}
+
+	for _, medium := range mediums {
+		cataloged, _, err := s.preferenceRepo.LookupCatalogEntry(ctx, projectID, *target, medium)
+		if err != nil {
+			return service.ErrInternalServerError, fmt.Errorf("lookup catalog entry: %w", err)
+		}
+
+		if !cataloged {
+			return service.ErrBadRequest, fmt.Errorf(
+				"Target %s/%s/%s is not in this project's catalog for the %s medium. "+
+					"Create a project preference for it before sending.",
+				target.Channel, target.Topic, target.Event, medium,
+			)
+		}
+	}
+
+	return service.ErrNone, nil
 }
 
 // sendDirectNotification is the request-path half of a direct send. It does the
