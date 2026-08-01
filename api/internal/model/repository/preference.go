@@ -60,7 +60,7 @@ type PreferenceWriter interface {
 	// description and the project-level default). Scoped to project-level rows
 	// (recipient NULL) and to the project; returns tantra's ErrNotFound when no
 	// such row exists. A nil description clears the entry's description.
-	UpdateProjectPreference(ctx context.Context, projectID int, preferenceID int, name string, description *string, enabled bool, mandatory bool) (*entity.Preference, error)
+	UpdateProjectPreference(ctx context.Context, projectID int, preferenceID int, name string, description *string, enabled bool, mandatory *bool) (*entity.Preference, error)
 	// UpsertProjectPreferences declaratively merges a set of catalog entries in a
 	// single transaction: each is upserted by its natural key (channel, topic,
 	// event, medium) — inserted if new, its name + description + default updated if

@@ -128,7 +128,13 @@ type UpdateProjectPreferencePayload struct {
 	Description string `json:"description"`
 	Enabled     bool   `json:"default_enabled"`
 	// Mandatory — see CreateProjectPreferencePayload.
-	Mandatory bool `json:"mandatory"`
+	//
+	// ⚠️ A POINTER, unlike every other field here, because omitting it must mean
+	// "leave it as it is" rather than "set it to false". Clients that predate
+	// mandatory — including the console's own edit modal — send a body without
+	// this key, and with a plain bool that would silently un-mark a password
+	// reset as optional every time someone fixed a typo in its name.
+	Mandatory *bool `json:"mandatory"`
 }
 
 func (p *UpdateProjectPreferencePayload) Validate() error {

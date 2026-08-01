@@ -29,6 +29,13 @@ export interface ProjectPreference {
     /** Optional longer blurb; null when unset. */
     description: string | null;
     default_enabled: boolean;
+    /**
+     * Recipients cannot opt out of this entry. It is still cataloged (so sends
+     * pass the target gate) but the recipient toggle is refused, and their own
+     * rule is ignored by the resolution cascade. `default_enabled` still
+     * applies, so it remains the project's way to stop sending.
+     */
+    mandatory: boolean;
     created_at: string;
     updated_at: string;
 
@@ -109,6 +116,13 @@ export interface RecipientPreferenceTargetState {
          * for explaining a cell, never a gate on it.
          */
         cataloged: boolean;
+        /**
+         * The catalog entry deciding this cell is MANDATORY — the recipient
+         * cannot opt out. Unlike `cataloged` this one does decide `enabled`,
+         * because a mandatory entry outranks the recipient's own rule, so the
+         * toggle must be rendered locked. Writing one is refused with a 400.
+         */
+        mandatory: boolean;
         source: PreferenceSource;
     };
 }

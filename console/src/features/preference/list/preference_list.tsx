@@ -22,6 +22,7 @@ import {
     Loading,
     LoadingScreen,
     PageHeading,
+    Tag,
     ToggleGroup,
     ToggleGroupItem,
     useDocumentTitle,
@@ -225,8 +226,22 @@ const projectPreferenceColumns: ColumnDef<ProjectPreference>[] = [
     {
         accessorKey: "default_enabled",
         header: () => <DataTableColumnHeader title="Default" />,
-        cell: ({ row }) =>
-            row.original.default_enabled ? "Enabled" : "Disabled",
+        cell: ({ row }) => (
+            <span className="flex-x w-fit gap-2">
+                {row.original.default_enabled ? "Enabled" : "Disabled"}
+                {/*
+                  * Shown next to the default rather than as its own column
+                  * because the two are read together: a mandatory entry's
+                  * default is the ONLY thing that decides delivery, since no
+                  * recipient can override it.
+                  */}
+                {row.original.mandatory && (
+                    <Tag variant="default" size="small">
+                        Mandatory
+                    </Tag>
+                )}
+            </span>
+        ),
     },
     {
         accessorKey: "target",

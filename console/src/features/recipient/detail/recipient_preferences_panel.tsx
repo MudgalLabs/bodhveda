@@ -72,9 +72,13 @@ function sourceCopy(
  *
  * Every cell shows the RESOLVED decision: what a send would actually do,
  * computed server-side by the same cascade the send path gates on. That is the
- * whole point. Notably `cataloged` is shown as context but never as a gate —
- * the catalog is a default, so an uncataloged target with an explicit recipient
- * row still delivers, and labelling it "unavailable" would be a lie.
+ * whole point.
+ *
+ * Two flags qualify it, and they are not the same kind of thing. `cataloged` is
+ * context: it says whether the project has declared this (target, medium), which
+ * since strict targets is what makes a send possible at all. `mandatory` is a
+ * gate: the recipient cannot opt out, the API refuses the write, and the switch
+ * is disabled — anything else would be a control that saves and does nothing.
  *
  * A toggle writes ONE (target, medium) through the existing console PUT, which
  * converges at the repository layer with the Developer API's PATCH and the
@@ -278,9 +282,16 @@ function PreferenceCell({
         // that put "Inherited" level with the switch but wrapped "Not cataloged"
         // to its own line, so a two-chip cell read as ragged.
         <div className="space-y-1.5">
+            {/*
+              * A mandatory cell is locked, not just visually discouraged. The
+              * API refuses the write with a 400, and the resolution cascade
+              * ignores any recipient rule for it — so an enabled switch here
+              * would be a control that appears to save and changes nothing,
+              * leaving the recipient believing they opted out.
+              */}
             <Switch
                 checked={enabled}
-                disabled={isPending}
+                disabled={isPending || cell.state.mandatory}
                 onCheckedChange={onChange}
                 aria-label={`${PREFERENCE_MEDIUM_LABELS[medium]} for ${targetToString(
                     target
@@ -304,12 +315,23 @@ function PreferenceCell({
                     </span>
                 </Tooltip>
 
-                {!cell.state.cataloged && (
+                {cell.state.mandatory && (
+                    <Tooltip content="This notification is mandatory — the project has marked it as one recipients cannot turn off (for example a security alert or a password reset). The project can still stop sending it by disabling the catalog entry.">
+                        <span className="flex-x w-fit">
+                            <Tag variant="default" size="small">
+                                Mandatory
+                            </Tag>
+                            <IconInfo size={12} />
+                        </span>
+                    </Tooltip>
+                )}
+
+                {!cell.state.mandatory && !cell.state.cataloged && (
                     <Tooltip
                         content={
                             medium === "in_app"
-                                ? "This target is not in the project catalog for in-app. In-app delivers by default, so it still sends — the catalog is a default, not a gate."
-                                : "This target is not in the project catalog for email. Email is off by default, but an explicit preference here still overrides that and sends."
+                                ? "This target is not in the project catalog for in-app, so sending to it is rejected with a 400. This rule only takes effect if the target is cataloged."
+                                : "This target is not in the project catalog for email, so sending to it is rejected with a 400. This rule only takes effect if the target is cataloged."
                         }
                     >
                         <span className="flex-x w-fit">

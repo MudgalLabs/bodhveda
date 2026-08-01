@@ -331,3 +331,47 @@ func TestBroadcastEligibilityHonoursWildcardTopic(t *testing.T) {
 		t.Fatalf("per-batch filter disagrees with the eligible list, got %v", filtered)
 	}
 }
+
+// TestUpdatingACatalogEntryDoesNotClearMandatory pins a regression that is
+// invisible when it happens.
+//
+// `mandatory` was briefly a plain bool on the update payload. Every client that
+// predates it — including the console's own edit modal — sends a body with no
+// `mandatory` key, which decodes to false. Renaming a "Password reset" entry
+// would therefore have quietly made it opt-out-able, with a 200 and no
+// indication anything else had changed.
+func TestUpdatingACatalogEntryDoesNotClearMandatory(t *testing.T) {
+	ctx, pool, projectID, repo := gateFixture(t)
+
+	catalogEntry(t, pool, projectID, "security", "none", "password_reset", enum.MediumEmail, true, true)
+
+	var id int
+	if err := pool.QueryRow(ctx, `
+		SELECT id FROM preference
+		WHERE project_id = $1 AND recipient_external_id IS NULL AND event = 'password_reset'
+	`, projectID).Scan(&id); err != nil {
+		t.Fatalf("find catalog entry: %v", err)
+	}
+
+	// A caller changing only the name — no mention of mandatory.
+	updated, err := repo.UpdateProjectPreference(ctx, projectID, id, "Password reset email", nil, true, nil)
+	if err != nil {
+		t.Fatalf("update: %v", err)
+	}
+	if updated.Name == nil || *updated.Name != "Password reset email" {
+		t.Fatalf("the rename did not apply: %+v", updated)
+	}
+	if !updated.Mandatory {
+		t.Fatal("renaming an entry cleared its mandatory flag; omitting the field must leave it unchanged")
+	}
+
+	// And it must still be settable when the caller DOES mean it.
+	off := false
+	updated, err = repo.UpdateProjectPreference(ctx, projectID, id, "Password reset email", nil, true, &off)
+	if err != nil {
+		t.Fatalf("update clearing mandatory: %v", err)
+	}
+	if updated.Mandatory {
+		t.Fatal("an explicit mandatory=false was ignored")
+	}
+}
