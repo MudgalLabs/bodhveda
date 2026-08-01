@@ -2,12 +2,22 @@
 
 ## v0.7.0
 
-**Strict targets.** The Bodhveda API now REJECTS a send whose `(target, medium)`
-has no entry in the project's preference catalog — `400`, nothing written, for
-direct and broadcast alike. Catalog every target you send before you send it, or
-the call fails. A `topic: "any"` catalog entry satisfies the gate for every
-concrete topic beneath it, so one entry still covers an unbounded set of
-per-resource targets.
+**Strict targets** — a new per-project setting, **off by default**. Nothing
+changes for you unless you turn it on.
+
+With it ON, Bodhveda rejects a send whose `(target, medium)` has no entry in the
+project's preference catalog: `400`, nothing written, for direct and broadcast
+alike. It is a maturity setting for a project whose catalog is already stable —
+turn it on and a typo'd event name becomes a bug you catch on the first call
+rather than the week someone asks why they were never notified.
+
+With it OFF (the default) an uncataloged target sends as before. Note that this
+was never a free pass for every medium: anything other than `in_app` still
+resolves to not-delivered without a catalog entry, because that is the medium
+default.
+
+A `topic: "any"` catalog entry satisfies the gate for every concrete topic
+beneath it, so one entry still covers an unbounded set of per-resource targets.
 
 Adds `Mandatory` to `CreateProjectPreferenceRequest` /
 `UpsertProjectPreferenceItem` / `UpdateProjectPreferenceRequest`, and to the

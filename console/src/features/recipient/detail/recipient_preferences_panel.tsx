@@ -330,8 +330,8 @@ function PreferenceCell({
                     <Tooltip
                         content={
                             medium === "in_app"
-                                ? "This target is not in the project catalog for in-app, so sending to it is rejected with a 400. This rule only takes effect if the target is cataloged."
-                                : "This target is not in the project catalog for email, so sending to it is rejected with a 400. This rule only takes effect if the target is cataloged."
+                                ? "This target is not in the project catalog for in-app. In-app still delivers — the catalog is a default, not a gate, unless strict targets is enabled for this project, in which case sending to it is rejected with a 400."
+                                : "This target is not in the project catalog for email. Email is off by default, so this rule is what turns it on for this recipient — unless strict targets is enabled, in which case sending to it is rejected with a 400."
                         }
                     >
                         <span className="flex-x w-fit">
