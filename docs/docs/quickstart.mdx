@@ -28,6 +28,18 @@ curl -X POST https://api.bodhveda.com/notifications/send \
 
 Then you can use the [list recipient's notifications](/api-reference/endpoint/recipients/notifications/list-notifications) API and you will see the notification you just sent earlier.
 
+<Note>
+    This send carries no `target`, which is why it needs no setup. **The moment you add
+    one, you must catalog it first** — a send whose `(target, medium)` has no project
+    [preference](/docs/concepts/preferences) is rejected with a `400`. Targets are how
+    you get per-notification preferences and analytics, so this is the next thing you
+    will hit.
+
+    A `topic: any` entry covers every concrete topic beneath it, so one row like
+    `post/any/comment` is enough to send `post/123/comment`, `post/456/comment`, and
+    the rest — no catalog write per post.
+</Note>
+
 ```bash
 curl -X GET "https://api.bodhveda.com/recipients/recipient_123/notifications" \
   -H "Authorization: Bearer YOUR_API_KEY"
