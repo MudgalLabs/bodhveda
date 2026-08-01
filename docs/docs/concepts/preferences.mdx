@@ -39,6 +39,18 @@ A `topic: none` target never takes an `any` rule — `none` means "this rule has
 
 This is why the [preference read](/api-reference/endpoint/recipients/preferences/list-preferences) reports `state.cataloged` separately from `state.enabled`. Use `cataloged` to decide what to render on a settings screen; use `enabled` to know what will actually happen.
 
+## Seed the catalog from your deploy
+
+Your desired catalog lives in your code; the real one lives in Bodhveda. They drift the moment you ship a new event and forget to update Bodhveda to match — and because email defaults to off, that drift is **silent**: the send returns `200`, the in-app half keeps working, and the email simply never arrives.
+
+Derive the catalog from whatever already defines your events, and push it with [upsert preferences](/api-reference/endpoint/preferences/upsert-project-preferences) as a **step in your deploy pipeline** rather than a one-time setup task. It is an idempotent merge, so a deploy that changes nothing is a no-op.
+
+<Warning>
+    Run it on **every** deploy, not just the deploy that adds an event. A catalog seeded by hand is a catalog that silently falls behind the code that depends on it.
+</Warning>
+
+To diagnose a missing email after the fact, read the send back with [retrieve a notification](/api-reference/endpoint/notifications/get-notification) — `email.failure_reason` will be `not_cataloged`.
+
 If you want to build something like Reddit where an author is subscribed to their own post and any other user can explictly _follow_ someone else's post as well.
 
 -   For the author, you can send a direct notification and it will always deliver unless the recipient explicity unsubscribe to that target. You should still use `target` so that you get analytics based on targets.

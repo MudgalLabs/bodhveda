@@ -66,6 +66,27 @@ Email fires only when the `(target, email)` pair is cataloged, the recipient's e
 preference is enabled, and the recipient has a primary email
 [contact](#recipient-contacts).
 
+> [!IMPORTANT]
+> **When email doesn't resolve, it is dropped SILENTLY.** The send still returns `200`
+> with `status: "enqueued"` — nothing in the response says the email is not going to
+> happen. The usual cause is that the `(target, email)` pair was never cataloged:
+> email's medium default is OFF, so with no catalog entry and no explicit recipient
+> rule, nothing turns it on. `in_app` is the opposite — it delivers with no catalog
+> entry at all, so a project that never touches
+> [Project Preferences](#project-preferences) looks like it works right up until you
+> add your first email.
+>
+> Diagnose it by reading the send back — `email.failure_reason` will be
+> `not_cataloged`:
+>
+> ```typescript
+> const n = await bodhveda.notifications.get(res.notification.id);
+> console.log(n.email?.status, n.email?.failure_reason);
+> ```
+>
+> The fix is to catalog the pair with [`upsertMany`](#set-up-a-whole-catalog-at-once),
+> and to run that **on every deploy** so the catalog can't drift behind your code.
+
 ```typescript
 const res = await bodhveda.notifications.send({
     recipient_id: "user-123",
@@ -301,6 +322,29 @@ own toggles — manage the catalog with `bodhveda.preferences`.
 
 Requires a `Full access` API key, and is a **server-side** concern. The project
 is taken from the API key.
+
+> [!IMPORTANT]
+> **The catalog is what makes routing work. Treat seeding it as a deploy step, not
+> a one-time setup task.**
+>
+> `in_app` delivers whether or not it is cataloged. **Every other medium defaults to
+> OFF**, so cataloging a `(target, medium)` pair is what turns it on for everyone who
+> hasn't set a preference of their own — which is nearly everyone. Skip it and the
+> send is dropped with no error (see [Send with email](#send-with-email)). The failure
+> looks like this: you add an email-capable event, ship it, and email simply never
+> arrives. Nothing logs, nothing 400s, and the in-app half keeps working perfectly,
+> which is what makes it hard to spot.
+>
+> (The catalog is a default, not a gate — an explicit *recipient* rule wins the
+> cascade before the catalog is consulted, so an uncataloged target a recipient
+> explicitly enabled will still send. That's the exception, not the path your users
+> are on.)
+>
+> Because the desired catalog lives in your code and the real one lives in Bodhveda,
+> the two drift the moment you ship an event and forget to re-run the seed. Keep them
+> honest by deriving the array from your app's event definitions and running
+> [`upsertMany`](#set-up-a-whole-catalog-at-once) from your deploy pipeline. It is an
+> idempotent merge, so running it on every deploy costs nothing when nothing changed.
 
 ### List the catalog
 
