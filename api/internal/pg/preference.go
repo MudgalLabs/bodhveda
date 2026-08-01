@@ -87,15 +87,15 @@ func (r *PreferenceRepo) GetProjectPreferenceByID(ctx context.Context, projectID
 // (recipient NULL) for the same reason GetProjectPreferenceByID is; RETURNING
 // gives back the fresh row so the caller need not re-read. A nil description
 // clears it. ErrNotFound when nothing matched.
-func (r *PreferenceRepo) UpdateProjectPreference(ctx context.Context, projectID int, preferenceID int, name string, description *string, enabled bool) (*entity.Preference, error) {
+func (r *PreferenceRepo) UpdateProjectPreference(ctx context.Context, projectID int, preferenceID int, name string, description *string, enabled bool, mandatory bool) (*entity.Preference, error) {
 	sql := `
 		UPDATE preference
-		SET name = $3, description = $4, enabled = $5, updated_at = now()
+		SET name = $3, description = $4, enabled = $5, mandatory = $6, updated_at = now()
 		WHERE project_id = $1 AND id = $2 AND recipient_external_id IS NULL
 		RETURNING id, project_id, recipient_external_id, channel, topic, event, medium, name, description, enabled, mandatory, created_at, updated_at
 	`
 
-	row := r.db.QueryRow(ctx, sql, projectID, preferenceID, name, description, enabled)
+	row := r.db.QueryRow(ctx, sql, projectID, preferenceID, name, description, enabled, mandatory)
 
 	var pref entity.Preference
 	err := row.Scan(&pref.ID, &pref.ProjectID, &pref.RecipientExtID, &pref.Channel, &pref.Topic, &pref.Event, &pref.Medium, &pref.Name, &pref.Description, &pref.Enabled, &pref.Mandatory, &pref.CreatedAt, &pref.UpdatedAt)

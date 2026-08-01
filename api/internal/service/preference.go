@@ -42,6 +42,10 @@ func (s *PreferenceService) CreateProjectPreference(ctx context.Context, payload
 		payload.DescriptionPtr(),
 		payload.Enabled,
 	)
+	// Set after construction rather than as a NewPreference arg: mandatory is only
+	// ever legal on a catalog row, and the two recipient-level call sites should
+	// have no way to pass it. A CHECK constraint backs this up.
+	pref.Mandatory = payload.Mandatory
 
 	newPref, err := s.repo.Create(ctx, pref)
 	if err != nil {
@@ -95,7 +99,7 @@ func (s *PreferenceService) UpsertProjectPreferences(ctx context.Context, projec
 			return nil, service.ErrInvalidInput, err
 		}
 
-		prefs = append(prefs, entity.NewPreference(
+		pref := entity.NewPreference(
 			&items[i].ProjectID,
 			nil,
 			items[i].Channel,
@@ -105,7 +109,10 @@ func (s *PreferenceService) UpsertProjectPreferences(ctx context.Context, projec
 			&items[i].Name,
 			items[i].DescriptionPtr(),
 			items[i].Enabled,
-		))
+		)
+		pref.Mandatory = items[i].Mandatory
+
+		prefs = append(prefs, pref)
 	}
 
 	result, err := s.repo.UpsertProjectPreferences(ctx, projectID, prefs, prune)
@@ -144,7 +151,7 @@ func (s *PreferenceService) UpdateProjectPreference(ctx context.Context, project
 		return nil, service.ErrInvalidInput, err
 	}
 
-	pref, err := s.repo.UpdateProjectPreference(ctx, projectID, preferenceID, payload.Name, payload.DescriptionPtr(), payload.Enabled)
+	pref, err := s.repo.UpdateProjectPreference(ctx, projectID, preferenceID, payload.Name, payload.DescriptionPtr(), payload.Enabled, payload.Mandatory)
 	if err != nil {
 		if err == tantraRepo.ErrNotFound {
 			return nil, service.ErrNotFound, fmt.Errorf("Preference not found")
@@ -210,6 +217,34 @@ func (s *PreferenceService) ListRecipientPreferences(ctx context.Context, projec
 	return dtos, service.ErrNone, nil
 }
 
+// refuseIfMandatory rejects a recipient-level preference write against a
+// mandatory catalog entry.
+//
+// Without this the write would SUCCEED and then be ignored: the resolution
+// cascade puts mandatory catalog rows above the recipient's own, so the stored
+// row would have no effect. A toggle that saves and does nothing is worse than
+// one that refuses — the recipient believes they have opted out of a security
+// alert. The console renders these cells locked (ResolvedPreference.Mandatory),
+// so reaching here means an API caller bypassed the UI.
+//
+// Uses the same wildcard-aware lookup as the send gate, so a mandatory
+// topic='any' entry protects every concrete topic under it.
+func (s *PreferenceService) refuseIfMandatory(ctx context.Context, projectID int, target dto.Target, medium string) (service.Error, error) {
+	_, mandatory, err := s.repo.LookupCatalogEntry(ctx, projectID, target, enum.Medium(medium))
+	if err != nil {
+		return service.ErrInternalServerError, fmt.Errorf("lookup catalog entry: %w", err)
+	}
+
+	if mandatory {
+		return service.ErrBadRequest, fmt.Errorf(
+			"Target %s/%s/%s is a mandatory notification on the %s medium and cannot be turned off.",
+			target.Channel, target.Topic, target.Event, medium,
+		)
+	}
+
+	return service.ErrNone, nil
+}
+
 func (s *PreferenceService) UpsertRecipientPreference(ctx context.Context, payload dto.UpsertRecipientPreferencePayload) (*dto.RecipientPreference, service.Error, error) {
 	if err := payload.Validate(); err != nil {
 		return nil, service.ErrInvalidInput, err
@@ -222,6 +257,11 @@ func (s *PreferenceService) UpsertRecipientPreference(ctx context.Context, paylo
 
 	if !exists {
 		return nil, service.ErrNotFound, errors.New("Recipient not found")
+	}
+
+	target := dto.Target{Channel: payload.Channel, Topic: payload.Topic, Event: payload.Event}
+	if svcErr, err := s.refuseIfMandatory(ctx, payload.ProjectID, target, payload.Medium); err != nil {
+		return nil, svcErr, err
 	}
 
 	pref := entity.NewPreference(
@@ -249,6 +289,10 @@ func (s *PreferenceService) UpsertRecipientPreference(ctx context.Context, paylo
 func (s *PreferenceService) UpdateRecipientPreferenceTarget(ctx context.Context, projectID int, recipientExtID string, req dto.PatchRecipientPreferenceTargetPayload) (*dto.PreferenceTargetStateDTO, service.Error, error) {
 	if err := req.Validate(); err != nil {
 		return nil, service.ErrInvalidInput, err
+	}
+
+	if svcErr, err := s.refuseIfMandatory(ctx, projectID, req.Target.Target, req.Medium); err != nil {
+		return nil, svcErr, err
 	}
 
 	// Upsert recipient-level preference for this (target, medium).

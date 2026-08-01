@@ -68,6 +68,15 @@ export interface ResolvedPreferenceState {
      * default with no catalog entry at all. `enabled` is the answer.
      */
     cataloged: boolean;
+    /**
+     * Whether the recipient may opt out of this one.
+     *
+     * Unlike {@link cataloged} this DOES decide `enabled` — a mandatory catalog
+     * entry outranks the recipient's own rule — so a settings screen must render
+     * the cell as locked. Writing a recipient preference for it is refused with
+     * a 400.
+     */
+    mandatory: boolean;
 }
 
 /**
@@ -435,6 +444,12 @@ export interface ProjectPreference {
      * who has expressed no preference of their own is delivered to.
      */
     default_enabled: boolean;
+    /**
+     * Whether recipients may opt out of this entry. A mandatory entry is
+     * cataloged (so it sends) but its recipient toggle is refused — render it
+     * as locked, not as a switch that saves and does nothing.
+     */
+    mandatory: boolean;
     name: string;
     /** Optional longer blurb for this catalog entry; `null` when unset. */
     description: string | null;
@@ -462,6 +477,18 @@ export interface CreateProjectPreferenceRequest {
      */
     description?: string;
     default_enabled: boolean;
+    /**
+     * Declares an entry recipients may NOT opt out of — transactional sends like
+     * password resets, security alerts, or a one-shot welcome.
+     *
+     * It exists because the catalog is a gateway: an uncataloged target is
+     * rejected at send time, so a transactional notification must be cataloged,
+     * and anything cataloged would otherwise become opt-out-able.
+     *
+     * `default_enabled` still applies — set it `false` to stop sending.
+     * Mandatory removes the RECIPIENT's choice, not yours. Defaults to `false`.
+     */
+    mandatory?: boolean;
 }
 
 /**
@@ -474,6 +501,8 @@ export interface UpdateProjectPreferenceRequest {
     /** Optional; omitted clears the description. */
     description?: string;
     default_enabled: boolean;
+    /** See {@link CreateProjectPreferenceRequest.mandatory}. */
+    mandatory?: boolean;
 }
 
 /**

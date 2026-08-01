@@ -105,7 +105,7 @@ func TestPreferenceCatalogCRUD(t *testing.T) {
 
 	t.Run("UpdateProjectPreference changes name + description + default and returns the row", func(t *testing.T) {
 		newDescription := "Receive a weekly digest email."
-		updated, err := repo.UpdateProjectPreference(ctx, projectID, created.ID, "Weekly digest", &newDescription, false)
+		updated, err := repo.UpdateProjectPreference(ctx, projectID, created.ID, "Weekly digest", &newDescription, false, false)
 		if err != nil {
 			t.Fatalf("update: %v", err)
 		}
@@ -122,7 +122,7 @@ func TestPreferenceCatalogCRUD(t *testing.T) {
 	})
 
 	t.Run("UpdateProjectPreference 404s for a recipient-level row's id", func(t *testing.T) {
-		if _, err := repo.UpdateProjectPreference(ctx, projectID, recipientRow.ID, "x", nil, true); err != tantraRepo.ErrNotFound {
+		if _, err := repo.UpdateProjectPreference(ctx, projectID, recipientRow.ID, "x", nil, true, false); err != tantraRepo.ErrNotFound {
 			t.Fatalf("catalog update reached a recipient row: got %v, want ErrNotFound", err)
 		}
 	})

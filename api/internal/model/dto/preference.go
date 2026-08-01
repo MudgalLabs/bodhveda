@@ -36,6 +36,9 @@ type ProjectPreference struct {
 	Target    Target `json:"target"`
 	Medium    string `json:"medium"`
 	Enabled   bool   `json:"default_enabled"`
+	// Mandatory marks an entry the recipient cannot opt out of. It is still gated
+	// by the entry's own default_enabled, so the project keeps a kill switch.
+	Mandatory bool   `json:"mandatory"`
 	Name      string `json:"name"`
 	// Description is optional; null when the catalog entry has no blurb.
 	Description *string   `json:"description"`
@@ -57,6 +60,10 @@ type CreateProjectPreferencePayload struct {
 	// features, and more."). Omitted or blank stores NULL.
 	Description string `json:"description"`
 	Enabled     bool   `json:"default_enabled"`
+	// Mandatory declares that recipients may not opt out of this entry — for
+	// transactional sends (password resets, security alerts, one-shot welcomes)
+	// that must still pass the strict-target gate. Defaults to false.
+	Mandatory bool `json:"mandatory"`
 }
 
 // normalizeDescription trims a request-supplied description and maps blank to
@@ -120,6 +127,8 @@ type UpdateProjectPreferencePayload struct {
 	// Description is optional; omitted or blank clears it (stores NULL).
 	Description string `json:"description"`
 	Enabled     bool   `json:"default_enabled"`
+	// Mandatory — see CreateProjectPreferencePayload.
+	Mandatory bool `json:"mandatory"`
 }
 
 func (p *UpdateProjectPreferencePayload) Validate() error {
@@ -157,6 +166,7 @@ func FromPreferenceForProject(e *entity.Preference) *ProjectPreference {
 		},
 		Medium:      e.Medium,
 		Enabled:     e.Enabled,
+		Mandatory:   e.Mandatory,
 		Name:        *e.Name,
 		Description: e.Description,
 		CreatedAt:   e.CreatedAt,
@@ -317,6 +327,11 @@ type ResolvedPreferenceState struct {
 	// It is context, NOT a gate: an explicit recipient row on an uncataloged
 	// pair still delivers.
 	Cataloged bool `json:"cataloged"`
+	// Mandatory means the recipient cannot opt out of this one. Unlike Cataloged
+	// this DOES decide Enabled — a mandatory catalog entry outranks the
+	// recipient's own row — so a settings screen must render the cell as locked.
+	// Writing a recipient preference for it is refused with a 400.
+	Mandatory bool `json:"mandatory"`
 }
 
 // ConsoleResolvedPreferenceState adds the cascade attribution the console's grid
@@ -367,6 +382,7 @@ func resolvedPreferenceState(e *entity.ResolvedPreference) ResolvedPreferenceSta
 		Enabled:   e.Enabled,
 		Inherited: e.Inherited(),
 		Cataloged: e.Cataloged,
+		Mandatory: e.Mandatory,
 	}
 }
 

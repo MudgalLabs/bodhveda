@@ -195,6 +195,17 @@ type CreateProjectPreferenceRequest struct {
 	// features, and more."). Omitted stores no description.
 	Description    string `json:"description,omitempty"`
 	DefaultEnabled bool   `json:"default_enabled"`
+	// Mandatory declares an entry recipients may NOT opt out of — transactional
+	// sends like password resets, security alerts or a one-shot welcome.
+	//
+	// It exists because the catalog is a gateway: an uncataloged target is
+	// rejected at send time, so a transactional notification must be cataloged,
+	// and anything cataloged would otherwise become opt-out-able. A mandatory
+	// entry is cataloged (so it sends) but its recipient toggle is refused.
+	//
+	// DefaultEnabled still applies — set it false to stop sending. Mandatory
+	// removes the RECIPIENT's choice, not yours.
+	Mandatory bool `json:"mandatory,omitempty"`
 }
 
 // UpdateProjectPreferenceRequest updates a catalog entry. The natural key
@@ -205,6 +216,8 @@ type UpdateProjectPreferenceRequest struct {
 	// Description is optional; omitted clears it.
 	Description    string `json:"description,omitempty"`
 	DefaultEnabled bool   `json:"default_enabled"`
+	// Mandatory — see CreateProjectPreferenceRequest.
+	Mandatory bool `json:"mandatory,omitempty"`
 }
 
 // UpsertProjectPreferenceItem is one item of a declarative bulk upsert — the same
