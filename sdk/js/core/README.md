@@ -326,21 +326,20 @@ Requires a `Full access` API key, and is a **server-side** concern. The project
 is taken from the API key.
 
 > [!IMPORTANT]
-> **The catalog is what makes routing work. Treat seeding it as a deploy step, not
-> a one-time setup task.**
+> **The catalog is a gate, so seeding it is a deploy step, not a one-time setup task.**
 >
-> `in_app` delivers whether or not it is cataloged. **Every other medium defaults to
-> OFF**, so cataloging a `(target, medium)` pair is what turns it on for everyone who
-> hasn't set a preference of their own — which is nearly everyone. Skip it and the
-> send is dropped with no error (see [Send with email](#send-with-email)). The failure
-> looks like this: you add an email-capable event, ship it, and email simply never
-> arrives. Nothing logs, nothing 400s, and the in-app half keeps working perfectly,
-> which is what makes it hard to spot.
+> A `(target, medium)` that isn't cataloged can't be sent at all — the send 400s and
+> writes nothing. Your desired catalog lives in your code and the real one lives in
+> Bodhveda, so the two drift the moment you ship an event and forget to update
+> Bodhveda to match.
 >
-> (The catalog is a default, not a gate — an explicit *recipient* rule wins the
-> cascade before the catalog is consulted, so an uncataloged target a recipient
-> explicitly enabled will still send. That's the exception, not the path your users
-> are on.)
+> Derive the array from whatever already defines your events, and run
+> [`upsertMany`](#set-up-a-whole-catalog-at-once) from your deploy pipeline on **every**
+> deploy. It is an idempotent merge, so a deploy that changes nothing is a no-op.
+>
+> Seed **before** the new code starts serving, and let a failed seed **fail the
+> deploy** — stopping leaves the previous version running, which only sends targets
+> that are already cataloged.
 >
 > Because the desired catalog lives in your code and the real one lives in Bodhveda,
 > the two drift the moment you ship an event and forget to re-run the seed. Keep them
