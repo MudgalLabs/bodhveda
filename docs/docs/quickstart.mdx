@@ -21,7 +21,7 @@ curl -X POST https://api.bodhveda.com/notifications/send \
   -H "Authorization: Bearer YOUR_API_KEY" \
   -H "Content-Type: application/json" \
   -d '{
-    "to": { "recipient_id": "recipient_123" },
+    "recipient_id": "recipient_123",
     "payload": { "title": "Welcome!", "message": "Thanks for joining." }
   }'
 ```
@@ -98,7 +98,7 @@ curl -X POST https://api.bodhveda.com/notifications/send \
   -H "Authorization: Bearer YOUR_API_KEY" \
   -H "Content-Type: application/json" \
   -d '{
-    "to": { "channel": "announcements", "topic": "product", "event": "new_feature" },
+    "target": { "channel": "announcements", "topic": "product", "event": "new_feature" },
     "payload": { "title": "Big News!", "message": "We just launched a new feature." }
   }'
 ```
