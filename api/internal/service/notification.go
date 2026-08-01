@@ -412,8 +412,13 @@ func (s *NotificationService) fanOutEmail(ctx context.Context, notification *ent
 	}
 	if !shouldDeliver {
 		// Distinguish "no catalog entry" from "explicitly disabled" for visibility.
+		//
+		// Since strict targets this is mostly unreachable — gateTarget rejects an
+		// uncataloged (target, email) at send time, so a notification that gets
+		// this far is already cataloged. It survives for the one send the gate
+		// does not cover: an UNTARGETED send, which names no target to check.
 		reason := "preference_disabled"
-		cataloged, cerr := s.preferenceRepo.DoesProjectPreferenceExist(ctx, projectID, target, enum.MediumEmail)
+		cataloged, _, cerr := s.preferenceRepo.LookupCatalogEntry(ctx, projectID, target, enum.MediumEmail)
 		if cerr == nil && !cataloged {
 			reason = "not_cataloged"
 		}

@@ -875,16 +875,6 @@ func (r *PreferenceRepo) LookupCatalogEntry(ctx context.Context, projectID int, 
 	return true, mandatory, nil
 }
 
-// DoesProjectPreferenceExist reports whether a (target, medium) is in the project
-// catalog, resolved with the same wildcard rules as LookupCatalogEntry.
-func (r *PreferenceRepo) DoesProjectPreferenceExist(ctx context.Context, projectID int, target dto.Target, medium enum.Medium) (bool, error) {
-	exists, _, err := r.LookupCatalogEntry(ctx, projectID, target, medium)
-	if err != nil {
-		return false, err
-	}
-
-	return exists, nil
-}
 
 // FilterEligibleRecipientsForBroadcast narrows a KNOWN set of recipients to those
 // eligible for a broadcast on `medium`.

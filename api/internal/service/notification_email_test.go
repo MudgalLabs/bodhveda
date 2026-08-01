@@ -18,14 +18,15 @@ type fakePrefRepo struct {
 	repository.PreferenceRepository
 	shouldDeliver bool
 	cataloged     bool
+	mandatory     bool
 }
 
 func (f *fakePrefRepo) ShouldDirectNotificationBeDelivered(ctx context.Context, projectID int, recipientExtID string, target dto.Target, medium enum.Medium) (bool, error) {
 	return f.shouldDeliver, nil
 }
 
-func (f *fakePrefRepo) DoesProjectPreferenceExist(ctx context.Context, projectID int, target dto.Target, medium enum.Medium) (bool, error) {
-	return f.cataloged, nil
+func (f *fakePrefRepo) LookupCatalogEntry(ctx context.Context, projectID int, target dto.Target, medium enum.Medium) (bool, bool, error) {
+	return f.cataloged, f.mandatory, nil
 }
 
 type fakeEmailSettingsRepo struct {

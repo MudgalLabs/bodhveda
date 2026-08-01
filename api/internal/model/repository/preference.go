@@ -15,7 +15,6 @@ type PreferenceRepository interface {
 }
 
 type PreferenceReader interface {
-	DoesProjectPreferenceExist(ctx context.Context, projectID int, target dto.Target, medium enum.Medium) (bool, error)
 	// LookupCatalogEntry resolves a (target, medium) against the catalog with the
 	// SAME wildcard rules the delivery cascade uses (a topic='any' row matches a
 	// concrete topic, except when the topic is literally 'none'), and reports

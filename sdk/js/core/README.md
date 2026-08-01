@@ -67,25 +67,27 @@ preference is enabled, and the recipient has a primary email
 [contact](#recipient-contacts).
 
 > [!IMPORTANT]
-> **When email doesn't resolve, it is dropped SILENTLY.** The send still returns `200`
-> with `status: "enqueued"` — nothing in the response says the email is not going to
-> happen. The usual cause is that the `(target, email)` pair was never cataloged:
-> email's medium default is OFF, so with no catalog entry and no explicit recipient
-> rule, nothing turns it on. `in_app` is the opposite — it delivers with no catalog
-> entry at all, so a project that never touches
-> [Project Preferences](#project-preferences) looks like it works right up until you
-> add your first email.
+> **You can only send a target you have cataloged.** The catalog is a gate: if no
+> project preference exists for the `(target, email)` pair, the send is rejected with
+> a `400` and nothing is written. The gate applies per medium to the mediums a send
+> actually asks for — a send carrying only `payload` needs an `in_app` entry, one
+> carrying `email` needs an `email` entry, one carrying both needs both.
 >
-> Diagnose it by reading the send back — `email.failure_reason` will be
-> `not_cataloged`:
+> A `topic: any` catalog entry satisfies the gate for every concrete topic beneath it,
+> so one entry covers an unbounded set of runtime-generated targets.
+>
+> Catalog the pair with [`upsertMany`](#set-up-a-whole-catalog-at-once), and run that
+> **before the new code starts serving**, on every deploy — otherwise code that sends a
+> target you haven't cataloged yet 400s on every notification.
+>
+> Once through the gate, email still needs the recipient's email preference enabled and
+> a primary email contact. Those resolve asynchronously, so read the outcome back
+> rather than inferring it from the send:
 >
 > ```typescript
 > const n = await bodhveda.notifications.get(res.notification.id);
 > console.log(n.email?.status, n.email?.failure_reason);
 > ```
->
-> The fix is to catalog the pair with [`upsertMany`](#set-up-a-whole-catalog-at-once),
-> and to run that **on every deploy** so the catalog can't drift behind your code.
 
 ```typescript
 const res = await bodhveda.notifications.send({
