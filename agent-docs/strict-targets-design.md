@@ -1,5 +1,40 @@
 # Strict targets — making the catalog a gateway
 
+> **SHIPPED 2026-08-01.** This document is kept as the reasoning record. Where the
+> proposal and the implementation differ, the implementation is right and the
+> differences are listed here.
+>
+> **What changed from the proposal:**
+>
+> 1. **No `strict_targets` flag (§3.2 is obsolete).** The flag existed to protect
+>    live integrations during migration. Measuring production settled it instead:
+>    Resurface was already fully cataloged, Grahak prod had sent zero
+>    notifications, and the only real breakage was Arthveda's welcome — which
+>    `mandatory` fixes directly. A flag nobody would ever set to `false` is a
+>    branch to maintain, not a safety net. Correct routing is the default because
+>    it is the only mode.
+> 2. **Open question §6.1 answered YES, on evidence.** A `topic='any'` catalog row
+>    DOES satisfy the gate. Not a lean — 8 production sends match only via the
+>    wildcard, all of them Grahak conversation replies. Exact-match gating would
+>    have 400'd the product's core function.
+> 3. **`mandatory` shipped in the SAME unit (§3.4 upheld).** It was load-bearing,
+>    not a follow-up: Arthveda's `marketing/none/welcome` is 796 production sends
+>    and is deliberately uncataloged. Without `mandatory` the gate would have
+>    broken it on day one.
+> 4. **A fourth thing had to ship with it, unforeseen by this doc.** The three
+>    broadcast audience queries matched the topic EXACTLY while the direct cascade
+>    honoured wildcards, so the same target resolved differently for a direct send
+>    and a broadcast. Latent before; the gate made it reachable. They now share one
+>    SQL fragment.
+> 5. **§6.4 (`rejected` outcome bucket) is moot.** The gate rejects before any row
+>    is written, so nothing lands in `suppressed`.
+>
+> **Still open:** an untargeted send (no `target` at all) is not gated, because it
+> names no target to check. Such notifications are also unmutable — the §2.1
+> problem in its purest form — but requiring a target on every send is a separate,
+> larger breaking change.
+
+
 **Status:** proposed, not built. Written 2026-07-30.
 **Origin:** came out of the delivery-feedback work (`delivery-feedback-design.md`) — building
 the delivery tree forced the question "does the catalog actually gate anything?" and the answer

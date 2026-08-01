@@ -2702,7 +2702,7 @@
             },
             "ProjectPreference": {
                 "type": "object",
-                "description": "A project-level preference — one entry in the project's **catalog**. The catalog declares which `(target, medium)` pairs the project may send and the default a recipient inherits until they set a preference of their own.",
+                "description": "A project-level preference — one entry in the project's **catalog**. The catalog is a GATE: a send whose `(target, medium)` has no entry here is rejected with `400`. Each entry also carries the default a recipient inherits until they set a preference of their own.",
                 "properties": {
                     "id": {
                         "type": "integer",
@@ -2726,9 +2726,19 @@
                         "type": "boolean",
                         "description": "The project-level default for this `(target, medium)`: whether a recipient who has set no preference of their own is delivered to."
                     },
-                    "label": {
+                    "name": {
                         "type": "string",
-                        "description": "Human-readable label for the catalog entry."
+                        "description": "Human-readable name for the catalog entry (e.g. \"Weekly digest\")."
+                    },
+                    "description": {
+                        "type": "string",
+                        "description": "Optional longer blurb shown alongside the name on a settings screen. Omitted or blank stores none.",
+                        "nullable": true
+                    },
+                    "mandatory": {
+                        "type": "boolean",
+                        "description": "Whether recipients may opt out. A mandatory entry is cataloged (so sends pass the target gate) but its recipient toggle is refused with a `400`, and any rule a recipient already had is ignored. For transactional notifications — password resets, security alerts, a one-shot welcome. `default_enabled` still applies, so setting it `false` stops the notification: mandatory removes the recipient's choice, not yours. Defaults to `false`.",
+                        "default": false
                     },
                     "created_at": {
                         "type": "string",
@@ -2764,36 +2774,55 @@
                         ],
                         "default": "in_app"
                     },
-                    "label": {
+                    "name": {
                         "type": "string",
-                        "description": "Human-readable label."
+                        "description": "Human-readable name for the catalog entry (e.g. \"Weekly digest\")."
                     },
                     "default_enabled": {
                         "type": "boolean",
                         "description": "The project-level default for recipients who have set no preference of their own."
+                    },
+                    "description": {
+                        "type": "string",
+                        "description": "Optional longer blurb shown alongside the name on a settings screen. Omitted or blank stores none."
+                    },
+                    "mandatory": {
+                        "type": "boolean",
+                        "description": "Whether recipients may opt out. A mandatory entry is cataloged (so sends pass the target gate) but its recipient toggle is refused with a `400`, and any rule a recipient already had is ignored. For transactional notifications — password resets, security alerts, a one-shot welcome. `default_enabled` still applies, so setting it `false` stops the notification: mandatory removes the recipient's choice, not yours. Defaults to `false`.",
+                        "default": false
                     }
                 },
                 "required": [
                     "channel",
                     "topic",
                     "event",
-                    "label",
+                    "name",
                     "default_enabled"
                 ]
             },
             "UpdateProjectPreferencePayload": {
                 "type": "object",
-                "description": "Updates a catalog entry's label and default. The natural key (`channel`/`topic`/`event`/`medium`) is immutable.",
+                "description": "Updates a catalog entry's name, description, default and mandatory flag. The natural key (`channel`/`topic`/`event`/`medium`) is immutable.",
                 "properties": {
-                    "label": {
-                        "type": "string"
+                    "name": {
+                        "type": "string",
+                        "description": "Human-readable name for the catalog entry (e.g. \"Weekly digest\")."
                     },
                     "default_enabled": {
                         "type": "boolean"
+                    },
+                    "description": {
+                        "type": "string",
+                        "description": "Optional longer blurb shown alongside the name on a settings screen. Omitted or blank stores none."
+                    },
+                    "mandatory": {
+                        "type": "boolean",
+                        "description": "Whether recipients may opt out. A mandatory entry is cataloged (so sends pass the target gate) but its recipient toggle is refused with a `400`, and any rule a recipient already had is ignored. For transactional notifications — password resets, security alerts, a one-shot welcome. `default_enabled` still applies, so setting it `false` stops the notification: mandatory removes the recipient's choice, not yours. Defaults to `false`.",
+                        "default": false
                     }
                 },
                 "required": [
-                    "label",
+                    "name",
                     "default_enabled"
                 ]
             },

@@ -10,6 +10,10 @@ Send a **direct** notification to a specific recipient or send a **broadcast** t
 
 A send must carry **at least one content block** — `payload` for in-app, `email` for email. Omitting both returns a `400`, since such a send names no medium.
 
+<Warning>
+    **The target must be cataloged.** If your project has no project-level preference for the `(target, medium)` a send is asking for, the request is rejected with `400` and nothing is written — for direct and broadcast alike. A `topic: any` catalog entry satisfies the gate for every concrete topic beneath it. See [the catalog is a gate](/docs/concepts/preferences#the-catalog-is-a-gate).
+</Warning>
+
 <Note>
     Sending is **asynchronous**. A direct send returns as soon as the notification is accepted — the response carries the notification `id` with `status: "enqueued"`. Preference gating, quota, and email are all resolved by a background worker. Read the resolved outcome back with [retrieve a notification](/api-reference/endpoint/notifications/get-notification).
 </Note>
@@ -18,9 +22,9 @@ A send must carry **at least one content block** — `payload` for in-app, `emai
 
 Include the optional typed `email` block (`subject`, `html`, `text`) to also send an **email**. Its presence is your "email is eligible" signal — omit it and no email is sent (there is no fallback that derives an email from `payload`). See [mediums](/docs/concepts/mediums) for the full model.
 
--   **Direct sends only.** An `email` block on a broadcast returns `400`.
+-   **Broadcast email is capped.** A broadcast carrying an `email` block fans out to eligible recipients up to the project's `max_broadcast_recipients_for_email`. Exceeding the cap **blocks email entirely** rather than mailing an arbitrary subset — a truncated blast looks like it worked.
 -   **No templating.** You render the subject/HTML/text yourself (e.g. with `@react-email`) and pass the result. `text` is optional and derived from `html` when omitted.
--   Email fires only when the `(target, email)` pair is cataloged, the recipient's email preference is enabled, and the recipient has a **primary email** [contact](/api-reference/endpoint/recipients/contacts/create-contact). Otherwise the send still succeeds and the email is skipped.
+-   Past the gate, email fires only when the recipient's email preference is enabled and they have a **primary email** [contact](/api-reference/endpoint/recipients/contacts/create-contact). Otherwise the send still succeeds and the email is skipped.
 -   The email is delivered by a background worker, so its outcome is **not** on the send response. Read it back on the notification's `email` field via [retrieve a notification](/api-reference/endpoint/notifications/get-notification).
 
 ## Email without an in-app notification

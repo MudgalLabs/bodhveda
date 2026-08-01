@@ -25,6 +25,8 @@
 
 -   **Channel / Topic / Event Targeting** - Target recipients, respect preferences, and get analytics.
 
+-   **A Catalog That Actually Gates** - Your project declares the targets it can send. Send one it hasn't declared and you get a `400`, not a silent no-op — so a typo'd event name is a bug you catch on the first call instead of the week someone asks why they were never notified. Wildcard (`topic: any`) entries cover unbounded per-resource targets, and `mandatory` entries keep password resets and security alerts un-mutable.
+
 -   **Recipient Preferences** - Let recipients opt in/out of notifications.
 
 -   **Inbox-like API** - Fetch notifications, update opened & read status, delete, just like a modern inbox.
