@@ -147,3 +147,31 @@ export interface UpsertRecipientPreferencePayload {
     medium: PreferenceMedium;
     enabled: boolean;
 }
+
+/**
+ * One (target, medium) this project has sent but never cataloged — a send that
+ * strict targets would have rejected.
+ */
+export interface UncatalogedTarget {
+    channel: string;
+    topic: string;
+    event: string;
+    medium: PreferenceMedium;
+    /** Sends in the window that named it. A broadcast counts once, not once per recipient. */
+    sends: number;
+    last_sent_at: string;
+}
+
+/**
+ * What strict targets would reject for this project, over a trailing window.
+ *
+ * This is the reason the setting is findable at all: it defaults to off, and a
+ * flag nobody discovers is a flag nobody enables. It also reads usefully for a
+ * project that never intends to turn the gate on, because an uncataloged target
+ * has no preference surface — recipients can't see it, so they can't mute it.
+ */
+export interface CatalogDriftResult {
+    since: string;
+    total_sends: number;
+    targets: UncatalogedTarget[];
+}

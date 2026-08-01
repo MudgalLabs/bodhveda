@@ -11,9 +11,9 @@ A **target** defines _who should get a notification_ and _how it should be categ
 
 Targets are used for both sending notifications and managing recipient preferences.
 
-<Warning>
-    **You can only send a target your project has cataloged.** A send whose `(target, medium)` has no project-level preference is rejected with `400`. See [the catalog is a gate](/docs/concepts/preferences#the-catalog-is-a-gate).
-</Warning>
+<Note>
+    You can send any target out of the box. Giving a target a project-level preference — **cataloging** it — is what puts it on your recipients' settings screen so they can mute it. Once your catalog is stable you can turn on [strict targets](/docs/concepts/preferences#strict-targets) and an uncataloged target becomes a `400` instead.
+</Note>
 
 #### `any` and `none` have special meaning:
 
@@ -23,4 +23,4 @@ Targets are used for both sending notifications and managing recipient preferenc
 
 A preference with the target `posts:any:new_comment` will match a notification with target `posts:post_id_123:new_comment`, but a preference with the target `posts:none:new_comment` will **only** match a notification with target `posts:none:new_comment`.
 
-This applies to the catalog gate too, which is what makes per-resource targets practical: catalog `posts:any:new_comment` once and every `posts:post_id_123:new_comment` you send passes, however many post ids there turn out to be.
+This applies to [strict targets](/docs/concepts/preferences#strict-targets) too, which is what makes per-resource targets practical: catalog `posts:any:new_comment` once and every `posts:post_id_123:new_comment` you send passes, however many post ids there turn out to be. One entry per post id is never the answer.

@@ -3,6 +3,7 @@ package pg
 import (
 	"context"
 	"fmt"
+	"time"
 
 	"github.com/jackc/pgx/v5"
 	"github.com/jackc/pgx/v5/pgxpool"
@@ -830,6 +831,26 @@ func (r *PreferenceRepo) Delete(ctx context.Context, projectID int, preferenceID
 	return nil
 }
 
+// catalogMatch is the "is this (target, medium) cataloged" predicate, written
+// once and taking its four operands as SQL expressions so the same rule can be
+// bound to placeholders in one query and to correlated columns in another.
+//
+// Two queries need it and they must never disagree: the strict-target gate
+// (LookupCatalogEntry) and the drift report (ListUncatalogedSentTargets), which
+// exists precisely to tell a project what the gate WOULD reject. A report built
+// on a stricter or looser rule than the gate would list targets that sending
+// actually accepts, or hide ones it does not — and the whole point of the report
+// is that someone trusts it enough to turn the gate on.
+//
+// Callers supply project scoping and the recipient_external_id IS NULL clause
+// themselves; this is only the target half.
+func catalogMatch(channelExpr, topicExpr, eventExpr, mediumExpr string) string {
+	return fmt.Sprintf(
+		`channel = %s AND event = %s AND medium = %s AND (topic = %s OR (topic = 'any' AND %s != 'none'))`,
+		channelExpr, eventExpr, mediumExpr, topicExpr, topicExpr,
+	)
+}
+
 // LookupCatalogEntry resolves a (target, medium) against the project catalog the
 // SAME way the delivery cascade does, and reports whether it is cataloged and
 // whether that entry is mandatory. It is the primitive the strict-target gate is
@@ -857,10 +878,7 @@ func (r *PreferenceRepo) LookupCatalogEntry(ctx context.Context, projectID int, 
 		FROM preference
 		WHERE project_id = $1
 		  AND recipient_external_id IS NULL
-		  AND channel = $2
-		  AND event = $4
-		  AND medium = $5
-		  AND (topic = $3 OR (topic = 'any' AND $3 != 'none'))
+		  AND ` + catalogMatch("$2", "$3", "$4", "$5") + `
 		ORDER BY (topic = $3) DESC
 		LIMIT 1;
 	`
@@ -877,6 +895,97 @@ func (r *PreferenceRepo) LookupCatalogEntry(ctx context.Context, projectID int, 
 	return true, mandatory, nil
 }
 
+
+// ListUncatalogedSentTargets reports every (target, medium) this project has
+// actually sent since `since` that its catalog does not cover — the sends that
+// would have been REJECTED if strict targets were on.
+//
+// ⚠️ This is what makes the setting findable. Strict targets defaults to off, and
+// a flag nobody discovers is a flag nobody enables. "14 sends last week named
+// targets you haven't cataloged" is the thing that makes someone turn it on, and
+// it doubles as the pre-flight check that keeps enabling it from being a blind
+// switch — the design note (§3.2, §4) asked for exactly that.
+//
+// ⚠️ Derived from the sends themselves rather than from a counter incremented on
+// the send path. A counter would only know about sends made after it shipped;
+// this answers for all of history, works retroactively for projects that never
+// enable the gate, and adds nothing to the hot path.
+//
+// What counts as "a send asking for a medium" mirrors the gate's own view:
+//
+//   - a direct notification with a payload asked for in_app (a NULL payload means
+//     an email-only send — see sendDirectNotification);
+//   - a direct notification with an email delivery row asked for email;
+//   - a broadcast always asks for in_app (broadcast.payload is NOT NULL), and
+//     asks for email when it carries a subject.
+//
+// Untargeted sends are excluded: they store empty channel/topic/event, they name
+// no target, and the gate never touches them regardless of the setting.
+func (r *PreferenceRepo) ListUncatalogedSentTargets(ctx context.Context, projectID int, since time.Time) ([]*entity.UncatalogedTarget, error) {
+	sql := `
+		WITH sends AS (
+			SELECT n.channel, n.topic, n.event, 'in_app' AS medium, n.created_at
+			FROM notification n
+			WHERE n.project_id = $1 AND n.created_at >= $2
+			  AND n.broadcast_id IS NULL AND n.payload IS NOT NULL
+
+			UNION ALL
+
+			SELECT n.channel, n.topic, n.event, 'email' AS medium, n.created_at
+			FROM notification n
+			WHERE n.project_id = $1 AND n.created_at >= $2
+			  AND n.broadcast_id IS NULL
+			  AND EXISTS (
+				  SELECT 1 FROM notification_delivery d
+				  WHERE d.notification_id = n.id AND d.medium = 'email'
+			  )
+
+			UNION ALL
+
+			SELECT b.channel, b.topic, b.event, 'in_app' AS medium, b.created_at
+			FROM broadcast b
+			WHERE b.project_id = $1 AND b.created_at >= $2
+
+			UNION ALL
+
+			SELECT b.channel, b.topic, b.event, 'email' AS medium, b.created_at
+			FROM broadcast b
+			WHERE b.project_id = $1 AND b.created_at >= $2 AND b.email_subject IS NOT NULL
+		)
+		SELECT s.channel, s.topic, s.event, s.medium, COUNT(*), MAX(s.created_at)
+		FROM sends s
+		WHERE s.channel != ''
+		  AND NOT EXISTS (
+			  SELECT 1 FROM preference p
+			  WHERE p.project_id = $1
+				AND p.recipient_external_id IS NULL
+				AND p.` + catalogMatch("s.channel", "s.topic", "s.event", "s.medium") + `
+		  )
+		GROUP BY s.channel, s.topic, s.event, s.medium
+		ORDER BY COUNT(*) DESC, MAX(s.created_at) DESC;
+	`
+
+	rows, err := r.db.Query(ctx, sql, projectID, since)
+	if err != nil {
+		return nil, fmt.Errorf("query: %w", err)
+	}
+	defer rows.Close()
+
+	targets := []*entity.UncatalogedTarget{}
+	for rows.Next() {
+		var t entity.UncatalogedTarget
+		if err := rows.Scan(&t.Channel, &t.Topic, &t.Event, &t.Medium, &t.Sends, &t.LastSentAt); err != nil {
+			return nil, fmt.Errorf("scan: %w", err)
+		}
+		targets = append(targets, &t)
+	}
+
+	if err := rows.Err(); err != nil {
+		return nil, fmt.Errorf("rows: %w", err)
+	}
+
+	return targets, nil
+}
 
 // FilterEligibleRecipientsForBroadcast narrows a KNOWN set of recipients to those
 // eligible for a broadcast on `medium`.

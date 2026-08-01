@@ -122,7 +122,8 @@ func Init() {
 	recipientContactService := service.NewRecipientContactService(recipientContactRepository, recipientRepository)
 	notificationService := service.NewNotificationService(notificationRepository, recipientRepository,
 		preferenceRepository, broadcastRepository, broadcastBatchRepository, notificationDeliveryRepository,
-		recipientContactRepository, projectEmailSettingsRepository, billingService, recipientService, ASYNQCLIENT)
+		recipientContactRepository, projectEmailSettingsRepository, projectRepository,
+		billingService, recipientService, ASYNQCLIENT)
 	projectService := service.NewProjectService(projectRepository, notificationService, recipientService, ASYNQCLIENT)
 	projectEmailSettingsService := service.NewProjectEmailSettingsService(projectEmailSettingsRepository)
 	emailWebhookService := service.NewEmailWebhookService(projectEmailSettingsRepository, notificationDeliveryRepository, webhookEventRepository, preferenceService)

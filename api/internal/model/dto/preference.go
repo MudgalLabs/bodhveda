@@ -285,6 +285,56 @@ func FromProjectPreferenceList(list []*entity.ProjectPreferenceListItem) []*Proj
 	return DTOs
 }
 
+// UncatalogedTarget is one (target, medium) the project sent but never
+// cataloged — a send strict targets would have rejected.
+type UncatalogedTarget struct {
+	Target
+	Medium     string    `json:"medium"`
+	Sends      int       `json:"sends"`
+	LastSentAt time.Time `json:"last_sent_at"`
+}
+
+// CatalogDriftResult answers "what would strict targets have rejected?" for a
+// project, over a window.
+//
+// ⚠️ TotalSends is deliberately a sum over the listed targets rather than a
+// separate count query: the number and the list must never tell different
+// stories, since the whole purpose is to be trusted enough that someone turns
+// the gate on.
+type CatalogDriftResult struct {
+	// Since is the start of the window, so a caller rendering "N sends last week"
+	// does not have to assume what the window was.
+	Since time.Time `json:"since"`
+	// TotalSends is the number of sends in the window that named an uncataloged
+	// (target, medium). Zero means turning strict targets on would reject nothing
+	// this project is currently doing.
+	TotalSends int                  `json:"total_sends"`
+	Targets    []*UncatalogedTarget `json:"targets"`
+}
+
+func FromUncatalogedTargets(since time.Time, list []*entity.UncatalogedTarget) *CatalogDriftResult {
+	result := &CatalogDriftResult{
+		Since:   since,
+		Targets: []*UncatalogedTarget{},
+	}
+
+	for _, t := range list {
+		result.TotalSends += t.Sends
+		result.Targets = append(result.Targets, &UncatalogedTarget{
+			Target: Target{
+				Channel: t.Channel,
+				Topic:   t.Topic,
+				Event:   t.Event,
+			},
+			Medium:     t.Medium,
+			Sends:      t.Sends,
+			LastSentAt: t.LastSentAt,
+		})
+	}
+
+	return result
+}
+
 type PreferenceTarget struct {
 	Target
 	Medium string `json:"medium"`

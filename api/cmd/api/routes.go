@@ -199,6 +199,7 @@ func initRouter() http.Handler {
 				// Ensure that the user owns the project before allowing access to the routes.
 				r.Use(middleware.VerifyUserOwnsThisProject)
 
+				r.Get("/", handler.GetProject(app.APP.Service.Project))
 				r.Patch("/", handler.UpdateProject(app.APP.Service.Project))
 				r.Delete("/", handler.DeleteProject(app.APP.Service.Project))
 
@@ -239,6 +240,12 @@ func initRouter() http.Handler {
 				r.Route("/preferences", func(r chi.Router) {
 					r.Get("/", handler.ListPreferences(app.APP.Service.Preference))
 					r.Post("/", handler.CreateProjectPreference(app.APP.Service.Preference))
+
+					// Mounted BEFORE /{preference_id} — chi matches static
+					// segments first regardless, but keeping the order explicit
+					// avoids the next reader wondering whether "drift" can be
+					// swallowed as a preference id.
+					r.Get("/drift", handler.CatalogDrift(app.APP.Service.Preference))
 
 					r.Route("/{preference_id}", func(r chi.Router) {
 						r.Patch("/", handler.UpdateProjectPreference(app.APP.Service.Preference))

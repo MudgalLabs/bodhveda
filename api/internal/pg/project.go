@@ -24,27 +24,54 @@ func NewProjectRepo(db *pgxpool.Pool) repository.ProjectRepository {
 	}
 }
 
-func (r *ProjectRepo) Create(ctx context.Context, project *entity.Project) (*entity.Project, error) {
-	sql := `
-		INSERT INTO project (user_id, name, created_at, updated_at)
-		VALUES ($1, $2, $3, $4)
-		RETURNING id, user_id, name, created_at, updated_at
-	`
-	row := r.db.QueryRow(ctx, sql, project.UserID, project.Name, project.CreatedAt, project.UpdatedAt)
+// projectColumns is the one place the projection is written. Every read below
+// scans it in this order via scanProject.
+const projectColumns = `id, user_id, name, strict_targets, created_at, updated_at`
 
+type scannable interface {
+	Scan(dest ...any) error
+}
+
+func scanProject(row scannable) (*entity.Project, error) {
 	var p entity.Project
-
-	err := row.Scan(&p.ID, &p.UserID, &p.Name, &p.CreatedAt, &p.UpdatedAt)
+	err := row.Scan(&p.ID, &p.UserID, &p.Name, &p.StrictTargets, &p.CreatedAt, &p.UpdatedAt)
 	if err != nil {
 		return nil, err
 	}
-
 	return &p, nil
+}
+
+func (r *ProjectRepo) Create(ctx context.Context, project *entity.Project) (*entity.Project, error) {
+	sql := `
+		INSERT INTO project (user_id, name, strict_targets, created_at, updated_at)
+		VALUES ($1, $2, $3, $4, $5)
+		RETURNING ` + projectColumns
+	row := r.db.QueryRow(ctx, sql, project.UserID, project.Name, project.StrictTargets, project.CreatedAt, project.UpdatedAt)
+
+	return scanProject(row)
+}
+
+func (r *ProjectRepo) Get(ctx context.Context, projectID int) (*entity.Project, error) {
+	sql := `
+		SELECT ` + projectColumns + `
+		FROM project
+		WHERE id = $1 AND deleted_at IS NULL
+	`
+
+	p, err := scanProject(r.db.QueryRow(ctx, sql, projectID))
+	if err != nil {
+		if err == pgx.ErrNoRows {
+			return nil, tantraRepo.ErrNotFound
+		}
+		return nil, err
+	}
+
+	return p, nil
 }
 
 func (r *ProjectRepo) List(ctx context.Context, userID int) ([]*entity.Project, error) {
 	sql := `
-		SELECT id, user_id, name, created_at, updated_at
+		SELECT ` + projectColumns + `
 		FROM project
 		WHERE user_id = $1 AND deleted_at IS NULL
 		ORDER BY created_at DESC
@@ -58,12 +85,11 @@ func (r *ProjectRepo) List(ctx context.Context, userID int) ([]*entity.Project, 
 
 	projects := []*entity.Project{}
 	for rows.Next() {
-		var p entity.Project
-		err := rows.Scan(&p.ID, &p.UserID, &p.Name, &p.CreatedAt, &p.UpdatedAt)
+		p, err := scanProject(rows)
 		if err != nil {
 			return nil, err
 		}
-		projects = append(projects, &p)
+		projects = append(projects, p)
 	}
 
 	if err := rows.Err(); err != nil {
@@ -73,17 +99,21 @@ func (r *ProjectRepo) List(ctx context.Context, userID int) ([]*entity.Project, 
 	return projects, nil
 }
 
-func (r *ProjectRepo) Update(ctx context.Context, userID, projectID int, name string) (*entity.Project, error) {
+// Update is a PARTIAL update: a nil field means "not supplied", and the stored
+// value is kept. Writing the zero value instead would let a rename silently turn
+// strict targets off — the same bug that had to be fixed for preference.mandatory
+// (COALESCE below is the same remedy).
+func (r *ProjectRepo) Update(ctx context.Context, userID, projectID int, name string, strictTargets *bool) (*entity.Project, error) {
 	sql := `
-		UPDATE project SET name = $1, updated_at = $2
-		WHERE user_id = $3 AND id = $4 AND deleted_at IS NULL
-		RETURNING id, user_id, name, created_at, updated_at
-	`
-	row := r.db.QueryRow(ctx, sql, name, time.Now().UTC(), userID, projectID)
+		UPDATE project
+		SET name = $1,
+		    strict_targets = COALESCE($2, strict_targets),
+		    updated_at = $3
+		WHERE user_id = $4 AND id = $5 AND deleted_at IS NULL
+		RETURNING ` + projectColumns
+	row := r.db.QueryRow(ctx, sql, name, strictTargets, time.Now().UTC(), userID, projectID)
 
-	var p entity.Project
-
-	err := row.Scan(&p.ID, &p.UserID, &p.Name, &p.CreatedAt, &p.UpdatedAt)
+	p, err := scanProject(row)
 	if err != nil {
 		if err == pgx.ErrNoRows {
 			return nil, tantraRepo.ErrNotFound
@@ -91,7 +121,7 @@ func (r *ProjectRepo) Update(ctx context.Context, userID, projectID int, name st
 		return nil, err
 	}
 
-	return &p, nil
+	return p, nil
 }
 
 func (r *ProjectRepo) UserOwns(ctx context.Context, userID, projectID int) (bool, error) {

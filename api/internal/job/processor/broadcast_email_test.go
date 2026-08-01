@@ -23,7 +23,7 @@ func emailTestService(pool *pgxpool.Pool) *service.NotificationService {
 		pg.NewNotificationRepo(pool), pg.NewRecipientRepo(pool), pg.NewPreferenceRepo(pool),
 		pg.NewBroadcastRepo(pool), pg.NewBroadcastBatchRepo(pool),
 		pg.NewNotificationDeliveryRepo(pool), pg.NewRecipientContactRepo(pool),
-		pg.NewProjectEmailSettingsRepo(pool),
+		pg.NewProjectEmailSettingsRepo(pool), pg.NewProjectRepo(pool),
 		nil, nil, nil,
 	)
 }

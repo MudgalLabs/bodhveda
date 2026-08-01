@@ -49,6 +49,25 @@ func ListProjects(s *service.ProjectService) http.HandlerFunc {
 	}
 }
 
+func GetProject(s *service.ProjectService) http.HandlerFunc {
+	return func(w http.ResponseWriter, r *http.Request) {
+		ctx := r.Context()
+		projectID, err := httpx.ParamInt(r, "project_id")
+		if err != nil {
+			httpx.BadRequestResponse(w, r, errors.New("Invalid project ID"))
+			return
+		}
+
+		result, errKind, err := s.Get(ctx, projectID)
+		if err != nil {
+			httpx.ServiceErrResponse(w, r, errKind, err)
+			return
+		}
+
+		httpx.SuccessResponse(w, r, http.StatusOK, "", result)
+	}
+}
+
 func UpdateProject(s *service.ProjectService) http.HandlerFunc {
 	return func(w http.ResponseWriter, r *http.Request) {
 		ctx := r.Context()

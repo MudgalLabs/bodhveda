@@ -10,7 +10,7 @@ import {
     IconSlidersHorizontal,
     IconDashboard,
     IconBell,
-    IconSend,
+    IconSettings,
     useSidebar,
     SidebarItem,
     useIsMobile,
@@ -155,8 +155,8 @@ export const Sidebar = () => {
                         className="link-unstyled "
                     >
                         <SidebarItem
-                            label="Email"
-                            icon={<IconSend size={18} />}
+                            label="Settings"
+                            icon={<IconSettings size={18} />}
                             open={isOpen}
                             isActive={
                                 activeRoute === `/projects/${id}/settings`

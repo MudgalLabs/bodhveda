@@ -7,6 +7,7 @@ import {
 import { client, API_ROUTES, APIRes } from "@/lib/api";
 import {
     ProjectPreference,
+    CatalogDriftResult,
     CreateProjectPreferencePayload,
     UpdateProjectPreferencePayload,
     PreferenceKind,
@@ -14,6 +15,17 @@ import {
     RecipientPreferenceTargetStatesResult,
     UpsertRecipientPreferencePayload,
 } from "@/features/preference/preference_type";
+
+// useGetCatalogDrift reads the targets this project has sent but not cataloged.
+// Its cache key is separate from the preference list so that seeding a catalog
+// entry and re-reading drift are two independent refreshes.
+export function useGetCatalogDrift(projectID: string) {
+    return useQuery({
+        queryKey: ["useGetCatalogDrift", projectID],
+        queryFn: () => client.get(API_ROUTES.project.preferences.drift(projectID)),
+        select: (res) => res.data as APIRes<CatalogDriftResult>,
+    });
+}
 
 export function useGetPreferences(projectID: string, kind: PreferenceKind) {
     return useQuery({

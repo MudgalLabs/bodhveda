@@ -78,20 +78,24 @@ preference is enabled, and the recipient has a primary email
 [contact](#recipient-contacts).
 
 > [!IMPORTANT]
-> **You can only send a target you have cataloged.** The catalog is a gate: if no
-> project preference exists for the `(target, email)` pair, the send is rejected with
-> a `400` and nothing is written. The gate applies per medium to the mediums a send
-> actually asks for — a send carrying only `Payload` needs an `in_app` entry, one
-> carrying `Email` needs an `email` entry, one carrying both needs both.
+> **Email needs the `(target, email)` pair cataloged** — not because of a gate, but
+> because `email` is not a medium anything defaults to. Without a project preference
+> for the pair, the email resolves to not-delivered and the delivery row records
+> `not_cataloged`. Catalog it with
+> [`UpsertMany`](#set-up-a-whole-catalog-at-once).
 >
-> A `topic: any` catalog entry satisfies the gate for every concrete topic beneath it,
-> so one entry covers an unbounded set of runtime-generated targets.
+> A `topic: any` catalog entry covers every concrete topic beneath it, so one entry
+> covers an unbounded set of runtime-generated targets — you never need one entry per
+> resource id.
 >
-> Catalog the pair with [`UpsertMany`](#set-up-a-whole-catalog-at-once), and run that
-> **before the new code starts serving**, on every deploy — otherwise code that sends a
-> target you haven't cataloged yet 400s on every notification.
+> If your project has **strict targets** turned on (a per-project setting, off by
+> default), an uncataloged pair is a `400` at send time instead: the send is rejected
+> and nothing is written. The check applies per medium to the mediums a send actually
+> asks for — a send carrying only `Payload` needs an `in_app` entry, one carrying
+> `Email` needs an `email` entry, one carrying both needs both. With it on, seed the
+> catalog **before the new code starts serving**, on every deploy.
 >
-> Once through the gate, email still needs the recipient's email preference enabled and
+> Cataloged or not, email still needs the recipient's email preference enabled and
 > a primary email contact. Those resolve asynchronously, so read the outcome back
 > rather than inferring it from the send:
 >
@@ -368,26 +372,21 @@ All catalog methods require a `Full access` API key — the catalog defines what
 whole project may send, so it has no place on a recipient-scoped key.
 
 > [!IMPORTANT]
-> **The catalog is a gate, so seeding it is a deploy step, not a one-time setup task.**
+> **Seed the catalog from your deploy, not by hand.**
 >
-> A `(target, medium)` that isn't cataloged can't be sent at all — the send 400s and
-> writes nothing. Your desired catalog lives in your code and the real one lives in
-> Bodhveda, so the two drift the moment you ship an event and forget to update
-> Bodhveda to match.
+> Your desired catalog lives in your code and the real one lives in Bodhveda, so the
+> two drift the moment you ship an event and forget to update Bodhveda to match. An
+> uncataloged target has no preference surface — it appears on no settings screen, so
+> no recipient can mute it — and email to it never sends at all.
 >
 > Derive the slice from whatever already defines your events, and run
 > [`UpsertMany`](#set-up-a-whole-catalog-at-once) from your deploy pipeline on **every**
 > deploy. It is an idempotent merge, so a deploy that changes nothing is a no-op.
 >
-> Seed **before** the new code starts serving, and let a failed seed **fail the
-> deploy** — stopping leaves the previous version running, which only sends targets
-> that are already cataloged.
->
-> Because the desired catalog lives in your code and the real one lives in Bodhveda,
-> the two drift the moment you ship an event and forget to re-run the seed. Keep them
-> honest by deriving the slice from your app's event definitions and running
-> [`UpsertMany`](#set-up-a-whole-catalog-at-once) from your deploy pipeline. It is an
-> idempotent merge, so running it on every deploy costs nothing when nothing changed.
+> This matters more once **strict targets** is on for the project: an uncataloged
+> target then 400s outright. Seed **before** the new code starts serving, and let a
+> failed seed **fail the deploy** — stopping leaves the previous version running, which
+> only sends targets that are already cataloged.
 
 ### List the catalog
 

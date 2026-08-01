@@ -10,6 +10,7 @@ export const API_ROUTES = {
     project: {
         list: "/console/projects",
         create: "/console/projects",
+        get: (id: string | number) => `/console/projects/${id}`,
         update: (id: string | number) => `/console/projects/${id}`,
         delete: (id: string | number) => `/console/projects/${id}`,
 
@@ -123,6 +124,10 @@ export const API_ROUTES = {
                 `/console/projects/${projectId}/preferences/${prefenceID}`,
             delete: (projectId: string | number, prefenceID: number) =>
                 `/console/projects/${projectId}/preferences/${prefenceID}`,
+            // Targets this project has sent but never cataloged — what strict
+            // targets would reject. Drives the settings pre-flight.
+            drift: (projectId: string | number) =>
+                `/console/projects/${projectId}/preferences/drift`,
         },
 
         email_settings: {

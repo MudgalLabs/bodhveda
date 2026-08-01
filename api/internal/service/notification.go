@@ -32,6 +32,7 @@ type NotificationService struct {
 	deliveryRepo       repository.NotificationDeliveryRepository
 	contactRepo        repository.RecipientContactRepository
 	projectEmailRepo   repository.ProjectEmailSettingsRepository
+	projectRepo        repository.ProjectReader
 
 	billingService   *BillingService
 	recipientService *RecipientService
@@ -45,6 +46,7 @@ func NewNotificationService(
 	broadcastBatchRepo repository.BroadcastBatchRepository,
 	deliveryRepo repository.NotificationDeliveryRepository, contactRepo repository.RecipientContactRepository,
 	projectEmailRepo repository.ProjectEmailSettingsRepository,
+	projectRepo repository.ProjectReader,
 	billingService *BillingService, recipientService *RecipientService,
 	asynqClient *asynq.Client,
 ) *NotificationService {
@@ -57,6 +59,7 @@ func NewNotificationService(
 		deliveryRepo:       deliveryRepo,
 		contactRepo:        contactRepo,
 		projectEmailRepo:   projectEmailRepo,
+		projectRepo:        projectRepo,
 
 		billingService:   billingService,
 		recipientService: recipientService,
@@ -73,8 +76,9 @@ func (s *NotificationService) Send(ctx context.Context, userID int, payload dto.
 
 	result := &dto.SendNotificationResult{}
 
-	// The catalog is a GATEWAY: every medium this send asks for must be cataloged
-	// for the target, or nothing is written at all. See gateTarget.
+	// When the project has strict targets on, the catalog is a GATEWAY: every
+	// medium this send asks for must be cataloged for the target, or nothing is
+	// written at all. Off (the default), this is a no-op. See gateTarget.
 	if svcErr, err := s.gateTarget(ctx, payload.ProjectID, payload.Target, payload.RequestedMediums()); err != nil {
 		return nil, "", svcErr, err
 	}
@@ -106,11 +110,31 @@ func (s *NotificationService) Send(ctx context.Context, userID int, payload dto.
 	return result, message, service.ErrNone, nil
 }
 
-// gateTarget enforces strict targets: a send may only name a target the project
-// has cataloged, for every medium it is asking for.
+// gateTarget enforces strict targets: when the project has the setting ON, a
+// send may only name a target the project has cataloged, for every medium it is
+// asking for.
 //
-// ⚠️ THIS REJECTS. It does not record the send as `muted`, and the difference is
-// the whole point:
+// ⚠️ OFF IS THE DEFAULT, and it is a product decision, not a migration shim.
+// Strictness is a maturity setting, not a correctness rule. On by default, a new
+// user's very first targeted send fails with "create a project preference for it
+// before sending" — at the point where they have built nothing and do not yet
+// know what a catalog is. That is a wall, not a guardrail. The order that works
+// is: send untargeted -> add a target -> discover preferences -> seed them ->
+// turn this on once the catalog is stable. Existing projects default off too, so
+// enabling the gate is always someone's deliberate act.
+//
+// ⚠️ The flag governs BOTH send paths identically. It would have been possible to
+// keep rejecting uncataloged broadcasts unconditionally (that was the pre-gate
+// behaviour) on the theory that a broadcast to an uncataloged target reaches
+// nobody anyway — but that theory is false. The broadcast cascade puts a
+// RECIPIENT-level row above the catalog, so recipients who explicitly subscribed
+// to the target still receive it. A permissive broadcast therefore has a real
+// audience, and the audience breakdown reports the rest honestly as
+// `excluded_not_cataloged`. One flag, one meaning: does naming an uncataloged
+// target reject the send?
+//
+// ⚠️ WHEN IT REJECTS, IT REJECTS. It does not record the send as `muted`, and the
+// difference is the whole point:
 //
 //   - `muted` means THE RECIPIENT SAID NO. A legitimate, healthy outcome, mapped
 //     to `suppressed` in every rollup so an opt-out never inflates failure counts.
@@ -130,11 +154,25 @@ func (s *NotificationService) Send(ctx context.Context, userID int, payload dto.
 // accepted and simply reaches nobody — the audience breakdown reports that
 // honestly. Only the ABSENCE of a catalog entry is a caller error.
 //
-// A send with no target at all is not gated: it is not claiming a target, so
-// there is nothing to check it against. Such notifications are also unmutable,
-// which is its own problem — see agent-docs/strict-targets-design.md.
+// A send with no target at all is not gated, REGARDLESS of the setting: it is
+// not claiming a target, so there is nothing to check it against. That is what
+// keeps the quickstart zero-config even for a project that has turned the gate
+// on. Such notifications are also unmutable, which is its own problem — see
+// agent-docs/strict-targets-design.md.
 func (s *NotificationService) gateTarget(ctx context.Context, projectID int, target *dto.Target, mediums []enum.Medium) (service.Error, error) {
 	if target == nil {
+		return service.ErrNone, nil
+	}
+
+	// Checked before the catalog lookups, not after: for the default (off) project
+	// this replaces N per-medium lookups with one primary-key read, so the gate
+	// costs less on the hot path than it did when it was unconditional.
+	project, err := s.projectRepo.Get(ctx, projectID)
+	if err != nil {
+		return service.ErrInternalServerError, fmt.Errorf("get project: %w", err)
+	}
+
+	if !project.StrictTargets {
 		return service.ErrNone, nil
 	}
 
@@ -145,9 +183,14 @@ func (s *NotificationService) gateTarget(ctx context.Context, projectID int, tar
 		}
 
 		if !cataloged {
+			// Naming the setting in the message matters: the reader's project is one
+			// of the few that turned this on, so "why is this rejected when the docs
+			// say targets just work" is the obvious next question. Answer it here
+			// rather than in a support thread.
 			return service.ErrBadRequest, fmt.Errorf(
 				"Target %s/%s/%s is not in this project's catalog for the %s medium. "+
-					"Create a project preference for it before sending.",
+					"Create a project preference for it before sending, or turn off "+
+					"strict targets in your project settings.",
 				target.Channel, target.Topic, target.Event, medium,
 			)
 		}

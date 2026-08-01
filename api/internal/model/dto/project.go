@@ -9,6 +9,10 @@ import (
 type Project struct {
 	ID   int    `json:"id"`
 	Name string `json:"name"`
+
+	// StrictTargets reports whether this project rejects sends to targets it has
+	// not cataloged. False by default — see entity.Project.
+	StrictTargets bool `json:"strict_targets"`
 }
 
 type CreateProjectPaylaod struct {
@@ -38,6 +42,12 @@ type UpdateProjectPayload struct {
 	UserID    int
 	ProjectID int
 	Name      string `json:"name"`
+
+	// StrictTargets is a POINTER so that omitting it means "leave it alone"
+	// rather than "turn it off". The console's rename dialog sends only `name`;
+	// with a plain bool that request would silently disable the gate on a project
+	// that had deliberately enabled it.
+	StrictTargets *bool `json:"strict_targets"`
 }
 
 func (p *UpdateProjectPayload) Validate() error {
@@ -68,8 +78,9 @@ func FromProject(p *entity.Project) *Project {
 	}
 
 	return &Project{
-		ID:   p.ID,
-		Name: p.Name,
+		ID:            p.ID,
+		Name:          p.Name,
+		StrictTargets: p.StrictTargets,
 	}
 }
 

@@ -230,6 +230,29 @@ func DeleteProjectPreferenceAPI(s *service.PreferenceService) http.HandlerFunc {
 	}
 }
 
+// CatalogDrift reports the (target, medium) pairs this project has sent but
+// never cataloged — what strict targets would reject if it were turned on.
+// Console-only: it exists to make the setting discoverable and to make enabling
+// it a decision rather than a gamble.
+func CatalogDrift(s *service.PreferenceService) http.HandlerFunc {
+	return func(w http.ResponseWriter, r *http.Request) {
+		ctx := r.Context()
+		projectID, err := httpx.ParamInt(r, "project_id")
+		if err != nil {
+			httpx.BadRequestResponse(w, r, errors.New("Invalid project ID"))
+			return
+		}
+
+		result, errKind, err := s.CatalogDrift(ctx, projectID)
+		if err != nil {
+			httpx.ServiceErrResponse(w, r, errKind, err)
+			return
+		}
+
+		httpx.SuccessResponse(w, r, http.StatusOK, "", result)
+	}
+}
+
 func ListPreferences(s *service.PreferenceService) http.HandlerFunc {
 	return func(w http.ResponseWriter, r *http.Request) {
 		ctx := r.Context()

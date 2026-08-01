@@ -2,6 +2,7 @@ package repository
 
 import (
 	"context"
+	"time"
 
 	"github.com/mudgallabs/bodhveda/internal/model/dto"
 	"github.com/mudgallabs/bodhveda/internal/model/entity"
@@ -21,6 +22,11 @@ type PreferenceReader interface {
 	// whether the matched entry is mandatory. It is the strict-target gate's
 	// primitive — see the implementation for why exact match would break Grahak.
 	LookupCatalogEntry(ctx context.Context, projectID int, target dto.Target, medium enum.Medium) (exists bool, mandatory bool, err error)
+	// ListUncatalogedSentTargets reports the (target, medium) pairs the project
+	// has sent since `since` but never cataloged — i.e. exactly what the strict-
+	// target gate would reject. It resolves the catalog with the same predicate
+	// LookupCatalogEntry does, so the report and the gate cannot disagree.
+	ListUncatalogedSentTargets(ctx context.Context, projectID int, since time.Time) ([]*entity.UncatalogedTarget, error)
 	ListPreferences(ctx context.Context, projectID int, kind enum.PreferenceKind) ([]*entity.Preference, error)
 	// GetProjectPreferenceByID fetches a single catalog entry (a project-level
 	// row) by id, scoped to the project. It returns tantra's ErrNotFound when no

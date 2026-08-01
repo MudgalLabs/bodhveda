@@ -67,6 +67,25 @@ type ProjectPreferenceListItem struct {
 	Subscribers int
 }
 
+// UncatalogedTarget is one (target, medium) a project has sent but never
+// cataloged — a send that strict targets would have rejected.
+//
+// It is the drift detector behind the strict-targets setting: the setting is off
+// by default, so something has to make a project notice that its code is naming
+// targets its catalog does not define. That is worth knowing whether or not the
+// project ever intends to turn the gate on, because an uncataloged target has no
+// preference surface — recipients cannot see it, so they cannot mute it.
+type UncatalogedTarget struct {
+	Channel string
+	Topic   string
+	Event   string
+	Medium  string
+	// Sends counts the sends that named this (target, medium) in the window,
+	// counting a broadcast once rather than once per recipient it fanned out to.
+	Sends      int
+	LastSentAt time.Time
+}
+
 // PreferenceSource names which rung of the resolution cascade decided a
 // resolved preference. It exists so the console can explain *why* a cell reads
 // the way it does, rather than only what it reads.

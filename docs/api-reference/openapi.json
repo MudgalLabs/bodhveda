@@ -13,7 +13,7 @@
                 "tags": [
                     "Notifications"
                 ],
-                "description": "Start sending notifications through Bodhveda API.",
+                "description": "Start sending notifications through Bodhveda API.\n\nA send names an optional `target` (`channel`/`topic`/`event`) and carries a `payload` (in-app), an `email` block, or both. The mediums it asks for are the mediums it carries.\n\n### Targets and your catalog\n\nBy default you can send **any** target, cataloged or not. Cataloging a target — creating a project preference for it — is what puts it on your recipients' preference screen and lets `email` resolve to deliverable; an uncataloged target still sends in-app, but no recipient can mute it.\n\nIf the project has **strict targets** turned on (a per-project setting, **off by default**), this endpoint instead rejects a send whose `(target, medium)` has no matching catalog entry — see the `400` below. A `topic: any` catalog entry satisfies the check for every concrete topic beneath it, so one entry covers an unbounded set of runtime-generated topics; you never need one entry per resource id. A send carrying no `target` at all is never checked.",
                 "requestBody": {
                     "required": true,
                     "content": {
@@ -146,6 +146,21 @@
                                                     }
                                                 ]
                                             }
+                                        }
+                                    }
+                                }
+                            }
+                        }
+                    },
+                    "400": {
+                        "description": "Invalid send. **Only projects with strict targets enabled** return the uncataloged-target error — with the setting off (the default) an uncataloged target is accepted. The check runs per medium, against the mediums the send actually asks for, and applies to direct sends and broadcasts alike. It tests for the **existence** of a catalog entry, not whether it is enabled: an entry with `default_enabled: false` is a real state (defined, switched off) and a send to it is accepted.",
+                        "content": {
+                            "application/json": {
+                                "examples": {
+                                    "TargetNotCataloged": {
+                                        "summary": "Target not in the project's catalog (strict targets on)",
+                                        "value": {
+                                            "message": "Target billing/none/invoice_paid is not in this project's catalog for the in_app medium. Create a project preference for it before sending, or turn off strict targets in your project settings."
                                         }
                                     }
                                 }

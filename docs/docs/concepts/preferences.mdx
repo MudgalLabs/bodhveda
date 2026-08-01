@@ -19,27 +19,57 @@ Each preference applies to a single [medium](/docs/concepts/mediums). The `in_ap
 
 When you [set](/api-reference/endpoint/recipients/preferences/set-preference) or [check](/api-reference/endpoint/recipients/preferences/check-preference) a preference, pass a `medium` (`in_app` or `email`). **It defaults to `in_app`** when omitted, so existing integrations keep working unchanged.
 
-## The catalog is a gate
+## Strict targets
 
-**You can only send a target you have cataloged.** If no project-level preference exists for the `(target, medium)` you are sending, Bodhveda rejects the request with `400` and writes nothing.
+**Strict targets** is a per-project setting that turns the catalog into a gate: with it on, a send whose `(target, medium)` has no project-level preference is rejected with `400` and nothing is written.
 
 ```json
 {
-    "message": "Target billing/none/invoice_paid is not in this project's catalog for the in_app medium. Create a project preference for it before sending."
+    "message": "Target billing/none/invoice_paid is not in this project's catalog for the in_app medium. Create a project preference for it before sending, or turn off strict targets in your project settings."
 }
 ```
 
-This is deliberate, and it is the opposite of failing quietly. The alternative — accepting the send and recording it as muted — hands you a `200` for a notification that will never reach a human, and makes "the recipient opted out" indistinguishable from "you typo'd the event name". A rejection is a bug you find on your first call instead of the week someone asks why they never got notified.
+**It is off by default.** With it off, sends to targets you have never cataloged are accepted, and the medium's default decides what happens — in-app delivers, email does not.
+
+### Why off by default
+
+Strictness is a maturity setting, not a correctness rule. On from the start, your very first targeted send fails with *"create a project preference for it before sending"* — at the moment you have built nothing and have no reason to know what a catalog is. That is a wall, not a guardrail.
+
+The order that works is the order you will naturally take:
+
+1. Send something untargeted. No setup at all.
+2. Add a `target`, because you want per-notification analytics.
+3. Discover preferences, because you want recipients to be able to mute it.
+4. Seed the catalog from your deploy, so it stops drifting from your code.
+5. **Turn strict targets on**, once your catalog is stable and you want a typo to fail loudly.
+
+### When to turn it on
+
+Turn it on once your catalog is seeded from your deploy pipeline and you would rather a bad send fail than succeed quietly. What you get is the difference between a bug found on the first call and one found the week someone asks why they were never notified.
+
+The alternative — accepting the send and recording it as muted — hands you a `200` for a notification that will never reach a human, and makes "the recipient opted out" indistinguishable from "you typo'd the event name". So Bodhveda rejects rather than muting.
+
+Leaving it off has a real cost worth naming: **an uncataloged target has no preference surface.** It appears on no settings screen, so a recipient cannot discover it, let alone switch it off. Off does not mean *no consequences*, it means *the consequences are silent*.
+
+<Note>
+    Your console's project settings list the targets you have sent but not cataloged, so turning strict targets on is never a blind switch — you can see exactly what would start failing.
+</Note>
+
+### What the gate checks
 
 <Note>
     The gate checks **existence**, not `default_enabled`. A cataloged entry with `default_enabled: false` is a real state — *defined, currently switched off* — so sending to it is accepted and simply reaches nobody. Only a missing entry is an error.
 </Note>
 
-The gate applies per medium, to the mediums a send actually asks for. A send carrying only `payload` needs an `in_app` entry; one carrying only `email` needs an `email` entry; one carrying both needs both.
+It applies per medium, to the mediums a send actually asks for. A send carrying only `payload` needs an `in_app` entry; one carrying only `email` needs an `email` entry; one carrying both needs both.
+
+It applies to **direct sends and broadcasts alike**. With strict targets off, a broadcast to an uncataloged target is accepted and reaches the recipients who explicitly subscribed to it, if any; the rest are reported as `excluded_not_cataloged` in the broadcast's audience breakdown.
+
+**A send with no `target` at all is never gated,** whatever the setting — it claims no target, so there is nothing to check it against.
 
 ## How a preference resolves
 
-Once a target is through the gate, whether it delivers is **resolved**, not read from a single row. The first rule that matches wins:
+Whether a target delivers is **resolved**, not read from a single row. The first rule that matches wins:
 
 1. A **mandatory** catalog entry for the target (see below).
 2. The recipient's rule for the exact target.
@@ -58,11 +88,17 @@ A `topic: any` catalog entry matches every concrete topic under that channel and
 
 This is what makes per-resource muting practical. Catalog `comments/any/reply` once, then send `comments/post_812/reply`, `comments/post_913/reply`, and so on. Every send passes the gate, and a recipient rule on one exact target mutes that one thread and nothing else — no state on your side.
 
+<Warning>
+    Do not conclude that a per-resource target needs one catalog entry per resource id. It never does, and a catalog with a row per post is one that cannot be seeded from your code. One wildcard entry is the whole answer.
+</Warning>
+
 ## Mandatory entries
 
 Some notifications must not be optional: password resets, security alerts, billing failures, a one-shot welcome. But everything in the catalog is normally something a recipient can switch off.
 
 Set `mandatory: true` on a catalog entry to resolve that. The entry exists, so sends pass the gate; the recipient's toggle is refused with a `400`, and any rule they already had is ignored.
+
+Mandatory is **independent of strict targets**. It is a property of the catalog entry, not of the gate, so it behaves identically whether or not strict targets is on: the entry is what makes the target non-negotiable, and cataloging it is what you had to do anyway to give recipients a switch you then refuse to honour.
 
 <Warning>
     Render mandatory entries as **locked**, not as a switch. A toggle that saves and changes nothing is worse than one that refuses — the recipient walks away believing they opted out.
@@ -72,12 +108,14 @@ Set `mandatory: true` on a catalog entry to resolve that. The entry exists, so s
 
 ## Seed the catalog from your deploy
 
-Your desired catalog lives in your code; the real one lives in Bodhveda. They drift the moment you ship a new event and forget to update Bodhveda to match — and now that drift **breaks the send outright** rather than degrading it.
+Your desired catalog lives in your code; the real one lives in Bodhveda. They drift the moment you ship a new event and forget to update Bodhveda to match.
 
 Derive the catalog from whatever already defines your events, and push it with [upsert preferences](/api-reference/endpoint/preferences/upsert-project-preferences) as a **step in your deploy pipeline** rather than a one-time setup task. It is an idempotent merge, so a deploy that changes nothing is a no-op.
 
+This is worth doing before you turn strict targets on, and it is worth doing even if you never do. With the gate off, drift is silent: the notification sends, but the target is on no settings screen, so no recipient can mute it.
+
 <Warning>
-    Seed **before** the new code starts serving, and let a failed seed **fail the deploy**. Ship code that sends a target you have not cataloged yet and every one of those notifications returns `400`. Stopping the deploy leaves your previous version running, which only sends targets that are already cataloged.
+    Once strict targets is on, seed **before** the new code starts serving, and let a failed seed **fail the deploy**. Ship code that sends a target you have not cataloged yet and every one of those notifications returns `400`. Stopping the deploy leaves your previous version running, which only sends targets that are already cataloged.
 </Warning>
 
 Run it on **every** deploy, not just the deploy that adds an event. A catalog seeded by hand is a catalog that falls behind the code that depends on it.

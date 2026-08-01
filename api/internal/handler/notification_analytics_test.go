@@ -59,7 +59,7 @@ func TestProjectAnalyticsHandler(t *testing.T) {
 
 	svc := service.NewNotificationService(
 		pg.NewNotificationRepo(pool), nil, nil, nil, nil,
-		pg.NewNotificationDeliveryRepo(pool), nil, nil,
+		pg.NewNotificationDeliveryRepo(pool), nil, nil, nil,
 		nil, nil, nil,
 	)
 

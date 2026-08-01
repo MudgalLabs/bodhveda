@@ -53,13 +53,27 @@ func (s *ProjectService) Create(ctx context.Context, payload dto.CreateProjectPa
 	return dto.FromProject(project), service.ErrNone, nil
 }
 
+// Get reads a single project. Ownership is enforced by VerifyUserOwnsThisProject
+// on the route, so this takes no user id.
+func (s *ProjectService) Get(ctx context.Context, projectID int) (*dto.Project, service.Error, error) {
+	project, err := s.repo.Get(ctx, projectID)
+	if err != nil {
+		if err == tantraRepo.ErrNotFound {
+			return nil, service.ErrNotFound, nil
+		}
+		return nil, service.ErrInternalServerError, fmt.Errorf("project repo get: %w", err)
+	}
+
+	return dto.FromProject(project), service.ErrNone, nil
+}
+
 func (s *ProjectService) Update(ctx context.Context, payload dto.UpdateProjectPayload) (*dto.Project, service.Error, error) {
 	err := payload.Validate()
 	if err != nil {
 		return nil, service.ErrInvalidInput, err
 	}
 
-	project, err := s.repo.Update(ctx, payload.UserID, payload.ProjectID, payload.Name)
+	project, err := s.repo.Update(ctx, payload.UserID, payload.ProjectID, payload.Name, payload.StrictTargets)
 	if err != nil {
 		if err == tantraRepo.ErrNotFound {
 			return nil, service.ErrNotFound, nil

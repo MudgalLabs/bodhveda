@@ -1,18 +1,43 @@
 # Strict targets — making the catalog a gateway
 
-> **SHIPPED 2026-08-01.** This document is kept as the reasoning record. Where the
-> proposal and the implementation differ, the implementation is right and the
-> differences are listed here.
+> **SHIPPED 2026-08-01. AMENDED 2026-08-02 — the flag is back, defaulting OFF.**
+> This document is kept as the reasoning record. Where the proposal and the
+> implementation differ, the implementation is right and the differences are
+> listed here.
 >
 > **What changed from the proposal:**
 >
-> 1. **No `strict_targets` flag (§3.2 is obsolete).** The flag existed to protect
->    live integrations during migration. Measuring production settled it instead:
->    Resurface was already fully cataloged, Grahak prod had sent zero
->    notifications, and the only real breakage was Arthveda's welcome — which
->    `mandatory` fixes directly. A flag nobody would ever set to `false` is a
->    branch to maintain, not a safety net. Correct routing is the default because
->    it is the only mode.
+> 1. **`strict_targets` ships as a per-project flag (§3.2 restored, with one
+>    correction).** It shipped on 2026-08-01 with no flag, on the argument that a
+>    flag nobody would set to `false` is a branch to maintain rather than a safety
+>    net. That argument measured the wrong population: it looked only at the three
+>    existing integrations, all of which were already cataloged or fixable with
+>    `mandatory`, and none of which was a NEW user.
+>
+>    For a new project the unconditional gate fails the very first targeted send
+>    with *"create a project preference for it before sending"* — at the point
+>    where nothing has been built and the catalog is not yet a concept the user
+>    has. That is a wall, not a guardrail, and it inverts the order in which the
+>    product teaches itself: send untargeted → add a target → discover preferences
+>    → seed them → harden.
+>
+>    **The correction to §3.2: new projects default to `false` as well.** §3.2
+>    proposed `true` for new projects and `false` only for grandfathered ones,
+>    which would have left the wall standing for exactly the users who cannot see
+>    over it. Strictness is a maturity setting, so it is opt-in for everyone.
+>
+>    What keeps the flag from being forgotten is not the default but the drift
+>    report (§4's pre-flight, now built): the console reads back the targets a
+>    project has actually sent but never cataloged, derived from `notification` +
+>    `broadcast` rather than from a counter, so it answers retroactively and
+>    costs the send path nothing.
+>
+>    **The flag governs BOTH paths.** An earlier reading held that broadcasts
+>    could keep rejecting unconditionally, since a broadcast to an uncataloged
+>    target reaches nobody anyway. That is false: `broadcastEligibleExpr` ranks a
+>    recipient-level row ABOVE the catalog, so recipients who explicitly
+>    subscribed still receive it. A permissive broadcast has a real audience, and
+>    `excluded_not_cataloged` reports the rest honestly.
 > 2. **Open question §6.1 answered YES, on evidence.** A `topic='any'` catalog row
 >    DOES satisfy the gate. Not a lean — 8 production sends match only via the
 >    wildcard, all of them Grahak conversation replies. Exact-match gating would
@@ -242,6 +267,10 @@ Rollout:
    strict mode at all — but it needs a deliberate decision and a test.
 2. **One flag, or per-medium?** A project might want strict email and lenient in-app while
    migrating. Leaning one flag; per-medium is a second knob that can disagree with itself.
+   **ANSWERED 2026-08-02: one flag.** The per-medium urge is already served without a
+   second knob — the flag is checked per medium against the mediums a send asks for, so a
+   project that catalogs `in_app` but not `email` for a target gets exactly the outcome a
+   per-medium flag would have given it.
 3. **`mandatory` naming and scope** (§3.4) — and whether it lands in the same unit or
    immediately after.
 4. **Should `enum.Outcome` gain a `rejected` bucket** for caller-error outcomes, distinct from

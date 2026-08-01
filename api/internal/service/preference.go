@@ -203,6 +203,26 @@ func (s *PreferenceService) ListProjectPreferences(ctx context.Context, projectI
 	return dtos, service.ErrNone, nil
 }
 
+// catalogDriftWindow is how far back the drift report looks. Long enough that a
+// weekly or monthly job still shows up, short enough that a target the project
+// stopped sending months ago stops nagging about itself.
+const catalogDriftWindow = 30 * 24 * time.Hour
+
+// CatalogDrift reports what strict targets WOULD reject for this project. It is
+// meaningful in both directions: for a project with the gate off it is the
+// pre-flight check that makes enabling it safe, and for one with the gate on it
+// should read zero, because anything else would have been a 400.
+func (s *PreferenceService) CatalogDrift(ctx context.Context, projectID int) (*dto.CatalogDriftResult, service.Error, error) {
+	since := time.Now().UTC().Add(-catalogDriftWindow)
+
+	targets, err := s.repo.ListUncatalogedSentTargets(ctx, projectID, since)
+	if err != nil {
+		return nil, service.ErrInternalServerError, fmt.Errorf("repo list uncataloged sent targets: %w", err)
+	}
+
+	return dto.FromUncatalogedTargets(since, targets), service.ErrNone, nil
+}
+
 func (s *PreferenceService) ListRecipientPreferences(ctx context.Context, projectID int) ([]*dto.RecipientPreference, service.Error, error) {
 	prefs, err := s.repo.ListPreferences(ctx, projectID, enum.PreferenceKindRecipient)
 	if err != nil {

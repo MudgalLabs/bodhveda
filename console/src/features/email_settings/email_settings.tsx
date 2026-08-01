@@ -15,7 +15,6 @@ import {
     Select,
     toast,
     Tooltip,
-    useDocumentTitle,
     WithLabel,
 } from "netra";
 
@@ -30,9 +29,9 @@ import {
     ProjectEmailSettings,
 } from "@/features/email_settings/email_settings_types";
 
+// A SECTION of the settings route, not a page of its own — the document title
+// is set by the route, which now carries more than email.
 export function EmailSettings() {
-    useDocumentTitle("Email • Bodhveda");
-
     const id = useGetProjectIDFromParams();
 
     const { data, isLoading, isFetching, isError } = useGetEmailSettings(id);

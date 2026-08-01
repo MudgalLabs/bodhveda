@@ -29,6 +29,14 @@ export function useGetProjects() {
     });
 }
 
+export function useGetProject(id: string | number) {
+    return useQuery({
+        queryKey: ["useGetProject", String(id)],
+        queryFn: () => client.get(API_ROUTES.project.get(id)),
+        select: (res) => res.data as APIRes<Project>,
+    });
+}
+
 export function useCreateProject(options: AnyUseMutationOptions = {}) {
     const { onSuccess, ...rest } = options;
     const queryClient = useQueryClient();
@@ -50,11 +58,19 @@ export function useUpdateProject(options: AnyUseMutationOptions = {}) {
     const queryClient = useQueryClient();
 
     return useMutation<APIRes<Project>, unknown, UpdateProjectPayload>({
-        mutationFn: ({ id, name }) => {
-            return client.patch(API_ROUTES.project.update(id), { name });
+        // `strict_targets` is forwarded only when the caller set it. Spreading a
+        // key that is `undefined` would serialise to nothing anyway, but being
+        // explicit keeps the "omitted means unchanged" contract visible here,
+        // where the rename dialog's payload is built.
+        mutationFn: ({ id, name, strict_targets }) => {
+            return client.patch(API_ROUTES.project.update(id), {
+                name,
+                ...(strict_targets === undefined ? {} : { strict_targets }),
+            });
         },
         onSuccess: (...args) => {
             queryClient.invalidateQueries({ queryKey: ["useGetProjects"] });
+            queryClient.invalidateQueries({ queryKey: ["useGetProject"] });
             onSuccess?.(...args);
         },
         ...rest,
