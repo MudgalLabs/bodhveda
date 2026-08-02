@@ -25,7 +25,7 @@
 
 -   **Channel / Topic / Event Targeting** - Target recipients, respect preferences, and get analytics.
 
--   **A Catalog That Can Gate** - Declare the targets your project sends, then flip on **strict targets** once that catalog is stable: from then on, sending a target you haven't declared is a `400` rather than a silent no-op, so a typo'd event name is a bug you catch on the first call instead of the week someone asks why they were never notified. Off by default, because your first send shouldn't have to know what a catalog is. Wildcard (`topic: any`) entries cover unbounded per-resource targets, and `mandatory` entries keep password resets and security alerts un-mutable.
+-   **A Catalog That Can Gate** - Declare the targets your project sends, then flip on **strict targets** once that catalog is stable: from then on, sending a target you haven't declared is a `400` rather than a silent success, so a typo'd event name is a bug you catch on the first call instead of the week someone asks why they were never notified. Off by default, because your first send shouldn't have to know what a catalog is. Wildcard (`topic: any`) entries cover unbounded per-resource targets, and `mandatory` entries keep password resets and security alerts un-mutable.
 
 -   **Recipient Preferences** - Let recipients opt in/out of notifications.
 
