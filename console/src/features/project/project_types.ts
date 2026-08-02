@@ -10,6 +10,12 @@ export interface Project {
     strict_targets: boolean;
 }
 
+export const SETTINGS_TABS = ["targeting", "email"] as const;
+
+export type SettingsTab = (typeof SETTINGS_TABS)[number];
+
+export const DEFAULT_SETTINGS_TAB: SettingsTab = "targeting";
+
 export interface CreateProjectPayload {
     name: string;
 }

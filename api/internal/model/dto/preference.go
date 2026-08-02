@@ -288,7 +288,11 @@ func FromProjectPreferenceList(list []*entity.ProjectPreferenceListItem) []*Proj
 // UncatalogedTarget is one (target, medium) the project sent but never
 // cataloged — a send strict targets would have rejected.
 type UncatalogedTarget struct {
-	Target
+	// Nested rather than embedded, so this reads like every other target-bearing
+	// DTO (ProjectPreference, RecipientPreference). An embedded Target inlines
+	// its fields into the object and would make this the one payload where a
+	// client has to reassemble the target itself.
+	Target     Target    `json:"target"`
 	Medium     string    `json:"medium"`
 	Sends      int       `json:"sends"`
 	LastSentAt time.Time `json:"last_sent_at"`

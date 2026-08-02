@@ -161,9 +161,7 @@ export interface UpsertRecipientPreferencePayload {
  * strict targets would have rejected.
  */
 export interface UncatalogedTarget {
-    channel: string;
-    topic: string;
-    event: string;
+    target: Target;
     medium: PreferenceMedium;
     /** Sends in the window that named it. A broadcast counts once, not once per recipient. */
     sends: number;

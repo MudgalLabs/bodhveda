@@ -23,6 +23,7 @@ import { Branding } from "@/components/branding";
 import { DEFAULT_RANGE_PRESET } from "@/features/dashboard/analytics_range";
 import { DEFAULT_NOTIFICATION_KIND } from "@/features/notification/notification_types";
 import { DEFAULT_PREFERENCE_KIND } from "@/features/preference/preference_type";
+import { DEFAULT_SETTINGS_TAB } from "@/features/project/project_types";
 
 export const Sidebar = () => {
     const { pathname } = useLocation();
@@ -152,6 +153,7 @@ export const Sidebar = () => {
                     <Link
                         to="/projects/$id/settings"
                         params={{ id }}
+                        search={{ tab: DEFAULT_SETTINGS_TAB }}
                         className="link-unstyled "
                     >
                         <SidebarItem

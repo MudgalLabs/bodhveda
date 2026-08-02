@@ -5,12 +5,9 @@ import {
     ErrorMessage,
     IconBadgeInfo,
     IconInfo,
-    IconSend,
     Input,
     Label,
-    Loading,
     LoadingScreen,
-    PageHeading,
     PasswordInput,
     Select,
     toast,
@@ -29,12 +26,12 @@ import {
     ProjectEmailSettings,
 } from "@/features/email_settings/email_settings_types";
 
-// A SECTION of the settings route, not a page of its own — the document title
-// is set by the route, which now carries more than email.
+// A TAB of the settings route, not a page of its own: the page heading and the
+// document title belong to ProjectSettings, which owns more than email.
 export function EmailSettings() {
     const id = useGetProjectIDFromParams();
 
-    const { data, isLoading, isFetching, isError } = useGetEmailSettings(id);
+    const { data, isLoading, isError } = useGetEmailSettings(id);
 
     const content = useMemo(() => {
         if (isError) {
@@ -52,16 +49,10 @@ export function EmailSettings() {
 
     return (
         <div>
-            <PageHeading>
-                <IconSend size={18} />
-                <h1>Email</h1>
-                {isFetching && <Loading />}
-            </PageHeading>
-
-            <p className="text-text-muted paragraph mb-6 max-w-2xl">
-                Bring your own email provider. Bodhveda uses these credentials to
-                send email on your behalf — your API key is encrypted at rest and
-                never shown again after you save it.
+            <p className="label-muted mb-4 max-w-2xl">
+                Bring your own provider. Bodhveda sends email on your behalf with
+                these credentials — your API key is encrypted at rest and never
+                shown again after you save it.
             </p>
 
             {content}
@@ -236,7 +227,7 @@ function EmailSettingsForm({ settings }: EmailSettingsFormProps) {
                 <h2 className="text-text-primary mb-1 font-medium">
                     Delivery status webhook
                 </h2>
-                <p className="text-text-muted paragraph mb-4">
+                <p className="label-muted mb-4">
                     Add this URL as a webhook endpoint in your Resend dashboard
                     to receive delivered / bounced / complained / opened events.
                     Resend generates a signing secret — paste it below so
