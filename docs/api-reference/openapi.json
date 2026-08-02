@@ -1166,12 +1166,13 @@
                                                             "topic": "any",
                                                             "event": "new_comment",
                                                             "medium": "in_app",
-                                                            "label": "Comments on your posts"
+                                                            "name": "Comments on your posts"
                                                         },
                                                         "state": {
                                                             "enabled": true,
                                                             "inherited": true,
-                                                            "cataloged": true
+                                                            "cataloged": true,
+                                                            "mandatory": false
                                                         }
                                                     },
                                                     {
@@ -1180,12 +1181,13 @@
                                                             "topic": "none",
                                                             "event": "new_feature",
                                                             "medium": "email",
-                                                            "label": "Product Announcements"
+                                                            "name": "Product Announcements"
                                                         },
                                                         "state": {
                                                             "enabled": false,
                                                             "inherited": false,
-                                                            "cataloged": true
+                                                            "cataloged": true,
+                                                            "mandatory": false
                                                         }
                                                     },
                                                     {
@@ -1198,7 +1200,8 @@
                                                         "state": {
                                                             "enabled": true,
                                                             "inherited": true,
-                                                            "cataloged": false
+                                                            "cataloged": false,
+                                                            "mandatory": false
                                                         }
                                                     }
                                                 ]
@@ -1432,7 +1435,8 @@
                                                 "state": {
                                                     "enabled": true,
                                                     "inherited": false,
-                                                    "cataloged": false
+                                                    "cataloged": false,
+                                                    "mandatory": false
                                                 }
                                             }
                                         }
