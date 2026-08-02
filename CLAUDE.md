@@ -59,8 +59,12 @@ make build_console # cd console && npm run build
 air -c air.toml          # hot-reload http server (cmd/api)
 go build ./cmd/api       # build api binary
 go build ./cmd/worker    # build worker binary
-go test ./...            # run tests (none currently exist)
+go test ./...            # run tests (DB integration tests skip unless TEST_DB_URL is set)
 go test ./internal/service -run TestName   # run a single test
+
+# Fan-out throughput benchmarks (10k/100k/1M recipients). Opt-in on TEST_DB_URL,
+# point it at a scratch DB. Last recorded results + caveats: api/internal/bench/README.md
+TEST_DB_URL=... go test ./internal/bench/ -run '^$' -bench BenchmarkFanout -benchtime=3x -timeout=60m -v
 
 # Console alone (from console/)
 npm run dev      # vite on :6970
