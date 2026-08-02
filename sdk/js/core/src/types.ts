@@ -66,6 +66,10 @@ export interface ResolvedPreferenceState {
      * Context for deciding what to render, **not** a gate: an explicit recipient
      * rule on an uncataloged pair still delivers, and `in_app` delivers by
      * default with no catalog entry at all. `enabled` is the answer.
+     *
+     * The exception is **strict targets** (a per-project setting, off by
+     * default): with it on, a send to an uncataloged pair is rejected outright,
+     * so nothing is delivered regardless of what this resolved to.
      */
     cataloged: boolean;
     /**
@@ -481,9 +485,11 @@ export interface CreateProjectPreferenceRequest {
      * Declares an entry recipients may NOT opt out of — transactional sends like
      * password resets, security alerts, or a one-shot welcome.
      *
-     * It exists because the catalog is a gateway: an uncataloged target is
-     * rejected at send time, so a transactional notification must be cataloged,
-     * and anything cataloged would otherwise become opt-out-able.
+     * It exists because cataloging is what gives a target a preference surface
+     * at all — and anything cataloged would otherwise become opt-out-able. That
+     * bites hardest under **strict targets** (a per-project setting, off by
+     * default), where an uncataloged target is rejected at send time, so a
+     * transactional notification has no choice but to be cataloged.
      *
      * `default_enabled` still applies — set it `false` to stop sending.
      * Mandatory removes the RECIPIENT's choice, not yours. Defaults to `false`.

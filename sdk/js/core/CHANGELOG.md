@@ -1,5 +1,48 @@
 # Changelog
 
+## 0.7.0
+
+**Strict targets** — a new per-project setting, **off by default**. Nothing
+changes for you unless you turn it on.
+
+With it ON, Bodhveda rejects a send whose `(target, medium)` has no entry in the
+project's preference catalog: `400`, nothing written, for direct and broadcast
+alike. It is a maturity setting for a project whose catalog is already stable —
+turn it on and a typo'd event name becomes a bug you catch on the first call
+rather than the week someone asks why they were never notified.
+
+With it OFF (the default) an uncataloged target sends as before. Note that this
+was never a free pass for every medium: anything other than `in_app` still
+resolves to not-delivered without a catalog entry, because that is the medium
+default.
+
+The check applies **per medium**, to the mediums a send actually asks for — a
+send carrying only `payload` needs an `in_app` entry, one carrying `email` needs
+an `email` entry, one carrying both needs both. A send with no `target` at all is
+never gated. A `topic: "any"` catalog entry satisfies the gate for every concrete
+topic beneath it, so one entry still covers an unbounded set of per-resource
+targets.
+
+-   **`mandatory` added to `CreateProjectPreferenceRequest`,
+    `UpsertProjectPreferenceItem`, `UpdateProjectPreferenceRequest` and
+    `ProjectPreference`.** A mandatory entry is cataloged — so sends pass the gate
+    — but recipients cannot opt out of it: writing a recipient preference for it
+    is refused with a `400` and any rule they already had is ignored. It is what
+    makes transactional notifications (password resets, security alerts, a
+    one-shot welcome) possible now that the catalog is also the preference
+    surface.
+
+    `default_enabled` still applies, so setting it `false` stops the notification:
+    mandatory removes the RECIPIENT's choice, not yours.
+
+-   **`ResolvedPreferenceState.mandatory`** is returned by
+    `recipients.preferences.list()` and `.check()`. **Render mandatory cells as
+    locked rather than as a switch** — a toggle that saves and changes nothing is
+    worse than one that refuses.
+
+Backwards compatible: `mandatory` is optional on every request type and defaults
+to `false`, and strict targets is off unless you turn it on.
+
 ## 0.6.0
 
 Email-only sends: deliver an email without creating an in-app notification.
