@@ -7,6 +7,7 @@ import (
 
 	"github.com/jackc/pgx/v5/pgxpool"
 	"github.com/mudgallabs/bodhveda/internal/model/entity"
+	"github.com/mudgallabs/bodhveda/internal/model/enum"
 	tantraRepo "github.com/mudgallabs/tantra/repository"
 )
 
@@ -145,4 +146,36 @@ func TestPreferenceCatalogCRUD(t *testing.T) {
 			t.Fatalf("second delete: got %v, want ErrNotFound", err)
 		}
 	})
+}
+
+// TestCreateStoresMandatory pins a bug that was invisible from the outside for a
+// day: `mandatory` was missing from Create's INSERT column list, so the column
+// took its false default and RETURNING read that false straight back. The API
+// answered `"mandatory": false` to a request asking for true, with no error, and
+// a non-negotiable target could not be created through this path at all.
+//
+// Asserted by reading the ROW BACK rather than trusting the returned struct,
+// because the returned struct was exactly what made the bug look fine.
+func TestCreateStoresMandatory(t *testing.T) {
+	ctx, pool, projectID, repo := gateFixture(t)
+
+	name := "Password reset"
+	pref := entity.NewPreference(&projectID, nil, "security", "none", "password_reset", string(enum.MediumInApp), &name, nil, true)
+	pref.Mandatory = true
+
+	created, err := repo.Create(ctx, pref)
+	if err != nil {
+		t.Fatalf("create: %v", err)
+	}
+	if !created.Mandatory {
+		t.Error("Create returned mandatory=false for an entry created as mandatory")
+	}
+
+	var stored bool
+	if err := pool.QueryRow(ctx, `SELECT mandatory FROM preference WHERE id = $1`, created.ID).Scan(&stored); err != nil {
+		t.Fatalf("read back: %v", err)
+	}
+	if !stored {
+		t.Fatal("mandatory was not persisted; the INSERT is dropping the column")
+	}
 }

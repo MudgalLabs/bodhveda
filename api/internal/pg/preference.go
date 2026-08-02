@@ -32,9 +32,20 @@ func (r *PreferenceRepo) Create(ctx context.Context, pref *entity.Preference) (*
 	// The ON CONFLICT target must match the recipient partial unique index, which
 	// now includes `medium` (see migration 20260712130000). This clause and that
 	// index move in lock-step.
+	// ⚠️ `mandatory` MUST be in the INSERT column list. It was missing until
+	// 2026-08-02, and the omission was invisible from the outside: the service
+	// set pref.Mandatory, the column defaulted to false, and RETURNING read that
+	// false straight back — so the API answered `"mandatory": false` to a request
+	// that had asked for true, with no error anywhere. Creating a non-negotiable
+	// target was simply impossible through this path (only UpsertProjectPreferences
+	// carried it), which is why the console's create modal had no control for it.
+	//
+	// It is NOT in the DO UPDATE branch, deliberately: that branch fires only for
+	// recipient-level rows (see the WHERE on the conflict target), and a mandatory
+	// recipient row is a contradiction the CHECK constraint rejects.
 	sql := `
-		INSERT INTO preference (project_id, recipient_external_id, channel, topic, event, medium, name, description, enabled, created_at, updated_at)
-		VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11)
+		INSERT INTO preference (project_id, recipient_external_id, channel, topic, event, medium, name, description, enabled, mandatory, created_at, updated_at)
+		VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, $12)
 		ON CONFLICT (project_id, recipient_external_id, channel, topic, event, medium)
 		WHERE recipient_external_id IS NOT NULL
 		DO UPDATE SET
@@ -43,7 +54,7 @@ func (r *PreferenceRepo) Create(ctx context.Context, pref *entity.Preference) (*
 		RETURNING id, project_id, recipient_external_id, channel, topic, event, medium, name, description, enabled, mandatory, created_at, updated_at
 	`
 
-	row := r.db.QueryRow(ctx, sql, pref.ProjectID, pref.RecipientExtID, pref.Channel, pref.Topic, pref.Event, pref.Medium, pref.Name, pref.Description, pref.Enabled, pref.CreatedAt, pref.UpdatedAt)
+	row := r.db.QueryRow(ctx, sql, pref.ProjectID, pref.RecipientExtID, pref.Channel, pref.Topic, pref.Event, pref.Medium, pref.Name, pref.Description, pref.Enabled, pref.Mandatory, pref.CreatedAt, pref.UpdatedAt)
 
 	var newPref entity.Preference
 
