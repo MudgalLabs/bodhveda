@@ -1,5 +1,24 @@
 # Changelog
 
+## 0.7.0
+
+-   Bumped in lockstep with core `@bodhveda/js@0.7.0`, which adds **strict
+    targets** (a per-project setting, off by default, that makes the catalog a
+    send-time gate) and **`mandatory`** catalog entries. This package re-exports
+    the updated types; no hook signature changed.
+-   **`usePreferences()` and `useCheckPreference()` now return
+    `state.mandatory`.** This is the one thing that matters here: a mandatory
+    entry is one the recipient may not opt out of, and `useUpdatePreference` on it
+    is refused with a `400`. **Render it as locked, not as a switch** — a toggle
+    that saves and changes nothing is worse than one that refuses. The README's
+    new "Building a settings screen" section has a worked example.
+-   Strict targets itself never changes what these hooks do — they read and write
+    preferences, they do not send — but it is why a target missing from
+    `usePreferences()` is worth chasing: an uncataloged target appears on no
+    settings screen, so no recipient can mute it. Seeding the catalog is a
+    server-side `@bodhveda/js` concern (`preferences.upsertMany`), not a hook.
+-   Depends on `@bodhveda/js@^0.7.0`. No API change in this package itself.
+
 ## 0.6.0
 
 -   Bumped in lockstep with core `@bodhveda/js@0.6.0`, which makes `payload`
