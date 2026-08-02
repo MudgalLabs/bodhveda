@@ -47,6 +47,8 @@ export interface CreateProjectPreferencePayload {
     /** Optional; omitted or blank stores no description. */
     description?: string;
     default_enabled: boolean;
+    /** Recipients can't opt out. See ProjectPreference.mandatory. */
+    mandatory: boolean;
     channel: string;
     event: string | null;
     topic: string | null;
@@ -60,6 +62,12 @@ export interface UpdateProjectPreferencePayload {
     /** Optional; omitted or blank clears the description. */
     description?: string;
     default_enabled: boolean;
+    /**
+     * Optional on the wire: the API reads an absent `mandatory` as "leave it as
+     * it is", which is what protects an entry edited by an older client. The
+     * edit modal now has a control for it, so it always sends a value.
+     */
+    mandatory?: boolean;
 }
 
 export interface RecipientPreference {

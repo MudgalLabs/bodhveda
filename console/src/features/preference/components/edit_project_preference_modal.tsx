@@ -6,12 +6,14 @@ import {
     DialogFooter,
     DialogHeader,
     DialogTitle,
+    IconInfo,
     Input,
     Label,
     Textarea,
     toast,
     ToggleGroup,
     ToggleGroupItem,
+    Tooltip,
     WithLabel,
 } from "netra";
 import { useUpdateProjectPreference } from "@/features/preference/preference_hooks";
@@ -20,6 +22,7 @@ import {
     ProjectPreference,
 } from "@/features/preference/preference_type";
 import { apiErrorHandler } from "@/lib/api";
+import { MandatoryHelp } from "@/features/preference/components/mandatory_help";
 import { targetToString } from "@/lib/utils";
 
 interface EditProjectPreferenceModalProps {
@@ -44,6 +47,7 @@ export function EditProjectPreferenceModal(
     const [defaultEnabled, setDefaultEnabled] = useState(
         preference.default_enabled
     );
+    const [mandatory, setMandatory] = useState(preference.mandatory);
 
     const { mutateAsync: update, isPending } = useUpdateProjectPreference(
         projectID,
@@ -62,12 +66,14 @@ export function EditProjectPreferenceModal(
             setName(preference.name);
             setDescription(preference.description ?? "");
             setDefaultEnabled(preference.default_enabled);
+            setMandatory(preference.mandatory);
         }
     }, [
         open,
         preference.name,
         preference.description,
         preference.default_enabled,
+        preference.mandatory,
     ]);
 
     const disableSave = !name.trim();
@@ -83,6 +89,7 @@ export function EditProjectPreferenceModal(
                     name: name.trim(),
                     description: description.trim() || undefined,
                     default_enabled: defaultEnabled,
+                    mandatory,
                 },
             });
         } catch (err) {
@@ -148,6 +155,36 @@ export function EditProjectPreferenceModal(
 
                                 <ToggleGroupItem value="disabled">
                                     Disabled
+                                </ToggleGroupItem>
+                            </ToggleGroup>
+                        </WithLabel>
+
+                        <WithLabel
+                            Label={
+                                <Label className="flex-x">
+                                    Recipient control
+                                    <Tooltip content={<MandatoryHelp />}>
+                                        <IconInfo />
+                                    </Tooltip>
+                                </Label>
+                            }
+                        >
+                            <ToggleGroup
+                                className="[&_*]:h-8 pl-0!"
+                                type="single"
+                                size="small"
+                                value={mandatory ? "mandatory" : "optional"}
+                                onValueChange={(value) =>
+                                    value &&
+                                    setMandatory(value === "mandatory")
+                                }
+                            >
+                                <ToggleGroupItem value="optional">
+                                    Optional
+                                </ToggleGroupItem>
+
+                                <ToggleGroupItem value="mandatory">
+                                    Mandatory
                                 </ToggleGroupItem>
                             </ToggleGroup>
                         </WithLabel>

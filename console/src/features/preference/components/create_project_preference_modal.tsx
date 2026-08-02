@@ -10,12 +10,14 @@ import {
     DialogTitle,
     DialogTrigger,
     IconBadgeInfo,
+    IconInfo,
     Input,
     Label,
     Textarea,
     toast,
     ToggleGroup,
     ToggleGroupItem,
+    Tooltip,
     WithLabel,
 } from "netra";
 import { useCreateProjectPreference } from "@/features/preference/preference_hooks";
@@ -25,6 +27,7 @@ import {
     PreferenceMedium,
 } from "@/features/preference/preference_type";
 import { apiErrorHandler } from "@/lib/api";
+import { MandatoryHelp } from "@/features/preference/components/mandatory_help";
 
 interface CreateProjectPreferenceModalProps {
     renderTrigger: () => ReactNode;
@@ -39,6 +42,7 @@ export const CreateProjectPreferenceModal: FC<
     const [name, setName] = useState("");
     const [description, setDescription] = useState("");
     const [defaultEnabled, setDefaultEnabled] = useState(true);
+    const [mandatory, setMandatory] = useState(false);
     const [channel, setChannel] = useState("");
     const [event, setEvent] = useState("");
     const [topic, setTopic] = useState("");
@@ -65,6 +69,7 @@ export const CreateProjectPreferenceModal: FC<
                             name: name.trim(),
                             description: description.trim() || undefined,
                             default_enabled: defaultEnabled,
+                            mandatory,
                             channel: channel.trim(),
                             event: event.trim() || null,
                             topic: topic.trim() || null,
@@ -94,6 +99,7 @@ export const CreateProjectPreferenceModal: FC<
             setName("");
             setDescription("");
             setDefaultEnabled(true);
+            setMandatory(false);
             setChannel("");
             setEvent("");
             setTopic("");
@@ -176,6 +182,38 @@ export const CreateProjectPreferenceModal: FC<
 
                                 <ToggleGroupItem value="disabled">
                                     Disabled
+                                </ToggleGroupItem>
+                            </ToggleGroup>
+                        </WithLabel>
+
+                        {/* Sits next to Default because the two decide delivery
+                            together: for a mandatory entry the default is the
+                            only thing left that can stop it. */}
+                        <WithLabel
+                            Label={
+                                <Label className="flex-x">
+                                    Recipient control
+                                    <Tooltip content={<MandatoryHelp />}>
+                                        <IconInfo />
+                                    </Tooltip>
+                                </Label>
+                            }
+                        >
+                            <ToggleGroup
+                                className="[&_*]:h-8 pl-0!"
+                                type="single"
+                                size="small"
+                                value={mandatory ? "mandatory" : "optional"}
+                                onValueChange={(value) =>
+                                    value && setMandatory(value === "mandatory")
+                                }
+                            >
+                                <ToggleGroupItem value="optional">
+                                    Optional
+                                </ToggleGroupItem>
+
+                                <ToggleGroupItem value="mandatory">
+                                    Mandatory
                                 </ToggleGroupItem>
                             </ToggleGroup>
                         </WithLabel>
