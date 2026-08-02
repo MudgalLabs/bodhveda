@@ -54,10 +54,15 @@
 > 5. **§6.4 (`rejected` outcome bucket) is moot.** The gate rejects before any row
 >    is written, so nothing lands in `suppressed`.
 >
-> **Still open:** an untargeted send (no `target` at all) is not gated, because it
-> names no target to check. Such notifications are also unmutable — the §2.1
-> problem in its purest form — but requiring a target on every send is a separate,
-> larger breaking change.
+> **Not a gap:** an untargeted send (no `target` at all) is never gated, because
+> it names no target to check. It has no preference surface and always delivers,
+> and that is what an untargeted send MEANS — the notification goes to one
+> recipient of this project, so the recipient relationship is the consent, as with
+> any transactional message. §2.1 argues that *uncataloged* in-app notifications
+> are un-mutable, which is a real problem because they DO claim a target and could
+> have had a preference surface. An untargeted send claims nothing. Give it a
+> target and it becomes mutable; that progression is the product working, not a
+> defect to close.
 
 
 **Status:** proposed, not built. Written 2026-07-30.

@@ -157,8 +157,15 @@ func (s *NotificationService) Send(ctx context.Context, userID int, payload dto.
 // A send with no target at all is not gated, REGARDLESS of the setting: it is
 // not claiming a target, so there is nothing to check it against. That is what
 // keeps the quickstart zero-config even for a project that has turned the gate
-// on. Such notifications are also unmutable, which is its own problem — see
-// agent-docs/strict-targets-design.md.
+// on.
+//
+// Such a send has no preference surface either, and always delivers. That is the
+// MEANING of an untargeted send, not a hole in the gate: the notification is
+// addressed to one recipient of this project, so the recipient relationship is
+// the consent, exactly as it is for a transactional message. A developer who
+// wants it mutable gives it a target — which is the progression the product
+// teaches (send untargeted -> add a target -> discover preferences -> seed them
+// -> harden by turning this setting on).
 func (s *NotificationService) gateTarget(ctx context.Context, projectID int, target *dto.Target, mediums []enum.Medium) (service.Error, error) {
 	if target == nil {
 		return service.ErrNone, nil
