@@ -1,5 +1,28 @@
 # Changelog
 
+## v0.7.1
+
+**Fixes an incomplete `v0.7.0`.** That release added `Mandatory` to the catalog
+*write* types but not to either type you *read* it back on, so the field was
+invisible in Go — `encoding/json` silently discarded it.
+
+-   **`ResolvedPreferenceState.Mandatory`** — returned by
+    `Recipients.Preferences.List` / `.Check`. This is the one that mattered:
+    `v0.7.0` told you to render mandatory cells as locked, and then shipped no
+    field to render them from. If you build a settings screen in Go, you need
+    this release.
+-   **`ProjectPreference.Mandatory`** — returned by `Preferences.List` / `.Get`.
+    Reading the catalog back could not tell you which entries were mandatory.
+
+No behaviour change and nothing to migrate: both are additive fields on structs
+you receive, and the API was already sending them. Round-tripping a catalog entry
+through `Update` was never at risk, since `UpdateProjectPreferenceRequest.Mandatory`
+is a `*bool` where nil means "leave it alone".
+
+Also documents that `ResolvedPreferenceState.Cataloged`'s "an uncataloged pair
+still delivers" does not hold under strict targets, where the send is rejected
+before any preference is consulted.
+
 ## v0.7.0
 
 **Strict targets** — a new per-project setting, **off by default**. Nothing
@@ -20,8 +43,11 @@ A `topic: "any"` catalog entry satisfies the gate for every concrete topic
 beneath it, so one entry still covers an unbounded set of per-resource targets.
 
 Adds `Mandatory` to `CreateProjectPreferenceRequest` /
-`UpsertProjectPreferenceItem` / `UpdateProjectPreferenceRequest`, and to the
-resolved-preference read.
+`UpsertProjectPreferenceItem` / `UpdateProjectPreferenceRequest`.
+
+> **Correction:** this entry originally also claimed the resolved-preference read.
+> It did not — `ResolvedPreferenceState` and `ProjectPreference` both shipped
+> without the field, so it was invisible on every read path. Fixed in `v0.7.1`.
 
 A mandatory entry is cataloged — so sends pass the gate — but recipients cannot
 opt out of it: their toggle is refused with a `400` and any rule they already had

@@ -173,8 +173,13 @@ type ProjectPreference struct {
 	// DefaultEnabled is the project-level default for this (target, medium):
 	// whether a recipient who has expressed no preference of their own is
 	// delivered to.
-	DefaultEnabled bool   `json:"default_enabled"`
-	Name           string `json:"name"`
+	DefaultEnabled bool `json:"default_enabled"`
+	// Mandatory reports whether recipients may opt out of this entry. A mandatory
+	// entry is cataloged (so sends pass the gate) but its recipient toggle is
+	// refused with a 400 — render it as locked, not as a switch that saves and
+	// does nothing. See CreateProjectPreferenceRequest.Mandatory.
+	Mandatory bool   `json:"mandatory"`
+	Name      string `json:"name"`
 	// Description is the catalog entry's optional longer blurb; nil when unset.
 	Description *string   `json:"description"`
 	CreatedAt   time.Time `json:"created_at"`
@@ -277,12 +282,21 @@ type ResolvedPreferenceState struct {
 	// Cataloged reports whether a project-level rule exists for this exact
 	// (target, medium). It is context for rendering, NOT a gate: an explicit
 	// recipient rule on an uncataloged pair still delivers. Enabled is the answer.
+	//
+	// The exception is strict targets (a per-project setting, off by default):
+	// with it on, a send to an uncataloged pair is rejected outright, so nothing
+	// is delivered regardless of what this resolved to.
 	Cataloged bool `json:"cataloged"`
+	// Mandatory reports whether the recipient may opt out of this one. Unlike
+	// Cataloged this DOES decide Enabled — a mandatory catalog entry outranks the
+	// recipient's own rule — so a settings screen must render the cell as locked.
+	// Writing a recipient preference for it is refused with a 400.
+	Mandatory bool `json:"mandatory"`
 }
 
 // Preference represents a resolved preference.
 type Preference struct {
-	Target TargetWithName         `json:"target"`
+	Target TargetWithName          `json:"target"`
 	State  ResolvedPreferenceState `json:"state"`
 }
 
@@ -463,7 +477,7 @@ type SetPreferenceRequest struct {
 
 // SetPreferenceResponse represents the response after setting a preference.
 type SetPreferenceResponse struct {
-	Target TargetWithName `json:"target"`
+	Target TargetWithName  `json:"target"`
 	State  PreferenceState `json:"state"`
 }
 
@@ -478,6 +492,6 @@ type CheckPreferenceRequest struct {
 // The target need not be cataloged, or stored at all — any (channel, topic,
 // event) resolves.
 type CheckPreferenceResponse struct {
-	Target TargetWithName         `json:"target"`
+	Target TargetWithName          `json:"target"`
 	State  ResolvedPreferenceState `json:"state"`
 }
