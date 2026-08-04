@@ -386,6 +386,10 @@ type ResolvedPreferenceState struct {
 	// Cataloged means a project-level row exists for this exact (target, medium).
 	// It is context, NOT a gate: an explicit recipient row on an uncataloged
 	// pair still delivers.
+	//
+	// The exception is strict targets (a per-project setting, off by default):
+	// with it on, a send to an uncataloged pair is rejected outright, so nothing
+	// is delivered regardless of what this resolved to.
 	Cataloged bool `json:"cataloged"`
 	// Mandatory means the recipient cannot opt out of this one. Unlike Cataloged
 	// this DOES decide Enabled — a mandatory catalog entry outranks the
