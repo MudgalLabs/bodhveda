@@ -906,7 +906,6 @@ func (r *PreferenceRepo) LookupCatalogEntry(ctx context.Context, projectID int, 
 	return true, mandatory, nil
 }
 
-
 // ListUncatalogedSentTargets reports every (target, medium) this project has
 // actually sent since `since` that its catalog does not cover — the sends that
 // would have been REJECTED if strict targets were on.

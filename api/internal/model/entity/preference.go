@@ -121,7 +121,7 @@ type ResolvedPreference struct {
 	Channel string
 	Topic   string
 	Event   string
-	Medium string
+	Medium  string
 	// Name is the catalog entry's human name, when this (target, medium) is
 	// cataloged. Nil otherwise.
 	Name *string

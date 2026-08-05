@@ -9,8 +9,8 @@ import (
 	"github.com/mudgallabs/bodhveda/internal/model/dto"
 	"github.com/mudgallabs/bodhveda/internal/model/entity"
 	"github.com/mudgallabs/bodhveda/internal/model/repository"
-	tantraRepo "github.com/mudgallabs/tantra/repository"
 	"github.com/mudgallabs/tantra/query"
+	tantraRepo "github.com/mudgallabs/tantra/repository"
 )
 
 // fakeRecipientRepo is a minimal in-memory RecipientRepository covering only

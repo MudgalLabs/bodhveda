@@ -151,4 +151,3 @@ func TestListNotificationDeliveriesHandler(t *testing.T) {
 		}
 	})
 }
-

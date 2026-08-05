@@ -4,12 +4,12 @@ import (
 	"context"
 	"testing"
 
+	"github.com/jackc/pgx/v5/pgxpool"
 	"github.com/mudgallabs/bodhveda/internal/model/dto"
 	"github.com/mudgallabs/bodhveda/internal/model/entity"
 	"github.com/mudgallabs/bodhveda/internal/model/enum"
 	"github.com/mudgallabs/bodhveda/internal/pg"
 	"github.com/mudgallabs/bodhveda/internal/service"
-	"github.com/jackc/pgx/v5/pgxpool"
 )
 
 // emailTestService builds a NotificationService over real repositories.
