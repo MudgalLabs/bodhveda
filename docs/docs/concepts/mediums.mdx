@@ -58,11 +58,22 @@ The notification still exists — you get an `id` back, and it carries the email
 
 Because in-app was never requested, the recipient's **in-app** preference is irrelevant to such a send. It is still gated by the email catalog, the recipient's email preference, and a primary email contact, exactly like any other email.
 
-`payload` remains **required on a broadcast**, which is in-app only.
+`payload` remains **required on a broadcast** — see below.
 
-## Email is direct-only
+## Email on a broadcast
 
-Email is sent **only on direct notifications** (when `recipient_id` is set). Including an `email` block on a **broadcast** returns a `400`. Broadcasts remain in-app only — bulk email is deliberately out of scope in v1 to protect sender reputation.
+A broadcast may carry an `email` block, and each matching recipient gets their own email. The per-medium gates below apply per recipient, so a broadcast reaches the intersection of its audience and the recipients whose email preference is on and who have a primary email contact.
+
+Two rules are specific to broadcasts:
+
+-   **`payload` is required.** Email-only broadcasts are not supported, unlike email-only direct sends. A broadcast is the high blast-radius path, and "it also landed in their inbox" is what makes a mistaken send visible and recoverable afterwards. Without this rule, a fire-and-forget mass email would leave no in-product trace.
+-   **The email fan-out is capped per project**, at 100 recipients by default. This is a safety rail, not a billing limit — raise it in your project's email settings when you mean to.
+
+<Warning>
+    Exceeding the cap **blocks the email half of the broadcast entirely** rather than emailing the first 100. A partial mass email is worse than none: you cannot tell who got it without reading the delivery rows, and re-sending double-sends everyone who did. The in-app half still delivers to the full audience.
+</Warning>
+
+The cap is enforced at fan-out, not at request time — the audience is not known when the send is accepted.
 
 ## Each medium is gated independently
 
@@ -78,6 +89,6 @@ When a medium is skipped or fails, the send still succeeds (a partial-medium fai
 
 ## Unsubscribe
 
-Every outbound email carries the one-click `List-Unsubscribe` headers that Gmail and Yahoo require. Bodhveda hosts the unsubscribe page itself — when a recipient clicks it, Bodhveda flips that recipient's **email** preference for that target off, exactly as if they had toggled it in your settings UI. Subsequent sends then record the email as `muted`.
+Every outbound email carries the one-click `List-Unsubscribe` headers that Gmail and Yahoo require. Bodhveda hosts that page itself — when a recipient clicks it, Bodhveda flips that recipient's **email** preference for that target off, exactly as if they had toggled it in your settings UI. Subsequent sends then record the email as `muted`.
 
-This is automatic — there is no API endpoint for you to call. Spam complaints reported by the email provider have the same effect (they auto-unsubscribe the recipient from that target's email).
+That surface is automatic and there is nothing to call. The **visible unsubscribe link in your email body** is yours to build, and the same bulk-sender rules expect one. See [Unsubscribe](/docs/concepts/unsubscribe) for both surfaces, and for what a spam complaint does.

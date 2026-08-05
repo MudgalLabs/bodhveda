@@ -1,0 +1,197 @@
+---
+title: "Unsubscribe"
+description: "How recipients opt out of email, and what you have to build"
+---
+
+Every email you send through Bodhveda needs a way out of it. There are **two** unsubscribe surfaces:
+
+| Surface | Who builds it | Where it appears | Works on |
+| --- | --- | --- | --- |
+| **One-click header** (RFC 8058) | **Bodhveda**, automatically | The *Unsubscribe* chip your mail client shows next to the sender | Direct **and** broadcast |
+| **In-body link** | **You**, in your email HTML | The "unsubscribe" line in your email footer | Direct only |
+
+Both end in the same place: the recipient's **email** preference for that target, switched off.
+
+The header alone is a complete unsubscribe. **You do not have to build anything** — the in-body link is an addition you make when you want the way out to be visible in the message itself, and it is worth making for anything a recipient might describe as promotional.
+
+## The one-click header is automatic
+
+Bodhveda attaches `List-Unsubscribe` and `List-Unsubscribe-Post` headers to every outbound email, and hosts the page they point at. You do not call anything, configure anything, or put anything in your template — this surface is already done.
+
+```
+List-Unsubscribe: <https://api.bodhveda.com/unsubscribe/email?t=…>
+List-Unsubscribe-Post: List-Unsubscribe=One-Click
+```
+
+The token in that URL is self-contained and signed: it names the project, the recipient, and the target, and Bodhveda verifies the signature rather than looking anything up. It is valid for **180 days** from the send, because a recipient may reasonably unsubscribe from a months-old email.
+
+The hosted page is deliberately split across two methods:
+
+-   **`GET`** verifies the token and renders a confirmation page. It changes nothing.
+-   **`POST`** performs the unsubscribe. This is both what the confirmation button submits and what Gmail and Yahoo call directly for one-click.
+
+<Note>
+    The `GET` is side-effect-free on purpose. Mail scanners, link prefetchers, and security appliances fetch every URL in a message, headers included. A mutating `GET` would unsubscribe recipients who never clicked anything.
+</Note>
+
+Gmail's and Yahoo's bulk-sender rules require this header, and require the unsubscribe to take effect within two days. Bodhveda's takes effect immediately.
+
+## The in-body link is yours to build — on direct sends
+
+Those same bulk-sender rules also want a **visible** unsubscribe link in the message body of promotional mail. Bodhveda does not give you one: the signed token above is built on the send path and goes straight into the header. It is never returned to you, and there is no endpoint that mints one.
+
+So the footer link points at **a page you host**, and that page calls [set preference](/api-reference/endpoint/recipients/preferences/set-preference) with `medium: "email"` and `enabled: false`.
+
+The only real problem to solve is that the page is reached from an inbox, where nobody is logged in. A bare `?user=123` would let anyone unsubscribe anyone, so the link needs a signed token of your own.
+
+<Note>
+    This works on **direct** sends, where you know the recipient at the moment you compose the email. On a broadcast you do not — you make one call and Bodhveda picks the audience — so there is no per-recipient link to embed. See [Broadcasts rely on the header](#broadcasts-rely-on-the-header).
+</Note>
+
+### 1. Sign a token
+
+HMAC the recipient id with a secret only your server knows. No database row, nothing to expire.
+
+```ts unsubscribe-token.ts
+import { createHmac, timingSafeEqual } from "crypto";
+
+const PURPOSE = "unsub-digest-email";
+const secret = () => process.env.UNSUBSCRIBE_SECRET!;
+
+const sign = (recipientId: string) =>
+    createHmac("sha256", secret()).update(`${PURPOSE}:${recipientId}`).digest("base64url");
+
+export function createUnsubscribeToken(recipientId: string): string {
+    const payload = Buffer.from(recipientId, "utf8").toString("base64url");
+    return `${payload}.${sign(recipientId)}`;
+}
+
+// Returns the recipient id if the token is authentic, otherwise null.
+export function verifyUnsubscribeToken(token: string): string | null {
+    const [payload, providedSig] = token.split(".");
+    if (!payload || !providedSig) return null;
+
+    const recipientId = Buffer.from(payload, "base64url").toString("utf8");
+    if (!recipientId) return null;
+
+    const expected = Buffer.from(sign(recipientId));
+    const provided = Buffer.from(providedSig);
+    if (expected.length !== provided.length) return null;
+    if (!timingSafeEqual(expected, provided)) return null;
+
+    return recipientId;
+}
+```
+
+Include the `PURPOSE` string in what you sign. It stops a token minted for unsubscribing from being replayed against some other feature that happens to sign the same recipient id with the same secret.
+
+<Warning>
+    Compare signatures with a constant-time function (`timingSafeEqual`, `hmac.Equal`), never `===`. A plain string comparison leaks how much of a signature is correct, one byte at a time.
+</Warning>
+
+### 2. Put the link in the footer
+
+```ts
+const url = `https://yourapp.com/unsubscribe?token=${createUnsubscribeToken(recipientId)}`;
+
+await bodhveda.notifications.send({
+    recipient_id: recipientId,
+    target: { channel: "digest", topic: "none", event: "sent" },
+    email: {
+        subject: "Your daily digest",
+        html: `<p>3 new follow-ups today.</p>
+               <p style="font-size:12px;color:#888">
+                 <a href="${url}">Unsubscribe</a> from these emails.
+               </p>`,
+    },
+});
+```
+
+Build the token per send. Do not store it — it is derived from the recipient id, so it is free to recompute.
+
+### 3. Flip the preference on your page
+
+```ts
+import { Bodhveda } from "@bodhveda/js";
+
+const bodhveda = new Bodhveda(process.env.BODHVEDA_API_KEY!);
+
+export async function unsubscribe(token: string) {
+    const recipientId = verifyUnsubscribeToken(token);
+    if (!recipientId) return { ok: false };
+
+    await bodhveda.recipients.preferences.set(recipientId, {
+        target: { channel: "digest", topic: "none", event: "sent" },
+        medium: "email",
+        state: { enabled: false },
+    });
+
+    return { ok: true };
+}
+```
+
+Setting `enabled: false` is **idempotent** — it upserts the same row every time. That is what makes it safe for a link prefetcher to hit your page, and it is why you can unsubscribe on page load rather than behind a confirmation button, if you would rather spend one click than two. Offer a **Resubscribe** button on the resulting page and a prefetch costs the recipient nothing.
+
+<Note>
+    Mark the page `noindex`. It is a public URL carrying a token, and it has no business in a search index.
+</Note>
+
+### Or just link to your settings screen
+
+If your emails go to signed-in users and you would rather not host a token flow at all, link the footer to your own notification settings page. It is one line and it is honest.
+
+The trade is that it costs a login. A recipient who wants out and hits a login wall marks the message as spam instead, which is strictly worse for you than an unsubscribe — a complaint hurts your sending reputation, and Bodhveda unsubscribes them anyway.
+
+## Broadcasts rely on the header
+
+A [broadcast that carries email](/docs/concepts/mediums#email-on-a-broadcast) has **no in-body unsubscribe link, and cannot have one.** You make a single send and Bodhveda resolves the audience during fan-out, so at the moment you write the HTML there is no recipient to build a link for — and by the time there is, you are not in the loop. Your own signed token cannot close this gap either, for the same reason.
+
+This is not a degraded experience. Bodhveda builds a genuine per-recipient signed URL for every broadcast email and attaches the same `List-Unsubscribe` headers it attaches to direct mail, so every recipient gets a working one-click unsubscribe in their mail client. The header is doing the whole job, and it is the job that Gmail and Yahoo actually check.
+
+It holds up because broadcast email is not a bulk-mail channel here. The fan-out is capped at **100 recipients per broadcast** by default, while the bulk-sender rules that expect a visible body link start at thousands of messages a day. A capped, target-scoped broadcast to the people watching one thread is not the thing those rules were written for.
+
+<Warning>
+    If you raise the cap and start sending genuinely promotional broadcasts, header-only stops being enough — that mail wants a visible unsubscribe in the body and Bodhveda cannot yet put one there. Send promotional email as direct sends, where you can embed your own link.
+</Warning>
+
+## What unsubscribing actually does
+
+Every path — the hosted one-click page, your own page, a spam complaint, a toggle in your settings UI — converges on the same write: a **recipient-level preference** for that `(target, email)`, set to disabled.
+
+That means:
+
+-   Subsequent sends to that target still succeed, but the email is recorded as `muted` with `failure_reason: preference_disabled`. You can see it on [retrieve a notification](/api-reference/endpoint/notifications/get-notification) and in the Console.
+-   The recipient's **in-app** notifications for the same target are untouched. Mediums are [gated independently](/docs/concepts/mediums) — unsubscribing from email is not going quiet.
+-   Your settings screen reflects it immediately, because it reads the same resolved preference.
+
+Resubscribing is the same call with `enabled: true`.
+
+## Unsubscribe is per target, not global
+
+An unsubscribe switches off **one target**, not email as a whole. A recipient who unsubscribes from your daily digest still gets replies to their conversation threads. That is usually what you want — it is the difference between "stop this one thing" and "stop everything".
+
+There is no single "all email off" switch. To offer one, disable each cataloged `(channel, event)` pair for that recipient. A `topic: any` recipient rule covers every topic under one channel and event with a single write, so the loop is over your catalog's channel/event pairs, not over every resource id.
+
+<Warning>
+    A recipient who wanted everything off and only lost one target will unsubscribe again from the next email, and then report it as spam. If your product sends more than one kind of email, give them a real global switch.
+</Warning>
+
+## Mandatory targets refuse the unsubscribe
+
+A [mandatory](/docs/concepts/preferences#mandatory-entries) catalog entry cannot be switched off — the write is refused with a `400`, from the hosted page and your own page alike. Password resets and security alerts are supposed to be undeclinable.
+
+Email on a mandatory target therefore carries **no `List-Unsubscribe` header at all**. Bodhveda suppresses it deliberately: advertising one-click unsubscribe would put an *Unsubscribe* chip in the recipient's mail client that fails when clicked, and a chip that does nothing is worse than no chip — the recipient walks away believing they opted out. No header is the honest signal that this mail is not optional.
+
+<Warning>
+    Do not put your own in-body unsubscribe link on a mandatory target either. The [set preference](/api-reference/endpoint/recipients/preferences/set-preference) call behind it is refused with the same `400`, so the link would fail exactly like the header would have.
+</Warning>
+
+## Spam complaints unsubscribe too
+
+When your email provider reports a **complaint** (the recipient hit "report spam"), Bodhveda disables that recipient's email preference for that target automatically, exactly as an unsubscribe would. The complaint is also recorded on the delivery row, so you can see it.
+
+This is target-scoped, matching an explicit unsubscribe. It is not an address-level suppression across every target.
+
+<Note>
+    Complaint handling depends on your provider's webhook reaching Bodhveda. Configure it in your project's email settings, or complaints will be invisible and the recipient will keep receiving mail they have already reported.
+</Note>

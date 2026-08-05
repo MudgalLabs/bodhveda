@@ -26,7 +26,8 @@
                                     "docs/concepts/targets",
                                     "docs/concepts/preferences",
                                     "docs/concepts/notifications",
-                                    "docs/concepts/mediums"
+                                    "docs/concepts/mediums",
+                                    "docs/concepts/unsubscribe"
                                 ]
                             }
                         ]
