@@ -460,6 +460,21 @@ func (s *NotificationService) fanOutEmail(ctx context.Context, notification *ent
 	if err != nil {
 		return record(newRow(enum.DeliveryFailed, "gating_error"))
 	}
+
+	// One catalog lookup serves both branches: `cataloged` distinguishes the skip
+	// reason below, `mandatory` decides whether this email may carry an
+	// unsubscribe header. On error, fall back to the values that preserve existing
+	// behaviour — cataloged (so the reason stays preference_disabled) and NOT
+	// mandatory (so the header still ships). Failing to prove a target mandatory
+	// must never strip a legitimate unsubscribe.
+	cataloged, mandatory := true, false
+	if exists, isMandatory, cerr := s.preferenceRepo.LookupCatalogEntry(ctx, projectID, target, enum.MediumEmail); cerr == nil {
+		cataloged, mandatory = exists, isMandatory
+	} else {
+		logger.Get().Warnf("lookup catalog entry for project %d target %s/%s/%s: %v",
+			projectID, target.Channel, target.Topic, target.Event, cerr)
+	}
+
 	if !shouldDeliver {
 		// Distinguish "no catalog entry" from "explicitly disabled" for visibility.
 		//
@@ -468,8 +483,7 @@ func (s *NotificationService) fanOutEmail(ctx context.Context, notification *ent
 		// this far is already cataloged. It survives for the one send the gate
 		// does not cover: an UNTARGETED send, which names no target to check.
 		reason := "preference_disabled"
-		cataloged, _, cerr := s.preferenceRepo.LookupCatalogEntry(ctx, projectID, target, enum.MediumEmail)
-		if cerr == nil && !cataloged {
+		if !cataloged {
 			reason = "not_cataloged"
 		}
 		return record(newRow(enum.DeliverySkippedMuted, reason))
@@ -509,7 +523,7 @@ func (s *NotificationService) fanOutEmail(ctx context.Context, notification *ent
 	// can't be built the email still sends, just without the List-Unsubscribe
 	// header. The token identifies (project, recipient, target); the endpoint
 	// re-derives + verifies it (no DB row).
-	unsubscribeURL := s.buildUnsubscribeURL(projectID, recipientExtID, target)
+	unsubscribeURL := s.buildUnsubscribeURL(projectID, recipientExtID, target, mandatory)
 
 	taskPayload, err := json.Marshal(dto.EmailDeliveryTaskPayload{
 		DeliveryID:     created.ID,
@@ -553,8 +567,19 @@ func (s *NotificationService) markDeliveryFailed(ctx context.Context, deliveryID
 // target) and returns the public one-click URL. Returns "" (no header injected) if
 // the token can't be built or no API base URL is configured — the email still
 // sends, just without List-Unsubscribe.
-func (s *NotificationService) buildUnsubscribeURL(projectID int, recipientExtID string, target dto.Target) string {
-	if env.APIURL == "" {
+//
+// ⚠️ `mandatory` MUST be the catalog's mandatory flag for this (target, email).
+// A mandatory target returns "" so no unsubscribe header is attached: the
+// endpoint's write goes through PreferenceService.UpdateRecipientPreferenceTarget,
+// whose refuseIfMandatory rejects it with a 400 — so advertising List-Unsubscribe
+// would show the recipient an Unsubscribe chip in their mail client that fails
+// when clicked. A missing chip is honest; a dead one is not.
+//
+// Callers resolve `mandatory` ONCE per send (or once per broadcast batch — the
+// target is fixed across the fan-out) rather than per recipient, so this stays
+// free of a per-recipient catalog query.
+func (s *NotificationService) buildUnsubscribeURL(projectID int, recipientExtID string, target dto.Target, mandatory bool) string {
+	if env.APIURL == "" || mandatory {
 		return ""
 	}
 	token, err := email.BuildUnsubscribeToken(email.UnsubscribeClaims{
@@ -1091,6 +1116,18 @@ func (s *NotificationService) FanOutBroadcastEmail(
 		byExtID[d.RecipientExtID] = d
 	}
 
+	// Resolve the catalog's mandatory flag ONCE — the target is fixed for the whole
+	// broadcast, so this must not become a per-recipient query. On error, treat it
+	// as not mandatory: that preserves the header, and failing to prove a target
+	// mandatory must never strip a legitimate unsubscribe.
+	mandatory := false
+	if _, isMandatory, cerr := s.preferenceRepo.LookupCatalogEntry(ctx, broadcast.ProjectID, target, enum.MediumEmail); cerr == nil {
+		mandatory = isMandatory
+	} else {
+		logger.Get().Warnf("lookup catalog entry for broadcast %d target %s/%s/%s: %v",
+			broadcast.ID, target.Channel, target.Topic, target.Event, cerr)
+	}
+
 	tasks := make([]dto.EmailDeliveryTaskPayload, 0, len(sendable))
 	for _, extID := range sendable {
 		d := byExtID[extID]
@@ -1102,7 +1139,7 @@ func (s *NotificationService) FanOutBroadcastEmail(
 			Subject:        broadcast.Email.Subject,
 			HTML:           broadcast.Email.HTML,
 			Text:           broadcast.Email.Text,
-			UnsubscribeURL: s.buildUnsubscribeURL(broadcast.ProjectID, extID, target),
+			UnsubscribeURL: s.buildUnsubscribeURL(broadcast.ProjectID, extID, target, mandatory),
 		})
 	}
 
