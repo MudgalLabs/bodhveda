@@ -104,37 +104,47 @@ func TestCheckQueueLatency(t *testing.T) {
 	}
 }
 
-func TestCheckFailureRatio(t *testing.T) {
+func TestFailureRatioCheck(t *testing.T) {
+	// Each case is a baseline tick then one tick a minute later; the check judges
+	// only what happened between them.
 	tests := []struct {
-		name      string
-		processed int
-		failed    int
-		want      bool
+		name              string
+		processed, failed int // growth between the two ticks
+		want              bool
 	}{
 		{
 			// The incident this whole package exists for: the worker was UP and
 			// consuming, so worker_absent stayed silent. This is the check that
 			// catches it.
-			name: "the 2026-07-27 incident", processed: 168, failed: 164, want: true,
+			name: "the 2026-07-27 incident", processed: 164, failed: 160, want: true,
+		},
+		{
+			// Broadcast 4: nine batches timed out together on a quiet night. Low
+			// traffic must not hide a real incident.
+			name: "the 2026-11-03 broadcast stall", processed: 11, failed: 9, want: true,
 		},
 		{name: "healthy", processed: 500, failed: 3, want: false},
-		{
-			// Asynq's counters reset daily, so just after midnight the sample is
-			// legitimately tiny. 1-of-1 is 100% and means nothing.
-			name: "small sample is ignored", processed: 1, failed: 1, want: false,
-		},
-		{name: "just below the minimum sample", processed: failureRatioMinProcessed - 1, failed: 19, want: false},
-		{name: "at the minimum sample, over threshold", processed: failureRatioMinProcessed, failed: 20, want: true},
+		{name: "a lone failure is not an incident", processed: 1, failed: 1, want: false},
+		{name: "just below the minimum failures", processed: failureRatioMinFailed - 1, failed: failureRatioMinFailed - 1, want: false},
+		{name: "at the minimum failures, over threshold", processed: failureRatioMinFailed, failed: failureRatioMinFailed, want: true},
 		{name: "at the threshold exactly is not over it", processed: 100, failed: 25, want: false},
 		{name: "just over the threshold", processed: 100, failed: 26, want: true},
-		{name: "zero processed does not divide by zero", processed: 0, failed: 0, want: false},
+		{name: "nothing processed", processed: 0, failed: 0, want: false},
 	}
 
 	for _, tc := range tests {
 		t.Run(tc.name, func(t *testing.T) {
-			f, err := checkFailureRatio(&fakeInspector{
-				info: &asynq.QueueInfo{Processed: tc.processed, Failed: tc.failed},
-			})
+			clock := time.Date(2026, 11, 4, 0, 0, 0, 0, time.UTC)
+			c := &failureRatioCheck{window: time.Hour, now: func() time.Time { return clock }}
+			insp := &fakeInspector{info: &asynq.QueueInfo{Processed: 1000, Failed: 10}}
+
+			if f, err := c.run(insp); err != nil || f.Firing {
+				t.Fatalf("the baseline tick must never fire: firing=%v err=%v", f.Firing, err)
+			}
+
+			clock = clock.Add(time.Minute)
+			insp.info = &asynq.QueueInfo{Processed: 1000 + tc.processed, Failed: 10 + tc.failed}
+			f, err := c.run(insp)
 			if err != nil {
 				t.Fatalf("unexpected error: %v", err)
 			}
@@ -143,6 +153,79 @@ func TestCheckFailureRatio(t *testing.T) {
 			}
 		})
 	}
+}
+
+// The two faults of the daily-counter version, both seen on 2026-11-03.
+func TestFailureRatioCheckWindow(t *testing.T) {
+	start := time.Date(2026, 11, 3, 18, 0, 0, 0, time.UTC)
+	clock := start
+	newCheck := func() *failureRatioCheck {
+		return &failureRatioCheck{window: time.Hour, now: func() time.Time { return clock }}
+	}
+	tick := func(c *failureRatioCheck, processed, failed int) bool {
+		t.Helper()
+		f, err := c.run(&fakeInspector{info: &asynq.QueueInfo{Processed: processed, Failed: failed}})
+		if err != nil {
+			t.Fatalf("run: %v", err)
+		}
+		return f.Firing
+	}
+
+	t.Run("resolves once failures age out of the window", func(t *testing.T) {
+		clock = start
+		c := newCheck()
+		tick(c, 15, 0)
+		clock = clock.Add(time.Minute)
+		if !tick(c, 24, 9) {
+			t.Fatal("nine failures in a burst must fire")
+		}
+
+		// Nothing else runs afterwards, so only time can clear it. Under the daily
+		// counters "9 of 31" stayed over 25% for the rest of the day; here the
+		// burst must keep counting while it is inside the window and clear after.
+		clock = clock.Add(30 * time.Minute)
+		if !tick(c, 24, 9) {
+			t.Fatal("still inside the window, the burst should still count")
+		}
+		clock = clock.Add(31 * time.Minute)
+		if tick(c, 24, 9) {
+			t.Error("once the burst is older than the window the condition must resolve")
+		}
+	})
+
+	t.Run("a restart does not re-announce old failures", func(t *testing.T) {
+		clock = start
+		// Fresh process after a deploy: the day's counters already hold the burst.
+		c := newCheck()
+		if tick(c, 31, 9) {
+			t.Fatal("the first tick after boot is a baseline, not an alert")
+		}
+		clock = clock.Add(time.Minute)
+		if tick(c, 32, 9) {
+			t.Error("no new failures since boot, so nothing to say")
+		}
+	})
+
+	t.Run("a restart mid-incident still fires on the next tick", func(t *testing.T) {
+		clock = start
+		c := newCheck()
+		tick(c, 31, 9)
+		clock = clock.Add(time.Minute)
+		if !tick(c, 41, 18) {
+			t.Error("failures continuing after boot must fire")
+		}
+	})
+
+	t.Run("midnight reset counts from zero", func(t *testing.T) {
+		clock = start
+		c := newCheck()
+		tick(c, 400, 2)
+		clock = clock.Add(time.Minute)
+		// Counters reset, and the first minute of the new day is all failures.
+		if !tick(c, 8, 8) {
+			t.Error("the reset must rebaseline at zero, not swallow the new day's failures")
+		}
+	})
 }
 
 func TestArchivedGrowthCheck(t *testing.T) {
@@ -312,9 +395,11 @@ func TestIncidentReplayFiresTheRightChecks(t *testing.T) {
 	insp := &fakeInspector{
 		// The worker was UP the whole time — it was consuming and archiving.
 		servers: []*asynq.ServerInfo{{ID: "worker-1"}},
-		info:    &asynq.QueueInfo{Processed: 168, Failed: 164, Archived: 0},
+		// Baseline: the moment before it went wrong.
+		info: &asynq.QueueInfo{Processed: 4, Failed: 0, Archived: 0},
 	}
-	checks := DefaultChecks(insp, &fakeStuckCounter{count: 0}, nil)
+	clock := time.Date(2026, 7, 27, 12, 0, 0, 0, time.UTC)
+	checks := DefaultChecks(insp, &fakeStuckCounter{count: 0}, func() time.Time { return clock })
 
 	run := func() map[string]bool {
 		t.Helper()
@@ -329,7 +414,14 @@ func TestIncidentReplayFiresTheRightChecks(t *testing.T) {
 		return out
 	}
 
-	// First cycle primes the archived baseline.
+	// First cycle primes the archived and failure-ratio baselines.
+	if first := run(); first["worker_absent"] {
+		t.Error("worker_absent must stay silent — the worker was running during the incident")
+	}
+
+	// Next cycle: 164 of the next 164 tasks failed.
+	clock = clock.Add(time.Minute)
+	insp.info = &asynq.QueueInfo{Processed: 168, Failed: 164, Archived: 0}
 	first := run()
 	if first["worker_absent"] {
 		t.Error("worker_absent must stay silent — the worker was running during the incident")
@@ -338,8 +430,9 @@ func TestIncidentReplayFiresTheRightChecks(t *testing.T) {
 		t.Error("task_failure_ratio must fire on 164/168")
 	}
 
-	// Second cycle, with tasks now being archived.
-	insp.info = &asynq.QueueInfo{Processed: 168, Failed: 164, Archived: 57}
+	// Next cycle, still failing, with tasks now being archived.
+	clock = clock.Add(time.Minute)
+	insp.info = &asynq.QueueInfo{Processed: 200, Failed: 196, Archived: 57}
 	second := run()
 	if !second["tasks_archived"] {
 		t.Error("tasks_archived must fire once the archived count grows")

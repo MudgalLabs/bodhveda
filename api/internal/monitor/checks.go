@@ -24,13 +24,17 @@ const (
 	// consumed at all.
 	queueLatencyThreshold = 5 * time.Minute
 
-	// failureRatioThreshold is the share of today's processed tasks that may fail
-	// before we alert. The incident that motivated this ran at 164/168 = 98%.
+	// failureRatioThreshold is the share of processed tasks in the window that
+	// may fail before we alert. The incident that motivated this ran at 98%.
 	failureRatioThreshold = 0.25
-	// failureRatioMinProcessed stops a cold-start blip (1 failure out of 1) from
-	// firing at 100%. Asynq's Processed/Failed are daily counters that reset, so
-	// just after midnight the sample is legitimately tiny.
-	failureRatioMinProcessed = 20
+	// failureRatioMinFailed stops a lone failure (1 of 1 is 100%) from paging.
+	// It counts FAILURES, not processed tasks, because traffic is low: broadcast
+	// 4's nine timed-out batches on 2026-11-03 were a real incident in a window
+	// that processed barely more than nine tasks.
+	failureRatioMinFailed = 5
+	// failureRatioWindow is how far back the ratio looks, and so also roughly how
+	// long the condition stays open after failures stop.
+	failureRatioWindow = time.Hour
 
 	// stuckSendAge is how long a notification may sit unresolved before it counts
 	// as stuck. Comfortably beyond a normal send (sub-second) plus Asynq's retry
@@ -85,6 +89,7 @@ func DefaultChecks(inspector queueInspector, notifications stuckCounter, now fun
 	}
 
 	archived := &archivedGrowthCheck{}
+	failures := &failureRatioCheck{window: failureRatioWindow, now: now}
 
 	return []Check{
 		{
@@ -100,7 +105,7 @@ func DefaultChecks(inspector queueInspector, notifications stuckCounter, now fun
 		{
 			Name:           "task_failure_ratio",
 			MinConsecutive: 1,
-			Run:            func(ctx context.Context) (Finding, error) { return checkFailureRatio(inspector) },
+			Run:            func(ctx context.Context) (Finding, error) { return failures.run(inspector) },
 		},
 		{
 			Name:           "tasks_archived",
@@ -166,33 +171,74 @@ func checkQueueLatency(inspector queueInspector) (Finding, error) {
 	}, nil
 }
 
-// checkFailureRatio fires when too large a share of today's processed tasks
-// failed. This is the check that catches a worker which is up and consuming but
-// failing everything it touches — the shape of the 2026-07-27/28 incident, where
-// Servers() was healthy and 98% of tasks failed.
+// failureRatioCheck fires when too many of the tasks processed in the last
+// failureRatioWindow failed. This is the check that catches a worker which is up
+// and consuming but failing everything it touches — the shape of the 2026-07-27/28
+// incident, where Servers() was healthy and 98% of tasks failed.
 //
-// Processed/Failed are asynq's DAILY counters and reset at midnight, so this
-// reports "today", not a rolling window. Good enough: an incident this severe is
-// visible within one tick of starting.
-func checkFailureRatio(inspector queueInspector) (Finding, error) {
+// ⚠️ A WINDOW, not asynq's daily totals. Processed/Failed are counters that reset
+// at UTC midnight, and the first version alerted on them directly, which had two
+// faults that showed up together on 2026-11-03:
+//
+//   - It could not resolve. Nine failures at 00:14 kept "9 of 31 failed today"
+//     over threshold for the rest of the day, long after the incident ended —
+//     an alert that never clears trains everyone to ignore the channel.
+//   - It re-posted on every deploy. Tracker state is per-process, so a restart
+//     re-opened the condition and announced the morning's failures as new.
+//
+// So this keeps a short history of counter snapshots and judges the DELTA across
+// it. The first observation after boot is only a baseline — like
+// archivedGrowthCheck — which makes a restart silent unless tasks keep failing.
+type failureRatioCheck struct {
+	window  time.Duration
+	now     func() time.Time
+	samples []failureSample
+}
+
+type failureSample struct {
+	at                time.Time
+	processed, failed int
+}
+
+func (c *failureRatioCheck) run(inspector queueInspector) (Finding, error) {
 	info, err := inspector.GetQueueInfo(defaultQueue)
 	if err != nil {
 		return Finding{}, fmt.Errorf("inspect queue %q: %w", defaultQueue, err)
 	}
 
-	if info.Processed < failureRatioMinProcessed {
+	cur := failureSample{at: c.now(), processed: info.Processed, failed: info.Failed}
+
+	// The daily counters went backwards: midnight reset. Everything counted since
+	// then happened after a zero, so a zero baseline loses nothing.
+	if n := len(c.samples); n > 0 && (cur.processed < c.samples[n-1].processed || cur.failed < c.samples[n-1].failed) {
+		c.samples = []failureSample{{at: c.samples[n-1].at}}
+	}
+
+	c.samples = append(c.samples, cur)
+
+	// Drop samples that have aged out, always keeping the newest as a base.
+	cutoff := cur.at.Add(-c.window)
+	for len(c.samples) > 1 && c.samples[0].at.Before(cutoff) {
+		c.samples = c.samples[1:]
+	}
+
+	base := c.samples[0]
+	processed := cur.processed - base.processed
+	failed := cur.failed - base.failed
+
+	if failed < failureRatioMinFailed || processed <= 0 {
 		return Finding{}, nil
 	}
 
-	ratio := float64(info.Failed) / float64(info.Processed)
+	ratio := float64(failed) / float64(processed)
 	if ratio <= failureRatioThreshold {
 		return Finding{}, nil
 	}
 
 	return Finding{
 		Firing: true,
-		Summary: fmt.Sprintf("%d of %d tasks failed today (%.0f%%, threshold %.0f%%).",
-			info.Failed, info.Processed, ratio*100, failureRatioThreshold*100),
+		Summary: fmt.Sprintf("%d of %d tasks failed in the last %dm (%.0f%%, threshold %.0f%%).",
+			failed, processed, int(cur.at.Sub(base.at).Round(time.Minute)/time.Minute), ratio*100, failureRatioThreshold*100),
 		Fields: map[string]string{
 			"queue":    defaultQueue,
 			"archived": fmt.Sprintf("%d", info.Archived),

@@ -101,7 +101,7 @@ carrying `Pending / Active / Retry / Archived / Processed / Failed / Latency`.
 |---|---|---|---|
 | 1 | **Worker absent** | `Inspector.Servers()` | empty for 2 consecutive ticks |
 | 2 | **Queue backing up** | `QueueInfo.Latency` (age of oldest pending task) | > 5 min |
-| 3 | **Failure ratio** | `Failed / Processed` (daily counters) | > 25% with `Processed` ≥ 20 |
+| 3 | **Failure ratio** | `Failed / Processed`, delta over a rolling 1 h window of tick snapshots | > 25% with ≥ 5 failures in the window |
 | 4 | **Tasks being archived** | `QueueInfo.Archived` | increased since last tick |
 | 5 | **Stuck sends** | DB: `notification` non-terminal, created > 10 min ago | count > 0 |
 
@@ -201,6 +201,14 @@ against the live Redis, then resolves it genuinely by registering a real Asynq s
 **Deviation from the plan:** none material. Thresholds as designed (5 min queue latency, 25%
 failure ratio with a 20-task minimum sample, 10 min stuck age, 6 h lookback, 60 s interval,
 30 min re-notify).
+
+**Revised 2026-11-03 — check 3 moved off the daily counters.** Alerting on asynq's daily
+`Failed / Processed` could not resolve: nine timed-out broadcast batches at 00:14 kept
+"9 of 31 failed today" over threshold all day, long after the incident ended, and every
+deploy re-posted it because tracker state is per-process. It now judges the delta across a
+rolling 1 h window of counter snapshots, takes a baseline on boot (so a restart is silent
+unless failures continue), rebaselines at zero on the midnight reset, and requires ≥ 5
+failures rather than ≥ 20 processed — low traffic must not hide a burst like that one.
 
 ---
 
