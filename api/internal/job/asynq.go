@@ -7,6 +7,10 @@ import (
 	"github.com/mudgallabs/bodhveda/internal/env"
 )
 
+// Concurrency is how many tasks the worker runs at once. app sizes the DB pool
+// from it (see app.DBPoolMaxConns): two connections per concurrent task.
+const Concurrency = 10
+
 // NewAsynqClient initializes and returns a new Asynq client.
 // Client is used to enqueue tasks to the Asynq server.
 func NewAsynqClient() (*asynq.Client, error) {
@@ -30,7 +34,7 @@ func NewAsynqServer() (*asynq.Server, error) {
 		redisConnOpt,
 		asynq.Config{
 			// Specify how many concurrent workers to use
-			Concurrency: 10,
+			Concurrency: Concurrency,
 		},
 	), nil
 }

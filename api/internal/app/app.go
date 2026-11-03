@@ -79,7 +79,7 @@ func Init() {
 
 	session.Init()
 
-	db, err := dbx.Init(env.DBURL)
+	db, err := dbx.Init(withPoolMaxConns(env.DBURL, DBPoolMaxConns))
 	if err != nil {
 		logger.Get().Errorf("failed to connect to database: %v", err)
 		panic(err)
