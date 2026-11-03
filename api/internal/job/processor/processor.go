@@ -276,7 +276,13 @@ func (processor *PrepareBroadcastBatchesProcessor) prepareTx(
 	ctx context.Context, tx pgx.Tx, broadcast *entity.Broadcast,
 	target dto.Target, userID int, enqueue *[]*entity.BroadcastBatch,
 ) error {
-	recipientExtIDs, err := processor.preferenceRepo.ListEligibleRecipientExtIDsForBroadcast(ctx, broadcast.ProjectID, target, enum.MediumInApp)
+	// ⚠️ Every read in here goes through `tx`, never the pool: this transaction
+	// already pins a pool connection, and a pool read would ask for a second one.
+	// Enough concurrent tasks doing that exhaust the pool with every holder
+	// waiting on another — a deadlock that only Asynq's 30-minute timeout breaks.
+	// It hit billing on 2026-07-28 and broadcast delivery on 2026-11-03;
+	// TestBroadcastPipelineNeedsOnlyOneConnection pins the whole pipeline.
+	recipientExtIDs, err := processor.preferenceRepo.ListEligibleRecipientExtIDsForBroadcastTx(ctx, tx, broadcast.ProjectID, target, enum.MediumInApp)
 	if err != nil {
 		return fmt.Errorf("list eligible recipient external IDs: %w", err)
 	}
@@ -289,7 +295,7 @@ func (processor *PrepareBroadcastBatchesProcessor) prepareTx(
 	//
 	// Best-effort: this is reporting, so a failure here must never fail the
 	// fan-out. The tree renders a missing audience as "not recorded".
-	if audience, err := processor.preferenceRepo.CountBroadcastAudience(ctx, broadcast.ProjectID, target, enum.MediumInApp); err != nil {
+	if audience, err := processor.preferenceRepo.CountBroadcastAudienceTx(ctx, tx, broadcast.ProjectID, target, enum.MediumInApp); err != nil {
 		logger.Get().Errorf("PrepareBroadcastBatchesProcessor: count audience for broadcast %d: %v", broadcast.ID, err)
 	} else {
 		// Eligible comes from the list we actually fan out to, not the aggregate:
@@ -316,8 +322,8 @@ func (processor *PrepareBroadcastBatchesProcessor) prepareTx(
 	fanOut := recipientExtIDs
 
 	if broadcast.Email != nil && processor.notificationService != nil {
-		emailEligible, err := processor.preferenceRepo.ListEligibleRecipientExtIDsForBroadcast(
-			ctx, broadcast.ProjectID, target, enum.MediumEmail,
+		emailEligible, err := processor.preferenceRepo.ListEligibleRecipientExtIDsForBroadcastTx(
+			ctx, tx, broadcast.ProjectID, target, enum.MediumEmail,
 		)
 		if err != nil {
 			return fmt.Errorf("list email-eligible recipients: %w", err)
@@ -609,8 +615,10 @@ func (processor *BroadcastDeliveryProcessor) ProcessTask(ctx context.Context, t 
 		if processor.preferenceRepo != nil {
 			target := dto.Target{Channel: payload.Channel, Topic: payload.Topic, Event: payload.Event}
 
-			eligible, err := processor.preferenceRepo.FilterEligibleRecipientsForBroadcast(
-				ctx, payload.ProjectID, target, enum.MediumInApp, payload.RecipientExtIDs,
+			// ⚠️ Tx variant: a pool read here deadlocked broadcast 4 on 2026-11-03
+			// (see prepareTx).
+			eligible, err := processor.preferenceRepo.FilterEligibleRecipientsForBroadcastTx(
+				ctx, tx, payload.ProjectID, target, enum.MediumInApp, payload.RecipientExtIDs,
 			)
 			if err != nil {
 				return fmt.Errorf("filter in-app eligible recipients: %w", err)

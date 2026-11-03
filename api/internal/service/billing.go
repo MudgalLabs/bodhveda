@@ -39,14 +39,29 @@ func NewBillingService(
 }
 
 func (s *BillingService) GetSubscription(ctx context.Context, userID int) (*dto.UserSubscription, service.Error, error) {
-	sub, err := s.subRepo.Get(ctx, userID)
+	return s.getSubscription(ctx, nil, userID)
+}
+
+// getSubscription is GetSubscription on `tx` when non-nil, else on the pool.
+func (s *BillingService) getSubscription(ctx context.Context, tx pgx.Tx, userID int) (*dto.UserSubscription, service.Error, error) {
+	var sub *entity.UserSubscription
+	var err error
+	if tx != nil {
+		sub, err = s.subRepo.GetTx(ctx, tx, userID)
+	} else {
+		sub, err = s.subRepo.Get(ctx, userID)
+	}
 
 	if err != nil {
 		if err == tantraRepo.ErrNotFound {
 			// Create a new free subscription if not found.
 			// This is to ensure that every user has at least a free plan.
 			sub = entity.NewUserSubscription(userID, entity.PlanFree)
-			err = s.subRepo.Upsert(ctx, sub)
+			if tx != nil {
+				err = s.subRepo.UpsertTx(ctx, tx, sub)
+			} else {
+				err = s.subRepo.Upsert(ctx, sub)
+			}
 			if err != nil {
 				return nil, service.ErrInternalServerError, fmt.Errorf("failed to create subscription: %w", err)
 			}
@@ -105,6 +120,13 @@ func (s *BillingService) GetUsage(ctx context.Context, userID int, planID entity
 // never observed the transaction's uncommitted state anyway, so this preserves
 // the previous semantics exactly while holding one connection at a time.
 //
+// ⚠️ That holds only while NO transaction is open yet. CheckAndConsumeUsageTx
+// is called with the caller's transaction already pinning a connection, so there
+// the same pool lookups ask for a SECOND one and recreate the deadlock from the
+// other side — which is why the Tx path runs every lookup on the caller's `tx`
+// instead. Same principle, one connection per in-flight call; it simply has to be
+// the caller's connection once the caller owns one.
+//
 // KNOWN LIMITATION, unchanged by this: the quota check is check-then-act with no
 // row lock, so concurrent sends can overshoot a limit slightly. That race exists
 // in the shipped behaviour above too — closing it needs a locking read and is a
@@ -123,25 +145,20 @@ func (s *BillingService) GetUsage(ctx context.Context, userID int, planID entity
 // check-then-act against concurrent consumption. That is unchanged from
 // CheckAndConsumeUsage and is not what this fixes.
 func (s *BillingService) CheckAndConsumeUsageTx(ctx context.Context, tx pgx.Tx, event dto.UsageEvent) error {
-	return s.checkAndConsumeUsage(ctx, event, func(ctx context.Context, write func(pgx.Tx) error) error {
-		return write(tx)
-	})
+	return s.checkAndConsumeUsage(ctx, tx, event)
 }
 
 func (s *BillingService) CheckAndConsumeUsage(ctx context.Context, event dto.UsageEvent) error {
-	return s.checkAndConsumeUsage(ctx, event, func(ctx context.Context, write func(pgx.Tx) error) error {
-		return dbx.WithTx(ctx, s.db, write)
-	})
+	return s.checkAndConsumeUsage(ctx, nil, event)
 }
 
-func (s *BillingService) checkAndConsumeUsage(
-	ctx context.Context, event dto.UsageEvent,
-	runWrite func(ctx context.Context, write func(pgx.Tx) error) error,
-) error {
+// checkAndConsumeUsage runs on the caller's `tx` when non-nil — lookups AND the
+// write — and otherwise looks up on the pool and writes in its own transaction.
+func (s *BillingService) checkAndConsumeUsage(ctx context.Context, tx pgx.Tx, event dto.UsageEvent) error {
 	now := time.Now().UTC()
 
 	// Load subscription
-	sub, _, err := s.GetSubscription(ctx, event.UserID)
+	sub, _, err := s.getSubscription(ctx, tx, event.UserID)
 	if err != nil {
 		return fmt.Errorf("failed to get subscription: %w", err)
 	}
@@ -157,7 +174,11 @@ func (s *BillingService) checkAndConsumeUsage(
 			newSub = entity.RenewSubscription(sub.UserID, entity.PlanFree, sub.CreatedAt)
 		}
 
-		err = s.subRepo.Upsert(ctx, newSub)
+		if tx != nil {
+			err = s.subRepo.UpsertTx(ctx, tx, newSub)
+		} else {
+			err = s.subRepo.Upsert(ctx, newSub)
+		}
 		if err != nil {
 			return fmt.Errorf("failed to renew subscription: %w", err)
 		}
@@ -176,7 +197,12 @@ func (s *BillingService) checkAndConsumeUsage(
 		return errors.New("metric not available in plan")
 	}
 
-	projects, err := s.projectRepo.List(ctx, event.UserID)
+	var projects []*entity.Project
+	if tx != nil {
+		projects, err = s.projectRepo.ListTx(ctx, tx, event.UserID)
+	} else {
+		projects, err = s.projectRepo.List(ctx, event.UserID)
+	}
 	if err != nil {
 		return fmt.Errorf("failed to list projects: %w", err)
 	}
@@ -187,7 +213,12 @@ func (s *BillingService) checkAndConsumeUsage(
 	}
 
 	// Check aggregate usage
-	used, err := s.usageAggregateRepo.Get(ctx, projectIDs, event.Metric, sub.CurrentPeriodStart, sub.CurrentPeriodEnd)
+	var used int64
+	if tx != nil {
+		used, err = s.usageAggregateRepo.GetTx(ctx, tx, projectIDs, event.Metric, sub.CurrentPeriodStart, sub.CurrentPeriodEnd)
+	} else {
+		used, err = s.usageAggregateRepo.Get(ctx, projectIDs, event.Metric, sub.CurrentPeriodStart, sub.CurrentPeriodEnd)
+	}
 	if err != nil {
 		return err
 	}
@@ -200,7 +231,11 @@ func (s *BillingService) checkAndConsumeUsage(
 	// Record usage. Only this write needs to be atomic: usage_log and
 	// usage_aggregate must move together or not at all. runWrite decides whether
 	// that happens in its own transaction or the caller's.
-	return runWrite(ctx, func(tx pgx.Tx) error {
+	write := func(tx pgx.Tx) error {
 		return s.usageLogRepo.Add(ctx, tx, event.ProjectID, event.Metric, event.Amount, sub.CurrentPeriodStart, sub.CurrentPeriodEnd)
-	})
+	}
+	if tx != nil {
+		return write(tx)
+	}
+	return dbx.WithTx(ctx, s.db, write)
 }

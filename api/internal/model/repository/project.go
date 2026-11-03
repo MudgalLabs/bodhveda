@@ -3,6 +3,7 @@ package repository
 import (
 	"context"
 
+	"github.com/jackc/pgx/v5"
 	"github.com/mudgallabs/bodhveda/internal/model/entity"
 )
 
@@ -16,6 +17,8 @@ type ProjectReader interface {
 	// reaches it through an API key that is already project-scoped.
 	Get(ctx context.Context, projectID int) (*entity.Project, error)
 	List(ctx context.Context, userID int) ([]*entity.Project, error)
+	// ⚠️ Read inside the caller's transaction by CheckAndConsumeUsageTx — see there.
+	ListTx(ctx context.Context, tx pgx.Tx, userID int) ([]*entity.Project, error)
 	UserOwns(ctx context.Context, userID, projectID int) (bool, error)
 }
 

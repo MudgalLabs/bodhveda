@@ -3,6 +3,7 @@ package repository
 import (
 	"context"
 
+	"github.com/jackc/pgx/v5"
 	"github.com/mudgallabs/bodhveda/internal/model/dto"
 	"github.com/mudgallabs/bodhveda/internal/model/entity"
 	"github.com/mudgallabs/bodhveda/internal/model/enum"
@@ -26,6 +27,8 @@ type RecipientContactReader interface {
 	// id. ⚠️ Recipients without a primary contact are ABSENT from the map, not
 	// mapped to nil — see the implementation.
 	GetPrimaryForRecipients(ctx context.Context, projectID int, recipientExtIDs []string, medium enum.Medium) (map[string]*entity.RecipientContact, error)
+	// GetPrimaryForRecipientsTx is GetPrimaryForRecipients on the caller's transaction.
+	GetPrimaryForRecipientsTx(ctx context.Context, tx pgx.Tx, projectID int, recipientExtIDs []string, medium enum.Medium) (map[string]*entity.RecipientContact, error)
 }
 
 type RecipientContactWriter interface {

@@ -4,6 +4,7 @@ import (
 	"context"
 	"fmt"
 
+	"github.com/jackc/pgx/v5"
 	"github.com/jackc/pgx/v5/pgxpool"
 	"github.com/mudgallabs/bodhveda/internal/model/entity"
 	"github.com/mudgallabs/bodhveda/internal/model/repository"
@@ -21,6 +22,20 @@ func NewUserSubscriptionRepo(db *pgxpool.Pool) repository.UserSubscriptionReposi
 		db:   db,
 		pool: db,
 	}
+}
+
+// onTx is this repo with every query routed through tx. Safe because every
+// method here goes through r.db; none opens its own transaction on r.pool.
+func (r *UserSubscriptionRepo) onTx(tx pgx.Tx) *UserSubscriptionRepo {
+	return &UserSubscriptionRepo{db: tx, pool: r.pool}
+}
+
+func (r *UserSubscriptionRepo) GetTx(ctx context.Context, tx pgx.Tx, userID int) (*entity.UserSubscription, error) {
+	return r.onTx(tx).Get(ctx, userID)
+}
+
+func (r *UserSubscriptionRepo) UpsertTx(ctx context.Context, tx pgx.Tx, sub *entity.UserSubscription) error {
+	return r.onTx(tx).Upsert(ctx, sub)
 }
 
 func (r *UserSubscriptionRepo) Get(ctx context.Context, userID int) (*entity.UserSubscription, error) {

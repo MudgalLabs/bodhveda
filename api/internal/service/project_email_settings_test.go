@@ -5,6 +5,7 @@ import (
 	"context"
 	"testing"
 
+	"github.com/jackc/pgx/v5"
 	"github.com/mudgallabs/bodhveda/internal/env"
 	"github.com/mudgallabs/bodhveda/internal/model/dto"
 	"github.com/mudgallabs/bodhveda/internal/model/entity"
@@ -30,6 +31,10 @@ func (f *fakeProjectEmailSettingsRepo) Get(_ context.Context, projectID int) (*e
 	// Return a copy so callers can't mutate our store by reference.
 	cp := *s
 	return &cp, nil
+}
+
+func (f *fakeProjectEmailSettingsRepo) GetTx(ctx context.Context, _ pgx.Tx, projectID int) (*entity.ProjectEmailSettings, error) {
+	return f.Get(ctx, projectID)
 }
 
 func (f *fakeProjectEmailSettingsRepo) Upsert(_ context.Context, s *entity.ProjectEmailSettings) (*entity.ProjectEmailSettings, error) {

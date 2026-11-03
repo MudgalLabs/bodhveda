@@ -986,7 +986,8 @@ func (s *NotificationService) ResolveBroadcastEmailAudience(
 	var err error
 
 	cap := defaultBroadcastEmailCap
-	settings, err := s.projectEmailRepo.Get(ctx, broadcast.ProjectID)
+	// ⚠️ On `tx`, not the pool — see FanOutBroadcastEmail.
+	settings, err := s.projectEmailRepo.GetTx(ctx, tx, broadcast.ProjectID)
 	if err != nil {
 		if !errors.Is(err, tantraRepo.ErrNotFound) {
 			return nil, fmt.Errorf("get project email settings: %w", err)
@@ -1052,8 +1053,12 @@ func (s *NotificationService) FanOutBroadcastEmail(
 		candidates = append(candidates, n.RecipientExtID)
 	}
 
-	eligibleExtIDs, err := s.preferenceRepo.FilterEligibleRecipientsForBroadcast(
-		ctx, broadcast.ProjectID, target, enum.MediumEmail, candidates,
+	// ⚠️ Every read below goes through `tx`, never the pool. The caller holds a
+	// pool connection for this transaction; a pool read here would ask for a
+	// SECOND one, and nine concurrent batches on the 4-connection prod pool
+	// deadlocked until Asynq's 30-minute timeout (broadcast 4, 2026-11-03).
+	eligibleExtIDs, err := s.preferenceRepo.FilterEligibleRecipientsForBroadcastTx(
+		ctx, tx, broadcast.ProjectID, target, enum.MediumEmail, candidates,
 	)
 	if err != nil {
 		return nil, fmt.Errorf("filter email-eligible recipients: %w", err)
@@ -1062,12 +1067,12 @@ func (s *NotificationService) FanOutBroadcastEmail(
 		return nil, nil
 	}
 
-	settings, err := s.projectEmailRepo.Get(ctx, broadcast.ProjectID)
+	settings, err := s.projectEmailRepo.GetTx(ctx, tx, broadcast.ProjectID)
 	if err != nil {
 		return nil, fmt.Errorf("get project email settings: %w", err)
 	}
 
-	contacts, err := s.contactRepo.GetPrimaryForRecipients(ctx, broadcast.ProjectID, eligibleExtIDs, enum.MediumEmail)
+	contacts, err := s.contactRepo.GetPrimaryForRecipientsTx(ctx, tx, broadcast.ProjectID, eligibleExtIDs, enum.MediumEmail)
 	if err != nil {
 		return nil, fmt.Errorf("get primary contacts: %w", err)
 	}
@@ -1121,7 +1126,7 @@ func (s *NotificationService) FanOutBroadcastEmail(
 	// as not mandatory: that preserves the header, and failing to prove a target
 	// mandatory must never strip a legitimate unsubscribe.
 	mandatory := false
-	if _, isMandatory, cerr := s.preferenceRepo.LookupCatalogEntry(ctx, broadcast.ProjectID, target, enum.MediumEmail); cerr == nil {
+	if _, isMandatory, cerr := s.preferenceRepo.LookupCatalogEntryTx(ctx, tx, broadcast.ProjectID, target, enum.MediumEmail); cerr == nil {
 		mandatory = isMandatory
 	} else {
 		logger.Get().Warnf("lookup catalog entry for broadcast %d target %s/%s/%s: %v",

@@ -738,6 +738,18 @@ const (
 //	cascade false, recipient had a row of their own -> excluded_disabled
 //	cascade false, recipient said nothing           -> excluded_not_cataloged
 func (r *PreferenceRepo) CountBroadcastAudience(ctx context.Context, projectID int, target dto.Target, medium enum.Medium) (*entity.BroadcastAudience, error) {
+	return countBroadcastAudience(ctx, r.db, projectID, target, medium)
+}
+
+// CountBroadcastAudienceTx is CountBroadcastAudience on the caller's transaction. ⚠️ Use it whenever a
+// transaction is open: the pool variant asks for a second connection while
+// the transaction pins the first, which deadlocks the pool under concurrency
+// (2026-07-28 and again 2026-11-03 — see BillingService.CheckAndConsumeUsage).
+func (r *PreferenceRepo) CountBroadcastAudienceTx(ctx context.Context, tx pgx.Tx, projectID int, target dto.Target, medium enum.Medium) (*entity.BroadcastAudience, error) {
+	return countBroadcastAudience(ctx, tx, projectID, target, medium)
+}
+
+func countBroadcastAudience(ctx context.Context, db dbx.DBExecutor, projectID int, target dto.Target, medium enum.Medium) (*entity.BroadcastAudience, error) {
 	sql := `
 		SELECT
 			COUNT(*) AS total,
@@ -755,7 +767,7 @@ func (r *PreferenceRepo) CountBroadcastAudience(ctx context.Context, projectID i
 	`
 
 	var a entity.BroadcastAudience
-	err := r.db.QueryRow(ctx, sql, projectID, target.Channel, target.Topic, target.Event, string(medium)).
+	err := db.QueryRow(ctx, sql, projectID, target.Channel, target.Topic, target.Event, string(medium)).
 		Scan(&a.Total, &a.Eligible, &a.ExcludedDisabled, &a.ExcludedNotCataloged)
 	if err != nil {
 		return nil, fmt.Errorf("query and scan: %w", err)
@@ -767,13 +779,25 @@ func (r *PreferenceRepo) CountBroadcastAudience(ctx context.Context, projectID i
 // ListEligibleRecipientExtIDsForBroadcast returns the recipients opted in to a
 // (target, medium) for broadcast fan-out.
 func (r *PreferenceRepo) ListEligibleRecipientExtIDsForBroadcast(ctx context.Context, projectID int, target dto.Target, medium enum.Medium) ([]string, error) {
+	return listEligibleRecipientExtIDsForBroadcast(ctx, r.db, projectID, target, medium)
+}
+
+// ListEligibleRecipientExtIDsForBroadcastTx is ListEligibleRecipientExtIDsForBroadcast on the caller's transaction. ⚠️ Use it whenever a
+// transaction is open: the pool variant asks for a second connection while
+// the transaction pins the first, which deadlocks the pool under concurrency
+// (2026-07-28 and again 2026-11-03 — see BillingService.CheckAndConsumeUsage).
+func (r *PreferenceRepo) ListEligibleRecipientExtIDsForBroadcastTx(ctx context.Context, tx pgx.Tx, projectID int, target dto.Target, medium enum.Medium) ([]string, error) {
+	return listEligibleRecipientExtIDsForBroadcast(ctx, tx, projectID, target, medium)
+}
+
+func listEligibleRecipientExtIDsForBroadcast(ctx context.Context, db dbx.DBExecutor, projectID int, target dto.Target, medium enum.Medium) ([]string, error) {
 	sql := `
 		SELECT r.external_id
 		FROM recipient r` + broadcastEligibilityJoins + `
 		WHERE r.project_id = $1 AND ` + broadcastEligibleExpr + `;
 	`
 
-	rows, err := r.db.Query(ctx, sql, projectID, target.Channel, target.Topic, target.Event, string(medium))
+	rows, err := db.Query(ctx, sql, projectID, target.Channel, target.Topic, target.Event, string(medium))
 	if err != nil {
 		return nil, fmt.Errorf("query: %w", err)
 	}
@@ -884,6 +908,18 @@ func catalogMatch(channelExpr, topicExpr, eventExpr, mediumExpr string) string {
 // Precedence is exact-before-wildcard so that `mandatory` reads off the most
 // specific row, matching how enabled resolves.
 func (r *PreferenceRepo) LookupCatalogEntry(ctx context.Context, projectID int, target dto.Target, medium enum.Medium) (exists bool, mandatory bool, err error) {
+	return lookupCatalogEntry(ctx, r.db, projectID, target, medium)
+}
+
+// LookupCatalogEntryTx is LookupCatalogEntry on the caller's transaction. ⚠️ Use it whenever a
+// transaction is open: the pool variant asks for a second connection while
+// the transaction pins the first, which deadlocks the pool under concurrency
+// (2026-07-28 and again 2026-11-03 — see BillingService.CheckAndConsumeUsage).
+func (r *PreferenceRepo) LookupCatalogEntryTx(ctx context.Context, tx pgx.Tx, projectID int, target dto.Target, medium enum.Medium) (exists bool, mandatory bool, err error) {
+	return lookupCatalogEntry(ctx, tx, projectID, target, medium)
+}
+
+func lookupCatalogEntry(ctx context.Context, db dbx.DBExecutor, projectID int, target dto.Target, medium enum.Medium) (exists bool, mandatory bool, err error) {
 	sql := `
 		SELECT mandatory
 		FROM preference
@@ -894,7 +930,7 @@ func (r *PreferenceRepo) LookupCatalogEntry(ctx context.Context, projectID int, 
 		LIMIT 1;
 	`
 
-	err = r.db.QueryRow(ctx, sql, projectID, target.Channel, target.Topic, target.Event, string(medium)).Scan(&mandatory)
+	err = db.QueryRow(ctx, sql, projectID, target.Channel, target.Topic, target.Event, string(medium)).Scan(&mandatory)
 	if err != nil {
 		if err == pgx.ErrNoRows {
 			return false, false, nil
@@ -1009,9 +1045,19 @@ func (r *PreferenceRepo) ListUncatalogedSentTargets(ctx context.Context, project
 // It is literally the same eligibility rule as
 // ListEligibleRecipientExtIDsForBroadcast — same shared fragments, one extra
 // predicate narrowing to the given ids.
-func (r *PreferenceRepo) FilterEligibleRecipientsForBroadcast(
-	ctx context.Context, projectID int, target dto.Target, medium enum.Medium, recipientExtIDs []string,
-) ([]string, error) {
+func (r *PreferenceRepo) FilterEligibleRecipientsForBroadcast(ctx context.Context, projectID int, target dto.Target, medium enum.Medium, recipientExtIDs []string) ([]string, error) {
+	return filterEligibleRecipientsForBroadcast(ctx, r.db, projectID, target, medium, recipientExtIDs)
+}
+
+// FilterEligibleRecipientsForBroadcastTx is FilterEligibleRecipientsForBroadcast on the caller's transaction. ⚠️ Use it whenever a
+// transaction is open: the pool variant asks for a second connection while
+// the transaction pins the first, which deadlocks the pool under concurrency
+// (2026-07-28 and again 2026-11-03 — see BillingService.CheckAndConsumeUsage).
+func (r *PreferenceRepo) FilterEligibleRecipientsForBroadcastTx(ctx context.Context, tx pgx.Tx, projectID int, target dto.Target, medium enum.Medium, recipientExtIDs []string) ([]string, error) {
+	return filterEligibleRecipientsForBroadcast(ctx, tx, projectID, target, medium, recipientExtIDs)
+}
+
+func filterEligibleRecipientsForBroadcast(ctx context.Context, db dbx.DBExecutor, projectID int, target dto.Target, medium enum.Medium, recipientExtIDs []string) ([]string, error) {
 	if len(recipientExtIDs) == 0 {
 		return nil, nil
 	}
@@ -1024,7 +1070,7 @@ func (r *PreferenceRepo) FilterEligibleRecipientsForBroadcast(
 			AND ` + broadcastEligibleExpr + `;
 	`
 
-	rows, err := r.db.Query(ctx, sql, projectID, target.Channel, target.Topic, target.Event, string(medium), recipientExtIDs)
+	rows, err := db.Query(ctx, sql, projectID, target.Channel, target.Topic, target.Event, string(medium), recipientExtIDs)
 	if err != nil {
 		return nil, fmt.Errorf("query: %w", err)
 	}

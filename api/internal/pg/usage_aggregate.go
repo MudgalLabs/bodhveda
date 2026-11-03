@@ -24,6 +24,10 @@ func NewUsageAggregateRepo(db *pgxpool.Pool) repository.UsageAggregateRepository
 	}
 }
 
+func (r *UsageAggregateRepo) GetTx(ctx context.Context, tx pgx.Tx, projectIDs []int, metric entity.Metric, periodStart, periodEnd time.Time) (int64, error) {
+	return (&UsageAggregateRepo{db: tx, pool: r.pool}).Get(ctx, projectIDs, metric, periodStart, periodEnd)
+}
+
 func (r *UsageAggregateRepo) Get(ctx context.Context, projectIDs []int, metric entity.Metric, periodStart, periodEnd time.Time) (int64, error) {
 	var used int64
 

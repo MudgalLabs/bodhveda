@@ -303,9 +303,19 @@ func (r *RecipientContactRepo) Delete(ctx context.Context, projectID int, recipi
 // than mapped to nil. Broadcast email records those as `no_contact`, which is a
 // real outcome the caller must handle — an absent key forces that, where a nil
 // value invites a silent skip.
-func (r *RecipientContactRepo) GetPrimaryForRecipients(
-	ctx context.Context, projectID int, recipientExtIDs []string, medium enum.Medium,
-) (map[string]*entity.RecipientContact, error) {
+func (r *RecipientContactRepo) GetPrimaryForRecipients(ctx context.Context, projectID int, recipientExtIDs []string, medium enum.Medium) (map[string]*entity.RecipientContact, error) {
+	return getPrimaryForRecipients(ctx, r.db, projectID, recipientExtIDs, medium)
+}
+
+// GetPrimaryForRecipientsTx is GetPrimaryForRecipients on the caller's transaction. ⚠️ Use it whenever a
+// transaction is open: the pool variant asks for a second connection while
+// the transaction pins the first, which deadlocks the pool under concurrency
+// (2026-07-28 and again 2026-11-03 — see BillingService.CheckAndConsumeUsage).
+func (r *RecipientContactRepo) GetPrimaryForRecipientsTx(ctx context.Context, tx pgx.Tx, projectID int, recipientExtIDs []string, medium enum.Medium) (map[string]*entity.RecipientContact, error) {
+	return getPrimaryForRecipients(ctx, tx, projectID, recipientExtIDs, medium)
+}
+
+func getPrimaryForRecipients(ctx context.Context, db dbx.DBExecutor, projectID int, recipientExtIDs []string, medium enum.Medium) (map[string]*entity.RecipientContact, error) {
 	out := make(map[string]*entity.RecipientContact, len(recipientExtIDs))
 
 	if len(recipientExtIDs) == 0 {
@@ -318,7 +328,7 @@ func (r *RecipientContactRepo) GetPrimaryForRecipients(
 		WHERE project_id = $1 AND recipient_external_id = ANY($2) AND medium = $3 AND is_primary
 	`, recipientContactFields)
 
-	rows, err := r.db.Query(ctx, sql, projectID, recipientExtIDs, string(medium))
+	rows, err := db.Query(ctx, sql, projectID, recipientExtIDs, string(medium))
 	if err != nil {
 		return nil, fmt.Errorf("query primary contacts: %w", err)
 	}

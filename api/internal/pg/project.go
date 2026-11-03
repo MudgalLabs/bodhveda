@@ -69,6 +69,10 @@ func (r *ProjectRepo) Get(ctx context.Context, projectID int) (*entity.Project, 
 	return p, nil
 }
 
+func (r *ProjectRepo) ListTx(ctx context.Context, tx pgx.Tx, userID int) ([]*entity.Project, error) {
+	return (&ProjectRepo{db: tx, pool: r.pool}).List(ctx, userID)
+}
+
 func (r *ProjectRepo) List(ctx context.Context, userID int) ([]*entity.Project, error) {
 	sql := `
 		SELECT ` + projectColumns + `

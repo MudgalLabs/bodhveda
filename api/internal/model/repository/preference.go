@@ -4,6 +4,7 @@ import (
 	"context"
 	"time"
 
+	"github.com/jackc/pgx/v5"
 	"github.com/mudgallabs/bodhveda/internal/model/dto"
 	"github.com/mudgallabs/bodhveda/internal/model/entity"
 	"github.com/mudgallabs/bodhveda/internal/model/enum"
@@ -50,6 +51,13 @@ type PreferenceReader interface {
 	// and a drift between them shows up as a tree whose numbers do not add up.
 	// pg keeps them adjacent and cross-checks them in a test for that reason.
 	CountBroadcastAudience(ctx context.Context, projectID int, target dto.Target, medium enum.Medium) (*entity.BroadcastAudience, error)
+
+	// ⚠️ Every read a broadcast makes inside its transaction has a Tx variant —
+	// a pool read there needs a second connection and deadlocks the pool.
+	CountBroadcastAudienceTx(ctx context.Context, tx pgx.Tx, projectID int, target dto.Target, medium enum.Medium) (*entity.BroadcastAudience, error)
+	ListEligibleRecipientExtIDsForBroadcastTx(ctx context.Context, tx pgx.Tx, projectID int, target dto.Target, medium enum.Medium) ([]string, error)
+	FilterEligibleRecipientsForBroadcastTx(ctx context.Context, tx pgx.Tx, projectID int, target dto.Target, medium enum.Medium, recipientExtIDs []string) ([]string, error)
+	LookupCatalogEntryTx(ctx context.Context, tx pgx.Tx, projectID int, target dto.Target, medium enum.Medium) (exists bool, mandatory bool, err error)
 	// ResolveRecipientPreferences answers every known (target, medium) for one
 	// recipient with the SAME cascade ShouldDirectNotificationBeDelivered uses,
 	// in one query. Callers pass the mediums to resolve (see enum.ActiveMediums).

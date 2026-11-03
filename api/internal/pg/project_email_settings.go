@@ -3,6 +3,7 @@ package pg
 import (
 	"context"
 
+	"github.com/jackc/pgx/v5"
 	"github.com/jackc/pgx/v5/pgxpool"
 	"github.com/mudgallabs/bodhveda/internal/model/entity"
 	"github.com/mudgallabs/bodhveda/internal/model/enum"
@@ -41,13 +42,25 @@ func scanProjectEmailSettings(row interface {
 }
 
 func (r *ProjectEmailSettingsRepo) Get(ctx context.Context, projectID int) (*entity.ProjectEmailSettings, error) {
+	return getProjectEmailSettings(ctx, r.db, projectID)
+}
+
+// GetTx is Get on the caller's transaction. ⚠️ Use it whenever a
+// transaction is open: the pool variant asks for a second connection while
+// the transaction pins the first, which deadlocks the pool under concurrency
+// (2026-07-28 and again 2026-11-03 — see BillingService.CheckAndConsumeUsage).
+func (r *ProjectEmailSettingsRepo) GetTx(ctx context.Context, tx pgx.Tx, projectID int) (*entity.ProjectEmailSettings, error) {
+	return getProjectEmailSettings(ctx, tx, projectID)
+}
+
+func getProjectEmailSettings(ctx context.Context, db dbx.DBExecutor, projectID int) (*entity.ProjectEmailSettings, error) {
 	sql := `
 		SELECT ` + projectEmailSettingsFields + `
 		FROM project_email_settings
 		WHERE project_id = $1
 	`
 
-	row := r.db.QueryRow(ctx, sql, projectID)
+	row := db.QueryRow(ctx, sql, projectID)
 	settings, err := scanProjectEmailSettings(row)
 	if err != nil {
 		if err.Error() == "no rows in result set" {
