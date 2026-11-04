@@ -20,7 +20,8 @@ func initRouter() http.Handler {
 	r := chi.NewRouter()
 
 	r.Use(chimiddleware.RequestID)
-	r.Use(chimiddleware.RealIP)
+	// ⚠️ Not chimiddleware.RealIP — it trusts client-settable headers. See ProxiedClientIP.
+	r.Use(middleware.ProxiedClientIP)
 	r.Use(middleware.AttachLoggerMiddleware)
 	r.Use(middleware.TimezoneMiddleware)
 	r.Use(middleware.LogRequestMiddleware)
